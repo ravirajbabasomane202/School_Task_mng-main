@@ -1,0 +1,74 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color: #1E293B;
+  background: #F1F4F9;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --color-background: #F1F4F9;
+  --color-primary-surface: #FFFFFF;
+  --color-secondary-surface: #F8F9FC;
+  --color-primary-text: #1E293B;
+  --color-secondary-text: #5B6E8C;
+  --color-tertiary-text: #8A99B0;
+  --color-blue-accent: #185FA5;
+  --color-border: #EFF2F6;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: #F1F4F9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modern custom scrollbar: thin, rounded thumb, theme-matched, no horizontal
+   scrollbar. Applied to the sidebar menu and the main scrollable content
+   area. Works in Chrome/Edge (::-webkit-scrollbar) and Firefox
+   (scrollbar-width/scrollbar-color). */
+.custom-scrollbar {
+  overflow-x: hidden;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: #C7D3E3 transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 0;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #C7D3E3;
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #A9BAD1;
+}
+
+.custom-scrollbar::-webkit-scrollbar-corner {
+  background: transparent;
+}
