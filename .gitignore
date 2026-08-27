@@ -37,4 +37,4 @@ Thumbs.db
 .vscode/
 
 backend/uploads/*
-!backend/uploads/.gitkeep
+!backend/uploads/.gitkeepbackend/.env

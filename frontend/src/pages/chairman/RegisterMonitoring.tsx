@@ -99,11 +99,10 @@ function RegisterMonitoring() {
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => updateRegister(id, data),
     onSuccess: (_updated, variables) => {
       qc.invalidateQueries({ queryKey: ['registers'] });
-      // Refresh the combined calendar (it shows every register) and only the
-      // single-register popup cache for the record that actually changed —
-      // other registers' popups stay untouched (Section 2 of the spec).
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'overview'] });
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'single', variables.id] });
+      // Invalidate every cache keyed under 'register-calendar' (overview,
+      // single-register popup, AND the Performance Registry panel) — a
+      // narrower prefix here silently leaves other consumers stale.
+      qc.invalidateQueries({ queryKey: ['register-calendar'] });
       toast.success('Register updated successfully');
       setEditingRegister(null);
       setEditForm(null);
@@ -122,8 +121,7 @@ function RegisterMonitoring() {
       updateOccurrenceStatus(id, occurrenceDate, status),
     onSuccess: (_updated, variables) => {
       qc.invalidateQueries({ queryKey: ['registers'] });
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'overview'] });
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'single', variables.id] });
+      qc.invalidateQueries({ queryKey: ['register-calendar'] });
       toast.success('Occurrence updated successfully');
       setOccurrenceTarget(null);
     },
@@ -134,8 +132,7 @@ function RegisterMonitoring() {
     mutationFn: deleteRegister,
     onSuccess: (_result, id) => {
       qc.invalidateQueries({ queryKey: ['registers'] });
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'overview'] });
-      qc.invalidateQueries({ queryKey: ['register-calendar', 'single', id] });
+      qc.invalidateQueries({ queryKey: ['register-calendar'] });
       toast.success('Register deleted successfully');
       setDeleteTarget(null);
     },

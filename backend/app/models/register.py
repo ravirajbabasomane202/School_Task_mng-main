@@ -188,6 +188,7 @@ class Register(db.Model):
             }
 
         occurrences = []
+        covered_dates = set()
         cursor = self.start_date
         # Bounded walk (guards against pathological ranges with a DAILY cycle).
         for _ in range(5000):
@@ -211,8 +212,28 @@ class Register(db.Model):
                     'dot_color': color,
                     'occurrence_id': occurrence_id,
                 })
+                covered_dates.add(cursor)
             cursor = calculate_next_due_date(cursor, self.cycle)
 
+        # "Update Status" (Register Monitoring / calendar popup) always writes
+        # its RegisterOccurrence row for TODAY, regardless of whether today
+        # actually falls on this register's cyclic schedule above -- e.g. a
+        # WEEKLY register due every Monday can still be marked OK/REJECTED on
+        # a Wednesday. Without this, that occurrence is a real DB row but the
+        # cyclic walk never visits its date, so it silently vanishes from the
+        # calendar and from anything built on it (e.g. Register Performance's
+        # completed/missed/rejected counts). Surface any such off-cycle,
+        # individually-recorded occurrence that falls in range too.
+        for occ_date, record in occurrence_map.items():
+            if range_start <= occ_date <= range_end and occ_date not in covered_dates:
+                occurrences.append({
+                    'date': occ_date,
+                    'status': record.computed_status(),
+                    'dot_color': record.dot_color(),
+                    'occurrence_id': record.id,
+                })
+
+        occurrences.sort(key=lambda o: o['date'])
         return occurrences
 
     def effective_today_status(self, today=None, occurrence=None):

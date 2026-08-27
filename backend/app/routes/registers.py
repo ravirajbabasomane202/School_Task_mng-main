@@ -116,8 +116,6 @@ def list_registers():
         query = query.filter_by(cycle=cycle.upper())
     if priority:
         query = query.filter_by(priority=priority.upper())
-    if status:
-        query = query.filter_by(status=status.upper())
 
     registers = query.order_by(Register.next_due_date.asc()).all()
 
@@ -135,6 +133,18 @@ def list_registers():
                 RegisterOccurrence.occurrence_date == today,
             ).all()
         }
+
+    # The status filter must match the SAME effective status shown to the
+    # user (today's occurrence when one exists, else the register's own
+    # `status`). Filtering on the raw `Register.status` column here missed
+    # OK/REJECTED registers because that column is never touched by the
+    # per-occurrence "Update Status" action anymore.
+    if status:
+        status = status.upper()
+        registers = [
+            r for r in registers
+            if r.effective_today_status(today, todays_occurrences.get(r.id))[0] == status
+        ]
 
     return success([r.to_dict(today=today, occurrence=todays_occurrences.get(r.id)) for r in registers])
 
