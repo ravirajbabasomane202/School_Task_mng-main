@@ -12,16 +12,25 @@ from app.utils.decorators import roles_required
 registers_bp = Blueprint('registers', __name__)
 
 REGISTER_MANAGER_ROLES = ('CHAIRMAN',)
+# Roles that can VIEW every register (school-wide), even though they cannot
+# create/edit/delete one. The Director's dashboard/sidebar exposes a
+# "Registers" page (`/director/registers`) that is meant to be school-wide,
+# just like the Chairman's — previously DIRECTOR was missing from this list,
+# so a newly added register (correctly visible to the Chairman who created
+# it) never showed up for the Director because the query was silently
+# scoped down to `head_id == user.id`, which the Director almost never
+# matches. Add any other "view everything" roles here as needed.
+REGISTER_VIEW_ALL_ROLES = (*REGISTER_MANAGER_ROLES, 'DIRECTOR')
 
 
 def _scope_to_user(query, user):
     """Restrict a Register query to records assigned/available to `user`.
 
-    The Chairman can see and manage every register. Every other role only
-    sees registers where they are the assigned Head (`head_id`), i.e. the
-    registers actually available to them.
+    Roles in REGISTER_VIEW_ALL_ROLES (Chairman, Director) see and can browse
+    every register. Every other role only sees registers where they are the
+    assigned Head (`head_id`), i.e. the registers actually available to them.
     """
-    if user.role in REGISTER_MANAGER_ROLES:
+    if user.role in REGISTER_VIEW_ALL_ROLES:
         return query
     return query.filter(Register.head_id == user.id)
 
@@ -108,6 +117,7 @@ def list_registers():
     cycle = request.args.get('cycle')
     priority = request.args.get('priority')
     status = request.args.get('status')
+    department_id = request.args.get('department_id')
 
     if search:
         like = f'%{search}%'
@@ -116,6 +126,9 @@ def list_registers():
         query = query.filter_by(cycle=cycle.upper())
     if priority:
         query = query.filter_by(priority=priority.upper())
+    if department_id:
+        # A register's "department" is derived from its assigned Head's department.
+        query = query.join(User, Register.head_id == User.id).filter(User.department_id == int(department_id))
 
     registers = query.order_by(Register.next_due_date.asc()).all()
 
@@ -242,7 +255,7 @@ def get_register(register_id: int):
     register = db.session.get(Register, register_id)
     if not register:
         return error('Register not found', 404)
-    if user.role not in REGISTER_MANAGER_ROLES and register.head_id != user.id:
+    if user.role not in REGISTER_VIEW_ALL_ROLES and register.head_id != user.id:
         return error('You do not have access to this register', 403)
 
     today = date.today()
@@ -484,7 +497,7 @@ def register_calendar(register_id: int):
     register = db.session.get(Register, register_id)
     if not register:
         return error('Register not found', 404)
-    if user.role not in REGISTER_MANAGER_ROLES and register.head_id != user.id:
+    if user.role not in REGISTER_VIEW_ALL_ROLES and register.head_id != user.id:
         return error('You do not have access to this register', 403)
 
     today = date.today()
