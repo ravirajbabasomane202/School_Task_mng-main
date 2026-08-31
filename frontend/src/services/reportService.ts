@@ -155,6 +155,18 @@ export const exportReportFile = async ({
   );
 };
 
+export const exportPerformanceReport = async (format: 'pdf' | 'excel') => {
+  const response = await api.get(API_ENDPOINTS.reports.performanceExport, {
+    params: { format },
+    responseType: 'blob'
+  });
+
+  triggerDownload(
+    response.data as Blob,
+    `performance-report.${format === 'pdf' ? 'pdf' : 'xls'}`
+  );
+};
+
 export const downloadReport = async (id: number, format: 'pdf' | 'excel') => {
   const response = await api.get(API_ENDPOINTS.reports.download(id, format), {
     responseType: 'blob'
