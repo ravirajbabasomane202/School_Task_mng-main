@@ -29,6 +29,7 @@ export const API_ENDPOINTS = {
     weekly: '/reports/weekly',
     monthly: '/reports/monthly',
     export: '/reports/export',
+    performanceExport: '/reports/performance-export',
     history: '/reports/history',
     download: (id: number, format: 'pdf' | 'excel') => `/reports/download/${id}/${format}`
   },
