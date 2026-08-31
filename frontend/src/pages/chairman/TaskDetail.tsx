@@ -391,11 +391,6 @@ function TaskDetailContent() {
               {task.assignedTo?.name ?? task.assignedToName ?? '--'}
             </p>
           </MetaField>
-          <MetaField label="Department">
-            <p className="text-sm font-medium text-[#1E293B]">
-              {task.department?.name ?? task.departmentName ?? '--'}
-            </p>
-          </MetaField>
           <MetaField label="Start date">
             <p className="text-sm font-medium text-[#1E293B]">{fmtDate(task.start_date)}</p>
           </MetaField>
