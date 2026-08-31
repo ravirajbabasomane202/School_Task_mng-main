@@ -17,6 +17,8 @@ import {
   updateRegister,
 } from '../../services/registerService';
 import { getAllDepartments } from '../../services/departmentService';
+import { getStaffPerformance } from '../../services/dashboardService';
+import { getRoleLabel } from '../../utils/roleUtils';
 import {
   REGISTER_CYCLES,
   REGISTER_PRIORITIES,
@@ -103,6 +105,32 @@ function RegisterMonitoring() {
     queryKey: ['departments'],
     queryFn: getAllDepartments,
   });
+
+  // Staff Performance values, folded into the Export below instead of
+  // having a second, separate "Export Performance Report" flow on the
+  // Staff Performance page. `heads` (already fetched above) is what maps a
+  // performance row's `role` to a department, since the performance API
+  // itself only returns `role`.
+  const { data: staffPerformance = [] } = useQuery({
+    queryKey: ['staffPerformance'],
+    queryFn: getStaffPerformance,
+  });
+
+  const roleToDepartmentId = useMemo(() => {
+    const map = new Map<string, number>();
+    heads.forEach((h) => {
+      if (h.department_id != null) map.set(h.role, h.department_id);
+    });
+    return map;
+  }, [heads]);
+
+  // Same department filter the register list/table above already applies —
+  // kept in sync so the export's Staff Performance section always matches
+  // what's currently on screen.
+  const filteredStaffPerformance = useMemo(() => {
+    if (departmentFilter === 'ALL') return staffPerformance;
+    return staffPerformance.filter((row) => roleToDepartmentId.get(row.role) === departmentFilter);
+  }, [staffPerformance, departmentFilter, roleToDepartmentId]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => updateRegister(id, data),
@@ -194,14 +222,17 @@ function RegisterMonitoring() {
 
   const emptyState = useMemo(() => !isLoading && registers.length === 0, [isLoading, registers]);
 
-  // Export the currently filtered (search / cycle / priority / status) list
-  // of registers to CSV.
+  // Single export for this page: the currently filtered (search / cycle /
+  // priority / status / department) list of registers, PLUS a Staff
+  // Performance section scoped to that same department filter — instead of
+  // a separate "Export Report (Excel)" / "Export (PDF)" pair living on the
+  // Staff Performance page that produced a second, disconnected download.
   const handleExport = () => {
     const csvCell = (value: string | number) => {
       const str = String(value ?? '');
       return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
     };
-    const rows = [
+    const rows: (string | number)[][] = [
       ['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Status', 'Next Due Date', 'Last Completed'],
       ...registers.map((r) => [
         r.name,
@@ -212,6 +243,23 @@ function RegisterMonitoring() {
         r.status,
         r.next_due_date,
         r.last_completed_date ?? '',
+      ]),
+      [],
+      [
+        departmentFilter === 'ALL'
+          ? 'Staff Performance (all departments)'
+          : `Staff Performance (${departments.find((d) => d.id === departmentFilter)?.name ?? departmentFilter})`,
+      ],
+      ['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate', 'Total Registers', 'Completed Registers', 'Overall Performance'],
+      ...filteredStaffPerformance.map((p) => [
+        getRoleLabel(p.role),
+        p.totalTasks,
+        p.completedTasks,
+        p.delayedTasks,
+        `${p.delayRate}%`,
+        p.totalRegisters,
+        p.completedRegisters,
+        `${p.overallPerformance}%`,
       ]),
     ];
     const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
