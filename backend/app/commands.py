@@ -27,13 +27,11 @@ DEFAULT_USERS = [
         'department': None,
         'password': 'chairman123'
     },
-    {
-        'name': 'School Director',
-        'email': 'director@school.com',
-        'role': 'DIRECTOR',
-        'department': None,
-        'password': 'director123'
-    },
+    # NOTE: the default "School Director" seed user was removed per request —
+    # the DIRECTOR role and all of its pages/permissions remain fully
+    # functional; only this specific placeholder seed account was dropped so
+    # it's no longer (re)created by `flask seed`. Add a real Director user via
+    # User Management whenever one is needed.
     {
         'name': 'Property & Maintenance Head',
         'email': 'property@school.com',
@@ -448,3 +446,118 @@ def register_commands(app: Flask):
 
         target = f' for {ip}' if ip else ''
         click.echo(f'Cleared {deleted} failed login attempt(s){target}.')
+
+    @app.cli.command('remove-legacy-users')
+    @click.option('--confirm', is_flag=True, default=False,
+                  help='Actually delete matching users. Without this flag, only a dry-run report is printed.')
+    def remove_legacy_users(confirm: bool):
+        """Permanently remove the legacy 'Housekeeping' and 'School Director' users.
+
+        Matches users by NAME (case-insensitive, exact match after trimming) against:
+          - "Housekeeping"
+          - "School Director"
+
+        Any user whose name contains the word "head" (e.g. "HouseKeeping Head",
+        "Housekeeping Head") is ALWAYS protected/skipped, even if it were somehow
+        also an exact match, per explicit requirement: never touch the
+        Housekeeping Head user.
+
+        Safe by default: run with no flags first to see exactly who would be
+        deleted and whether any other records (tasks, registers, notifications,
+        approvals, etc.) still reference that user. Re-run with --confirm once
+        you're satisfied it's safe. If a matching user still has records tied to
+        them through a required (NOT NULL) relationship, that user is skipped and
+        the blocking table/column is printed so you can reassign that data first.
+        """
+        from app.models.user import User
+        from app.models.register import Register
+        from app.models.task import Task, TaskHistory
+        from app.models.notification import Notification
+        from app.models.approval import Approval
+        from app.models.asset import Asset
+        from app.models.housekeeping import HousekeepingTask
+        from app.models.leave_request import LeaveRequest, ResumptionRequest
+        from app.models.meeting import Meeting, MeetingAttendee
+        from app.models.purchase_order import PurchaseOrder
+        from app.models.recruitment import Recruitment
+        from app.models.salary_increment import SalaryIncrement
+        from app.models.refresh_token import RefreshToken
+
+        TARGET_NAMES = {'housekeeping', 'school director'}
+
+        candidates = [
+            u for u in User.query.all()
+            if u.name.strip().lower() in TARGET_NAMES
+        ]
+
+        protected = [u for u in candidates if 'head' in u.name.strip().lower()]
+        to_process = [u for u in candidates if u not in protected]
+
+        if protected:
+            click.echo('Protected (never deleted, name contains "head"):')
+            for u in protected:
+                click.echo(f'  - SKIP  id={u.id}  name="{u.name}"  role={u.role}  email={u.email}')
+
+        if not to_process:
+            click.echo('No matching "Housekeeping" / "School Director" users found to remove.')
+            return
+
+        # NOT NULL foreign keys to users.id -> deletion is blocked unless these are reassigned first.
+        BLOCKING_CHECKS = [
+            (Task, 'assigned_by'), (Task, 'assigned_to'), (TaskHistory, 'updated_by'),
+            (Notification, 'user_id'),
+            (Approval, 'requested_by'),
+            (HousekeepingTask, 'created_by'),
+            (LeaveRequest, 'user_id'), (ResumptionRequest, 'user_id'),
+            (Meeting, 'created_by'), (MeetingAttendee, 'user_id'),
+            (PurchaseOrder, 'created_by'),
+            (Recruitment, 'created_by'),
+            (SalaryIncrement, 'employee_id'), (SalaryIncrement, 'requested_by'),
+        ]
+        # Nullable foreign keys to users.id -> safe to clear before deleting.
+        NULLABLE_CHECKS = [
+            (Register, 'head_id'), (Register, 'created_by'),
+            (Approval, 'approved_by'),
+            (Asset, 'assigned_to'),
+            (HousekeepingTask, 'assigned_to'),
+            (LeaveRequest, 'reviewed_by'), (ResumptionRequest, 'reviewed_by'),
+            (SalaryIncrement, 'hr_approved_by'), (SalaryIncrement, 'finance_approved_by'),
+        ]
+
+        for user in to_process:
+            blockers = []
+            for model, column in BLOCKING_CHECKS:
+                count = model.query.filter(getattr(model, column) == user.id).count()
+                if count:
+                    blockers.append(f'{model.__tablename__}.{column} ({count} row(s))')
+
+            if blockers:
+                click.echo(f'SKIPPED id={user.id} name="{user.name}" — still referenced by: {", ".join(blockers)}')
+                click.echo('  Reassign or clear those records first, then re-run this command.')
+                continue
+
+            nullable_touched = []
+            for model, column in NULLABLE_CHECKS:
+                count = model.query.filter(getattr(model, column) == user.id).count()
+                if count:
+                    nullable_touched.append(f'{model.__tablename__}.{column} ({count} row(s))')
+
+            if not confirm:
+                extra = f' [would also clear: {", ".join(nullable_touched)}]' if nullable_touched else ''
+                click.echo(f'WOULD DELETE id={user.id} name="{user.name}" role={user.role} email={user.email}{extra}')
+                continue
+
+            for model, column in NULLABLE_CHECKS:
+                model.query.filter(getattr(model, column) == user.id).update(
+                    {column: None}, synchronize_session=False
+                )
+            RefreshToken.query.filter_by(user_id=user.id).delete(synchronize_session=False)
+
+            click.echo(f'DELETING id={user.id} name="{user.name}" role={user.role} email={user.email}')
+            db.session.delete(user)
+
+        if confirm:
+            db.session.commit()
+            click.echo('Done. Legacy users removed (protected Housekeeping Head user left untouched).')
+        else:
+            click.echo('\nDry run only — no changes made. Re-run with --confirm to actually delete.')
