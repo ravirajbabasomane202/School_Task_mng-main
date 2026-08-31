@@ -231,12 +231,7 @@ function TaskTable({
                   onClick={() => onRowClick?.(task)}
                 >
                   <td className="px-4 py-3.5">
-                    <div>
-                      <p className="text-sm font-semibold text-[#1E293B]">{task.title}</p>
-                      <p className="mt-1 text-xs text-[#8A99B0]">
-                        {task.department?.name ?? task.departmentName ?? 'General'}
-                      </p>
-                    </div>
+                    <p className="text-sm font-semibold text-[#1E293B]">{task.title}</p>
                   </td>
                   <td className="px-4 py-3.5 text-sm text-[#36506C]">
                     {task.assignedTo?.name ?? task.assignedToName ?? 'Unassigned'}
