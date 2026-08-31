@@ -109,7 +109,7 @@ function WeeklyReport() {
               <table className="w-full text-sm">
                 <thead className="border-b border-[#EFF2F6]">
                   <tr>
-                    {['Title', 'Assignee', 'Department', 'Priority', 'Status', 'Due Date'].map((h) => (
+                    {['Title', 'Assignee', 'Priority', 'Status', 'Due Date'].map((h) => (
                       <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
                     ))}
                   </tr>
@@ -119,7 +119,6 @@ function WeeklyReport() {
                     <tr key={t.id} className="hover:bg-[#F8F9FC]">
                       <td className="px-4 py-3 font-medium text-[#1E293B]">{t.title}</td>
                       <td className="px-4 py-3 text-[#5B6E8C]">{t.assignee?.name ?? t.assigned_to ?? '--'}</td>
-                      <td className="px-4 py-3 text-[#5B6E8C]">{t.department?.name ?? '--'}</td>
                       <td className="px-4 py-3 text-[#5B6E8C]">{t.priority}</td>
                       <td className="px-4 py-3">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
