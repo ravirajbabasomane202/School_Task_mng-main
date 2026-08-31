@@ -262,6 +262,8 @@ class Register(db.Model):
             'register_no': self.register_no,
             'head_id': self.head_id,
             'head_name': self.head.name if self.head else self.head_name,
+            'department_id': self.head.department_id if self.head else None,
+            'department_name': self.head.department.name if self.head and self.head.department else None,
             'checking_cycle': self.cycle,
             'cycle': self.cycle,  # deprecated alias, kept for backward compatibility
             'priority': self.priority,
