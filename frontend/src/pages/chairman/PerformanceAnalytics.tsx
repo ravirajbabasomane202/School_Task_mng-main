@@ -1,11 +1,11 @@
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
-import PerformanceChart from '../../components/charts/PerformanceChart';
 import RegistryPerformancePanel from '../../components/registers/RegistryPerformancePanel';
 import { ROLE_LABELS } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { getMonthlyComparison, getStaffPerformance } from '../../services/dashboardService';
+import { exportPerformanceReport } from '../../services/reportService';
 
 interface PerformanceData {
   userId: number;
@@ -16,6 +16,10 @@ interface PerformanceData {
   delayedTasks: number;
   performanceScore: number;
   delayRate: number;
+  totalRegisters: number;
+  completedRegisters: number;
+  registerPerformance: number;
+  overallPerformance: number;
 }
 
 interface MonthlyDepartmentData {
@@ -58,29 +62,6 @@ function PerformanceAnalytics() {
   const staffRows = (performanceData ?? []) as PerformanceData[];
   const monthlyRows = (monthlyData ?? []) as MonthlyDepartmentData[];
 
-  const chartData = useMemo(() => {
-    const monthMap = new Map<string, { totalTasks: number; completedTasks: number }>();
-
-    monthlyRows.forEach((department) => {
-      department.monthlyRates.forEach((rate) => {
-        const current = monthMap.get(rate.month) ?? { totalTasks: 0, completedTasks: 0 };
-        current.totalTasks += rate.totalTasks;
-        current.completedTasks += rate.completedTasks;
-        monthMap.set(rate.month, current);
-      });
-    });
-
-    return MONTH_ORDER.map((month) => {
-      const totals = monthMap.get(month) ?? { totalTasks: 0, completedTasks: 0 };
-      return {
-        month,
-        completionRate: totals.totalTasks
-          ? Math.round((totals.completedTasks / totals.totalTasks) * 100)
-          : 0
-      };
-    }).slice(-6);
-  }, [monthlyRows]);
-
   const departmentEfficiency = useMemo(() => {
     return monthlyRows
       .map((department) => {
@@ -112,7 +93,7 @@ function PerformanceAnalytics() {
   const schoolAverage = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
   const delayRate = totalTasks ? Math.round((totalDelayed / totalTasks) * 100) : 0;
   const topPerformer = [...staffRows].sort(
-    (left, right) => right.performanceScore - left.performanceScore
+    (left, right) => right.overallPerformance - left.overallPerformance
   )[0];
 
   return (
@@ -121,10 +102,10 @@ function PerformanceAnalytics() {
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
           <p className="text-sm text-[#5B6E8C]">Top performer</p>
           <p className="mt-3 text-xl font-semibold text-[#1E293B]">
-            {topPerformer?.name || 'N/A'}
+            {topPerformer ? getRoleLabel(topPerformer.role) : 'N/A'}
           </p>
           <p className="mt-2 text-sm text-[#8A99B0]">
-            {topPerformer ? getRoleLabel(topPerformer.role) : 'No task data yet'}
+            {topPerformer ? `${topPerformer.overallPerformance}% performance` : 'No task data yet'}
           </p>
         </div>
 
@@ -139,11 +120,6 @@ function PerformanceAnalytics() {
           <p className="mt-3 text-xl font-semibold text-[#1E293B]">{delayRate}%</p>
           <p className="mt-2 text-sm text-[#8A99B0]">Share of tasks currently delayed.</p>
         </div>
-      </div>
-
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">6-Month Completion Trend</h2>
-        <PerformanceChart data={chartData} />
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
@@ -167,18 +143,39 @@ function PerformanceAnalytics() {
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Staff performance</h2>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-[#1E293B]">Staff performance</h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => exportPerformanceReport('excel')}
+              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] hover:bg-[#FAFCFE]"
+            >
+              Export Performance Report (Excel)
+            </button>
+            <button
+              type="button"
+              onClick={() => exportPerformanceReport('pdf')}
+              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] hover:bg-[#FAFCFE]"
+            >
+              Export (PDF)
+            </button>
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#EFF2F6]">
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Name</th>
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Role</th>
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Total tasks</th>
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completed</th>
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Delayed</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Performance</th>
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Delay rate</th>
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Total registers</th>
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completed registers</th>
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Task performance</th>
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Register performance</th>
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Overall performance</th>
               </tr>
             </thead>
             <tbody>
@@ -186,30 +183,33 @@ function PerformanceAnalytics() {
                 <tr
                   key={user.userId}
                   className={`border-b border-[#EFF2F6] ${
-                    user.performanceScore >= 75
+                    user.overallPerformance >= 75
                       ? 'bg-green-50'
-                      : user.performanceScore < 50
+                      : user.overallPerformance < 50
                         ? 'bg-red-50'
                         : ''
                   }`}
                 >
-                  <td className="px-4 py-3 text-[#1E293B]">{user.name}</td>
                   <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
                   <td className="px-4 py-3 text-[#1E293B]">{user.totalTasks}</td>
                   <td className="px-4 py-3 text-[#1E293B]">{user.completedTasks}</td>
                   <td className="px-4 py-3 text-[#1E293B]">{user.delayedTasks}</td>
+                  <td className="px-4 py-3 text-[#1E293B]">{user.delayRate}%</td>
+                  <td className="px-4 py-3 text-[#1E293B]">{user.totalRegisters}</td>
+                  <td className="px-4 py-3 text-[#1E293B]">{user.completedRegisters}</td>
+                  <td className="px-4 py-3 text-[#1E293B]">{user.performanceScore}%</td>
+                  <td className="px-4 py-3 text-[#1E293B]">{user.registerPerformance}%</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-16 rounded-full bg-gray-200">
                         <div
                           className="h-2 rounded-full bg-blue-500"
-                          style={{ width: `${user.performanceScore}%` }}
+                          style={{ width: `${user.overallPerformance}%` }}
                         />
                       </div>
-                      <span className="text-sm text-[#1E293B]">{user.performanceScore}%</span>
+                      <span className="text-sm text-[#1E293B]">{user.overallPerformance}%</span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.delayRate}%</td>
                 </tr>
               ))}
             </tbody>
