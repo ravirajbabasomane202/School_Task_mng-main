@@ -21,7 +21,6 @@ const chairmanItems: NavItem[] = [
   { color: '#6366F1', group: 'Modules', label: 'Schedule Meeting', to: '/chairman/meetings' },
   { color: '#D64545', group: 'Modules', label: 'Alerts', to: '/chairman/alerts' },
   { color: '#D89B17', group: 'Modules', label: 'Approvals', to: '/chairman/approvals' },
-  { color: '#7C3AED', group: 'Modules', label: 'MIS Reports', to: '/chairman/reports' },
   { color: '#059669', group: 'Modules', label: 'Add Register', to: '/chairman/add-register' },
   { color: '#0EA5A4', group: 'Modules', label: 'Register Monitoring', to: '/chairman/register-monitoring' },
   { color: '#0EA5A4', group: 'Admin', label: 'Announcements', to: '/chairman/announcements' },
