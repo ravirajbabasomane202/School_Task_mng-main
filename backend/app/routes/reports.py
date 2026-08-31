@@ -1,5 +1,6 @@
 import io
 import os
+from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import or_, and_
 
@@ -7,9 +8,12 @@ from flask import Blueprint, Response, current_app, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
+from app.models.department import Department
+from app.models.register import Register
 from app.models.report import ReportHistory
 from app.models.task import Task
 from app.models.user import User
+from app.routes.dashboard import _overall_performance
 from app.utils.response import error, success
 from app.utils.decorators import roles_required
 
@@ -210,6 +214,150 @@ def _report_payload(tasks, include_performance=False):
         'departments': _department_stats(tasks),
         'tasks': _task_rows(tasks)
     }
+
+
+def _performance_report_rows():
+    """Department-wise rows for the Performance Report export: Department,
+    Date, Task Performance (existing task completion %), Registry Performance
+    (register completion %, same definition used on the Staff Performance
+    page), Final Performance (the same combined score as "Overall
+    Performance" there). This is a point-in-time snapshot, so every row
+    shares today's date as the report generation date.
+    """
+    Task.mark_overdue_delayed()
+    report_date = datetime.now(timezone.utc).date()
+
+    all_tasks = Task.query.all()
+    tasks_by_dept: dict = defaultdict(list)
+    for task in all_tasks:
+        tasks_by_dept[task.department_id].append(task)
+
+    all_registers = Register.query.all()
+    head_ids = {register.head_id for register in all_registers if register.head_id}
+    heads = (
+        {user.id: user for user in User.query.filter(User.id.in_(head_ids)).all()}
+        if head_ids
+        else {}
+    )
+    registers_by_dept: dict = defaultdict(list)
+    for register in all_registers:
+        head = heads.get(register.head_id)
+        registers_by_dept[head.department_id if head else None].append(register)
+
+    rows = []
+    for department in Department.query.order_by(Department.name).all():
+        dept_tasks = tasks_by_dept.get(department.id, [])
+        total_tasks = len(dept_tasks)
+        completed_tasks = sum(1 for task in dept_tasks if task.status == 'COMPLETED')
+        task_performance = round((completed_tasks / total_tasks) * 100) if total_tasks else 0
+
+        dept_registers = registers_by_dept.get(department.id, [])
+        total_registers = len(dept_registers)
+        completed_registers = sum(
+            1 for register in dept_registers if register.computed_status() == 'COMPLETED'
+        )
+        registry_performance = (
+            round((completed_registers / total_registers) * 100) if total_registers else 0
+        )
+
+        final_performance = _overall_performance(
+            task_performance, bool(total_tasks), registry_performance, bool(total_registers)
+        )
+
+        rows.append(
+            {
+                'department': department.name,
+                'date': report_date.isoformat(),
+                'taskPerformance': task_performance,
+                'registryPerformance': registry_performance,
+                'finalPerformance': final_performance
+            }
+        )
+
+    return rows
+
+
+def _generate_performance_pdf(rows):
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    styles = getSampleStyleSheet()
+    elements = [Paragraph('Performance Report', styles['Title']), Spacer(1, 12)]
+
+    table_rows = [['Department', 'Date', 'Task Performance', 'Registry Performance', 'Final Performance']]
+    for row in rows:
+        table_rows.append(
+            [
+                row['department'],
+                row['date'],
+                f"{row['taskPerformance']}%",
+                f"{row['registryPerformance']}%",
+                f"{row['finalPerformance']}%"
+            ]
+        )
+
+    table = Table(table_rows, hAlign='LEFT', repeatRows=1)
+    table.setStyle(
+        TableStyle(
+            [
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A5F')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                (
+                    'ROWBACKGROUNDS',
+                    (0, 1),
+                    (-1, -1),
+                    [colors.white, colors.HexColor('#F0F4F8')]
+                )
+            ]
+        )
+    )
+    elements.append(table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
+
+def _generate_performance_excel(rows):
+    def escape(value):
+        return (
+            str(value)
+            .replace('&', '&amp;')
+            .replace('<', '&lt;')
+            .replace('>', '&gt;')
+        )
+
+    html_rows = ['<html><head><meta charset="utf-8" /></head><body>']
+    html_rows.append('<h2>Performance Report</h2>')
+    html_rows.append('<table border="1">')
+    html_rows.append(
+        '<tr>'
+        '<th>Department</th><th>Date</th><th>Task Performance</th>'
+        '<th>Registry Performance</th><th>Final Performance</th>'
+        '</tr>'
+    )
+
+    for row in rows:
+        html_rows.append(
+            '<tr>'
+            f'<td>{escape(row["department"])}</td>'
+            f'<td>{escape(row["date"])}</td>'
+            f'<td>{row["taskPerformance"]}%</td>'
+            f'<td>{row["registryPerformance"]}%</td>'
+            f'<td>{row["finalPerformance"]}%</td>'
+            '</tr>'
+        )
+
+    html_rows.append('</table></body></html>')
+    buffer = io.BytesIO(''.join(html_rows).encode('utf-8'))
+    buffer.seek(0)
+    return buffer
 
 
 def _generate_pdf(title, tasks, summary=None):
@@ -487,6 +635,38 @@ def export_report():
     )
     resp.headers['X-Report-Task-Count'] = str(task_count)
     return resp
+
+
+@reports_bp.route('/performance-export', methods=['GET'])
+@jwt_required()
+def export_performance_report():
+    """Export the Performance Report with exactly 5 columns: Department,
+    Date, Task Performance, Registry Performance, Final Performance — one
+    row per department, as a point-in-time snapshot (today's date).
+    Not logged to ReportHistory (that table/download flow is task-report
+    specific); this is a standalone export, same as the CSV export already
+    used elsewhere on the Performance page.
+    """
+    fmt = request.args.get('format', 'excel').lower()
+    if fmt not in ('pdf', 'excel'):
+        return error('format must be pdf or excel', 400)
+
+    rows = _performance_report_rows()
+
+    if fmt == 'pdf':
+        buffer = _generate_performance_pdf(rows)
+        return Response(
+            buffer.read(),
+            mimetype='application/pdf',
+            headers={'Content-Disposition': 'attachment; filename=performance-report.pdf'}
+        )
+
+    buffer = _generate_performance_excel(rows)
+    return Response(
+        buffer.read(),
+        mimetype='application/vnd.ms-excel',
+        headers={'Content-Disposition': 'attachment; filename=performance-report.xls'}
+    )
 
 
 @reports_bp.route('/history', methods=['GET'])
