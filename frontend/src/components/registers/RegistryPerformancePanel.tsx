@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
-import RegistryCycleChart from '../charts/RegistryCycleChart';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
@@ -142,19 +141,6 @@ function RegistryPerformancePanel() {
     });
   }, [summaries, cycleFilter, headFilter]);
 
-  const cycleChartData = useMemo(() => {
-    return CYCLE_ORDER.map((cycle) => {
-      const rows = filteredSummaries.filter((s) => s.register.checking_cycle === cycle);
-      const totalCompleted = rows.reduce((sum, r) => sum + r.completed, 0);
-      const totalDue = rows.reduce((sum, r) => sum + r.total, 0);
-      return {
-        cycle: CYCLE_LABEL[cycle],
-        completionRate: totalDue ? Math.round((totalCompleted / totalDue) * 100) : 0,
-        registerCount: rows.length,
-      };
-    }).filter((row) => row.registerCount > 0);
-  }, [filteredSummaries]);
-
   // Overall performance: how much activity was "changed" (completed on time)
   // vs "not changed" (missed / never actioned) vs rejected, across every
   // register that matches the current filter.
@@ -264,18 +250,6 @@ function RegistryPerformancePanel() {
           <p className="text-xs font-medium text-[#8A99B0]">Overall Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{overall.completionRate}%</p>
         </div>
-      </div>
-
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register completion by checking cycle</h2>
-        <p className="mb-4 text-sm text-[#8A99B0]">
-          How reliably each cycle (Daily / Weekly / Monthly / …) is being kept up to date, over the last 90 days.
-        </p>
-        {cycleChartData.length > 0 ? (
-          <RegistryCycleChart data={cycleChartData} />
-        ) : (
-          <p className="text-sm text-[#8A99B0]">No data for the selected filters.</p>
-        )}
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
