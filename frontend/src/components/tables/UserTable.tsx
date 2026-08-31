@@ -32,7 +32,7 @@ function UserTable({ onDeactivate, onEdit, users }: UserTableProps) {
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="bg-[#F8F9FC] text-left">
-              {['Name', 'Role', 'Department', 'Email', 'Status', 'Actions'].map((heading) => (
+              {['Name', 'Role', 'Email', 'Status', 'Actions'].map((heading) => (
                 <th
                   className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8A99B0]"
                   key={heading}
@@ -54,9 +54,6 @@ function UserTable({ onDeactivate, onEdit, users }: UserTableProps) {
                   </div>
                 </td>
                 <td className="px-4 py-3.5 text-sm text-[#36506C]">{getRoleLabel(user.role)}</td>
-                <td className="px-4 py-3.5 text-sm text-[#36506C]">
-                  {user.departmentName ?? user.department?.name ?? '--'}
-                </td>
                 <td className="px-4 py-3.5 text-sm text-[#36506C]">{user.email}</td>
                 <td className="px-4 py-3.5">
                   <Badge variant={user.is_active ? 'green' : 'gray'}>
