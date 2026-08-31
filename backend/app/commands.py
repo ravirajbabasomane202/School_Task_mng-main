@@ -431,6 +431,91 @@ def register_commands(app: Flask):
 
         click.echo('\nDone.')
 
+    @app.cli.command('link-register-heads')
+    @click.option('--dry-run', is_flag=True, default=False,
+                  help='Preview the changes without writing them to the database.')
+    def link_register_heads(dry_run: bool):
+        """Backfill Register.head_id for legacy rows that only have a
+        free-text department label in head_name.
+
+        WHY THIS IS NEEDED: `backend/seed_registers.py` (used to bulk-load the
+        "Department Wise Registers List") intentionally left `head_id` NULL --
+        it stored the department heading (e.g. "Principal", "Admin Head") in
+        `head_name` as plain text and left the real user link for later. Two
+        things silently break as a result, for every role except
+        Chairman/Director:
+          1. Registers -> List/Calendar shows "No registers found" and an
+             empty calendar, because `_scope_to_user()` (registers.py) only
+             matches `Register.head_id == current_user.id`, and NULL never
+             equals anyone's id.
+          2. Register Monitoring's "Filter by Department" also comes back
+             empty for these rows, because that filter joins
+             `Register.head_id == User.id` to reach the department -- a NULL
+             head_id can't join to any user at all.
+
+        Running this command (safe to re-run) links each legacy row to the
+        real user who owns that department, which fixes both. Rows whose
+        legacy label has no matching user yet (e.g. "Librarian" -- there is
+        no Librarian account seeded) are left untouched and listed at the end
+        so a Chairman can assign a Head manually from Register Monitoring ->
+        Edit -> Head Name.
+        """
+        from app.models.register import Register
+        from app.models.user import User
+
+        # Legacy head_name label (as written by seed_registers.py) -> the
+        # real user's email who should own it. Update this mapping (or just
+        # use the Edit dialog) if your department structure differs.
+        LEGACY_LABEL_TO_EMAIL = {
+            'Principal': 'principal@school.com',
+            'Admin Head': 'admin@school.com',
+            'Admin Assistant': 'admin.assistance@school.com',
+            'Accounts': 'finance@school.com',
+            'Junior Accountant': 'purchase@school.com',
+            'Marketing Executive': 'admission@school.com',
+            'Transport & Purchase': 'transport@school.com',
+            'Front Desk / Jr. Clerk': 'frontdesk@school.com',
+            'IT Executive': 'it@school.com',
+            'Housekeeping & Infirmary': 'housekeeping@school.com',
+            # 'Librarian' intentionally omitted -- no Librarian user account
+            # exists in DEFAULT_USERS yet. Create one, add it here, and
+            # re-run, or assign it by hand via Edit -> Head Name.
+        }
+
+        unlinked = Register.query.filter(Register.head_id.is_(None)).all()
+        if not unlinked:
+            click.echo('Nothing to do: every register already has a Head Name linked to a user.')
+            return
+
+        linked = 0
+        skipped = []
+        prefix = '[dry-run] ' if dry_run else ''
+
+        for register in unlinked:
+            email = LEGACY_LABEL_TO_EMAIL.get(register.head_name)
+            user = User.query.filter_by(email=email).first() if email else None
+            if not user:
+                skipped.append(register)
+                continue
+
+            click.echo(
+                f"  {prefix}#{register.id} {register.register_no} "
+                f"\"{register.head_name}\" -> {user.name} ({user.email})"
+            )
+            if not dry_run:
+                register.head_id = user.id
+                register.head_name = user.name
+            linked += 1
+
+        if not dry_run:
+            db.session.commit()
+
+        click.echo(f"\n{'Would link' if dry_run else 'Linked'}: {linked}")
+        if skipped:
+            click.echo(f"Skipped (no matching user found -- assign manually): {len(skipped)}")
+            for register in skipped:
+                click.echo(f"  - #{register.id} {register.register_no} \"{register.name}\" (label: {register.head_name!r})")
+
     @app.cli.command('clear-login-attempts')
     @click.option('--ip', help='Clear only the failed login attempts for a single IP address.')
     def clear_login_attempts(ip: str | None):
