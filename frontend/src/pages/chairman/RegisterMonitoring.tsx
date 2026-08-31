@@ -16,6 +16,7 @@ import {
   updateOccurrenceStatus,
   updateRegister,
 } from '../../services/registerService';
+import { getAllDepartments } from '../../services/departmentService';
 import {
   REGISTER_CYCLES,
   REGISTER_PRIORITIES,
@@ -57,6 +58,7 @@ function RegisterMonitoring() {
   const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<RegisterPriority | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<RegisterStatus | 'ALL'>('ALL');
+  const [departmentFilter, setDepartmentFilter] = useState<number | 'ALL'>('ALL');
 
   const [editingRegister, setEditingRegister] = useState<Register | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -79,13 +81,14 @@ function RegisterMonitoring() {
   const [calendarRegister, setCalendarRegister] = useState<Register | null>(null);
 
   const { data: registers = [], isLoading } = useQuery({
-    queryKey: ['registers', search, cycleFilter, priorityFilter, statusFilter],
+    queryKey: ['registers', search, cycleFilter, priorityFilter, statusFilter, departmentFilter],
     queryFn: () =>
       getRegisters({
         search: search || undefined,
         cycle: cycleFilter === 'ALL' ? undefined : cycleFilter,
         priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
         status: statusFilter === 'ALL' ? undefined : statusFilter,
+        department_id: departmentFilter === 'ALL' ? undefined : departmentFilter,
       }),
   });
 
@@ -93,6 +96,12 @@ function RegisterMonitoring() {
   const { data: heads = [] } = useQuery({
     queryKey: ['register-heads'],
     queryFn: getRegisterHeads,
+  });
+
+  // Departments available for the "Filter by Department" control.
+  const { data: departments = [] } = useQuery({
+    queryKey: ['departments'],
+    queryFn: getAllDepartments,
   });
 
   const updateMutation = useMutation({
@@ -270,6 +279,18 @@ function RegisterMonitoring() {
           {REGISTER_STATUSES.map((s) => (
             <option key={s.value} value={s.value}>
               {s.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={departmentFilter}
+          onChange={(e) => setDepartmentFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+          className="rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm"
+        >
+          <option value="ALL">All Departments</option>
+          {departments.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.name}
             </option>
           ))}
         </select>
