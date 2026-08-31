@@ -8,7 +8,6 @@ import ApprovalManagement from './ApprovalManagement';
 import TaskAssignment from './TaskAssignment';
 import TaskMonitoring from './TaskMonitoring';
 import ChairmanOverview from './ChairmanOverview';
-import MISReports from './MISReports';
 import PerformanceAnalytics from './PerformanceAnalytics';
 import UserManagement from './UserManagement';
 import ScheduleMeeting from './ScheduleMeeting';
@@ -44,10 +43,6 @@ function ChairmanDashboard() {
           <Route
             element={<ApprovalManagement />}
             path="approvals"
-          />
-          <Route
-            element={<MISReports />}
-            path="reports"
           />
           <Route
             element={<AnnouncementsPage />}
