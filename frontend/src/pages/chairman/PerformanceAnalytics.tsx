@@ -5,7 +5,6 @@ import RegistryPerformancePanel from '../../components/registers/RegistryPerform
 import { ROLE_LABELS } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { getMonthlyComparison, getStaffPerformance } from '../../services/dashboardService';
-import { exportPerformanceReport } from '../../services/reportService';
 
 interface PerformanceData {
   userId: number;
@@ -145,22 +144,11 @@ function PerformanceAnalytics() {
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-[#1E293B]">Staff performance</h2>
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={() => exportPerformanceReport('excel')}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] hover:bg-[#FAFCFE]"
-            >
-              Export Performance Report (Excel)
-            </button>
-            <button
-              type="button"
-              onClick={() => exportPerformanceReport('pdf')}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] hover:bg-[#FAFCFE]"
-            >
-              Export (PDF)
-            </button>
-          </div>
+          {/* Export buttons removed from here — Staff Performance values are
+              now included directly in the Register Monitoring export
+              (Chairman -> Register Monitoring -> Export), scoped to whatever
+              filters are applied there, instead of a second, separate
+              export flow. */}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
