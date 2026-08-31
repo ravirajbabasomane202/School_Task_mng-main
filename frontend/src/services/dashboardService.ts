@@ -10,6 +10,10 @@ interface PerformanceData {
   delayedTasks: number;
   performanceScore: number;
   delayRate: number;
+  totalRegisters: number;
+  completedRegisters: number;
+  registerPerformance: number;
+  overallPerformance: number;
 }
 
 interface MonthlyComparisonData {
