@@ -1,0 +1,28 @@
+{
+  "name": "project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "doc.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ravirajbabasomane202/School_Task_mng.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/ravirajbabasomane202/School_Task_mng/issues"
+  },
+  "homepage": "https://github.com/ravirajbabasomane202/School_Task_mng#readme",
+  "dependencies": {
+    "docx": "^9.7.0"
+  }
+}
