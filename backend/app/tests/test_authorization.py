@@ -76,11 +76,14 @@ class TestRoleForbiddenReturns403:
         if not headers:
             pytest.skip(f"No auth header for {allowed_key}")
         fn = getattr(client, method.lower())
+<<<<<<< HEAD
         # Superset of fields covering every endpoint under test; harmless
         # extra keys are ignored by endpoints that don't need them. (The
         # previous version of this call passed a dict as the key argument to
         # dict.get(), which raised `TypeError: unhashable type: 'dict'` for
         # every parametrization — see notes in the project's PR description.)
+=======
+>>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
         resp = fn(
             path,
             headers=headers,
@@ -94,7 +97,13 @@ class TestRoleForbiddenReturns403:
                 'current_salary': 50000,
                 'proposed_salary': 60000,
                 'employee_id': 1,
+<<<<<<< HEAD
             },
+=======
+            }.get(path.split('/')[-1].replace('-', '_') in
+                  ('salary-increments', 'salary_increments')
+                  and {'employee_id': 1, 'current_salary': 50000, 'proposed_salary': 60000} or {}),
+>>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
         )
         # Allowed roles should not get a permanent 403
         assert resp.status_code != 403, f"Allowed role {allowed_key} got 403 on {method} {path}"

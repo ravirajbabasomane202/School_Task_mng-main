@@ -167,6 +167,7 @@ export const exportPerformanceReport = async (format: 'pdf' | 'excel') => {
   );
 };
 
+<<<<<<< HEAD
 export interface PerformanceExportFilters {
   dateFrom: string;
   dateTo: string;
@@ -199,6 +200,8 @@ export const exportPerformanceReportFiltered = async (filters: PerformanceExport
   triggerDownload(response.data as Blob, `performance_export_${filters.dateTo}.csv`);
 };
 
+=======
+>>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 export const downloadReport = async (id: number, format: 'pdf' | 'excel') => {
   const response = await api.get(API_ENDPOINTS.reports.download(id, format), {
     responseType: 'blob'

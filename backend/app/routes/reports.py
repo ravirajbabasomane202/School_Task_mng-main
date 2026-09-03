@@ -9,12 +9,20 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.department import Department
+<<<<<<< HEAD
 from app.models.register import Register, RegisterOccurrence
 from app.models.report import ReportHistory
 from app.models.task import Task
 from app.models.user import User
 from app.routes.dashboard import _overall_performance, _staff_performance_rows
 from app.routes.registers import _scope_to_user
+=======
+from app.models.register import Register
+from app.models.report import ReportHistory
+from app.models.task import Task
+from app.models.user import User
+from app.routes.dashboard import _overall_performance
+>>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 from app.utils.response import error, success
 from app.utils.decorators import roles_required
 
@@ -670,6 +678,7 @@ def export_performance_report():
     )
 
 
+<<<<<<< HEAD
 ROLE_LABELS = {
     'CHAIRMAN': 'Chairman',
     'DIRECTOR': 'School Director',
@@ -964,6 +973,8 @@ def export_performance_filtered():
     )
 
 
+=======
+>>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 @reports_bp.route('/history', methods=['GET'])
 @jwt_required()
 def report_history():
