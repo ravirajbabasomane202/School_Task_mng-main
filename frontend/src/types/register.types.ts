@@ -83,6 +83,8 @@ export interface RegisterFilters {
   cycle?: RegisterCycle;
   priority?: RegisterPriority;
   status?: RegisterStatus;
+  /** Filters registers to the ones assigned to this Head (user id). */
+  head_id?: number;
 }
 
 export interface RegisterCalendarEvent {

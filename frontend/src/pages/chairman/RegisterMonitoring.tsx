@@ -16,7 +16,6 @@ import {
   updateOccurrenceStatus,
   updateRegister,
 } from '../../services/registerService';
-import { getAllDepartments } from '../../services/departmentService';
 import { getStaffPerformance } from '../../services/dashboardService';
 import { getRoleLabel } from '../../utils/roleUtils';
 import {
@@ -60,7 +59,11 @@ function RegisterMonitoring() {
   const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
   const [priorityFilter, setPriorityFilter] = useState<RegisterPriority | 'ALL'>('ALL');
   const [statusFilter, setStatusFilter] = useState<RegisterStatus | 'ALL'>('ALL');
-  const [departmentFilter, setDepartmentFilter] = useState<number | 'ALL'>('ALL');
+  // "All Head" filter — filters registers by their assigned Head (user),
+  // not by Department. Options come straight from the Head Names list
+  // (`getRegisterHeads`, the same active-users source used by the edit
+  // form's Head Name dropdown) so it always reflects what's in the database.
+  const [headFilter, setHeadFilter] = useState<number | 'ALL'>('ALL');
 
   const [editingRegister, setEditingRegister] = useState<Register | null>(null);
   const [editForm, setEditForm] = useState<{
@@ -83,54 +86,46 @@ function RegisterMonitoring() {
   const [calendarRegister, setCalendarRegister] = useState<Register | null>(null);
 
   const { data: registers = [], isLoading } = useQuery({
-    queryKey: ['registers', search, cycleFilter, priorityFilter, statusFilter, departmentFilter],
+    queryKey: ['registers', search, cycleFilter, priorityFilter, statusFilter, headFilter],
     queryFn: () =>
       getRegisters({
         search: search || undefined,
         cycle: cycleFilter === 'ALL' ? undefined : cycleFilter,
         priority: priorityFilter === 'ALL' ? undefined : priorityFilter,
         status: statusFilter === 'ALL' ? undefined : statusFilter,
-        department_id: departmentFilter === 'ALL' ? undefined : departmentFilter,
+        head_id: headFilter === 'ALL' ? undefined : headFilter,
       }),
   });
 
-  // Active Head Names for the edit-form dropdown (Section 1 of the spec).
+  // Active Head Names — used both by the edit-form dropdown AND by the
+  // "All Head" filter dropdown above the table, so both always show
+  // whatever active heads currently exist in the database.
   const { data: heads = [] } = useQuery({
     queryKey: ['register-heads'],
     queryFn: getRegisterHeads,
   });
 
-  // Departments available for the "Filter by Department" control.
-  const { data: departments = [] } = useQuery({
-    queryKey: ['departments'],
-    queryFn: getAllDepartments,
-  });
-
   // Staff Performance values, folded into the Export below instead of
   // having a second, separate "Export Performance Report" flow on the
-  // Staff Performance page. `heads` (already fetched above) is what maps a
-  // performance row's `role` to a department, since the performance API
-  // itself only returns `role`.
+  // Staff Performance page.
   const { data: staffPerformance = [] } = useQuery({
     queryKey: ['staffPerformance'],
     queryFn: getStaffPerformance,
   });
 
-  const roleToDepartmentId = useMemo(() => {
-    const map = new Map<string, number>();
-    heads.forEach((h) => {
-      if (h.department_id != null) map.set(h.role, h.department_id);
-    });
-    return map;
-  }, [heads]);
+  const selectedHead = useMemo(
+    () => (headFilter === 'ALL' ? null : heads.find((h) => h.id === headFilter) ?? null),
+    [headFilter, heads]
+  );
 
-  // Same department filter the register list/table above already applies —
-  // kept in sync so the export's Staff Performance section always matches
-  // what's currently on screen.
+  // Same Head filter the register list/table above already applies — kept
+  // in sync so the export's Staff Performance section always matches
+  // what's currently on screen. Performance rows only carry `role`, and a
+  // Head's `role` is what a performance row's `role` matches directly.
   const filteredStaffPerformance = useMemo(() => {
-    if (departmentFilter === 'ALL') return staffPerformance;
-    return staffPerformance.filter((row) => roleToDepartmentId.get(row.role) === departmentFilter);
-  }, [staffPerformance, departmentFilter, roleToDepartmentId]);
+    if (headFilter === 'ALL' || !selectedHead) return staffPerformance;
+    return staffPerformance.filter((row) => row.role === selectedHead.role);
+  }, [staffPerformance, headFilter, selectedHead]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => updateRegister(id, data),
@@ -246,9 +241,9 @@ function RegisterMonitoring() {
       ]),
       [],
       [
-        departmentFilter === 'ALL'
-          ? 'Staff Performance (all departments)'
-          : `Staff Performance (${departments.find((d) => d.id === departmentFilter)?.name ?? departmentFilter})`,
+        headFilter === 'ALL'
+          ? 'Staff Performance (all heads)'
+          : `Staff Performance (${selectedHead?.name ?? headFilter})`,
       ],
       ['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate', 'Total Registers', 'Completed Registers', 'Overall Performance'],
       ...filteredStaffPerformance.map((p) => [
@@ -331,18 +326,17 @@ function RegisterMonitoring() {
           ))}
         </select>
         <select
-          value={departmentFilter}
-          onChange={(e) => setDepartmentFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+          value={headFilter}
+          onChange={(e) => setHeadFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
           className="rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm"
         >
-          {/* A register's "department" is derived from its assigned Head's
-              department (see backend registers list route), so this filter
-              is already Head-based under the hood — only the label changes
-              here, per the Register Monitoring naming requirement. */}
+          {/* Populated straight from the active Head Names in the database
+              (`GET /registers/heads`) — the same source the edit form's
+              Head Name dropdown uses — so every active head shows up here. */}
           <option value="ALL">All Head</option>
-          {departments.map((d) => (
-            <option key={d.id} value={d.id}>
-              {d.name}
+          {heads.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
             </option>
           ))}
         </select>

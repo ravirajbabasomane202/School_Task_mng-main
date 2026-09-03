@@ -117,6 +117,7 @@ def list_registers():
     cycle = request.args.get('cycle')
     priority = request.args.get('priority')
     status = request.args.get('status')
+    head_id = request.args.get('head_id')
     department_id = request.args.get('department_id')
 
     if search:
@@ -126,8 +127,13 @@ def list_registers():
         query = query.filter_by(cycle=cycle.upper())
     if priority:
         query = query.filter_by(priority=priority.upper())
+    if head_id:
+        # "All Head" filter — a register's Head is its own head_id column,
+        # so this is a direct filter, no join required.
+        query = query.filter(Register.head_id == int(head_id))
     if department_id:
-        # A register's "department" is derived from its assigned Head's department.
+        # Legacy: filter by the assigned Head's department instead of the
+        # Head directly. Kept for backward compatibility.
         query = query.join(User, Register.head_id == User.id).filter(User.department_id == int(department_id))
 
     registers = query.order_by(Register.next_due_date.asc()).all()
