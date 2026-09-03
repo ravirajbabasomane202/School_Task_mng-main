@@ -198,7 +198,6 @@ def dept_dashboard(dept_id):
             }
         )
 
-<<<<<<< HEAD
     # ROOT CAUSE (Dashboard "2 tasks" vs My Tasks "1 task"): this endpoint used
     # to build the "myTasks" KPI card and the "myTasksList" table from
     # `Task.query.filter_by(department_id=dept_id)` — i.e. EVERY task that
@@ -217,9 +216,6 @@ def dept_dashboard(dept_id):
     # department-scoped, not user-scoped.
     current_user_id = int(get_jwt_identity())
     tasks = Task.query.filter_by(assigned_to=current_user_id).all()
-=======
-    tasks = Task.query.filter_by(department_id=dept_id).all()
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
     total, completed, delayed, pending, in_progress, escalated, _ = _task_stats(tasks)
 
     task_status_data = [
@@ -265,7 +261,6 @@ def dept_dashboard(dept_id):
     )
 
 
-<<<<<<< HEAD
 def _staff_performance_rows():
     """Per-user Task/Register/Overall performance rows.
 
@@ -275,11 +270,6 @@ def _staff_performance_rows():
     this SAME function rather than two parallel implementations that could
     drift apart.
     """
-=======
-@dashboard_bp.route('/performance', methods=['GET'])
-@jwt_required()
-def performance():
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
     Task.mark_overdue_delayed()
     rows = []
     department_users = User.query.filter(
@@ -342,7 +332,6 @@ def performance():
             }
         )
 
-<<<<<<< HEAD
     return rows
 
 
@@ -350,9 +339,6 @@ def performance():
 @jwt_required()
 def performance():
     return success(_staff_performance_rows())
-=======
-    return success(rows)
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 
 
 @dashboard_bp.route('/monthly-comparison', methods=['GET'])
