@@ -4,12 +4,9 @@ import { Download } from 'lucide-react';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
-<<<<<<< HEAD
 import { getStaffPerformance } from '../../services/dashboardService';
 import { exportPerformanceReportFiltered } from '../../services/reportService';
 import { getRoleLabel } from '../../utils/roleUtils';
-=======
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 import { todayISO } from '../../utils/dateUtils';
 import type { Register, RegisterCycle, RegisterDotColor } from '../../types/register.types';
 
@@ -77,7 +74,6 @@ function downloadCsv(filename: string, rows: (string | number)[][]) {
 
 function RegistryPerformancePanel() {
   const today = todayISO();
-<<<<<<< HEAD
   const defaultRangeStart = daysAgoISO(90);
 
   const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
@@ -89,12 +85,6 @@ function RegistryPerformancePanel() {
   // they must always use the exact same filtering logic.
   const [dateFrom, setDateFrom] = useState<string>(defaultRangeStart);
   const [dateTo, setDateTo] = useState<string>(today);
-=======
-  const rangeStart = daysAgoISO(90);
-
-  const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
-  const [headFilter, setHeadFilter] = useState<string>('ALL');
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 
   const { data: registers = [], isLoading: registersLoading } = useQuery({
     queryKey: ['registers', 'performance-panel'],
@@ -102,7 +92,6 @@ function RegistryPerformancePanel() {
   });
 
   const { data: events = [], isLoading: eventsLoading } = useQuery({
-<<<<<<< HEAD
     queryKey: ['register-calendar', 'performance-panel', dateFrom, dateTo],
     queryFn: () => getRegisterCalendarEvents({ start: dateFrom, end: dateTo }),
   });
@@ -114,10 +103,6 @@ function RegistryPerformancePanel() {
   const { data: staffPerformance = [] } = useQuery({
     queryKey: ['staffPerformance'],
     queryFn: getStaffPerformance,
-=======
-    queryKey: ['register-calendar', 'performance-panel', rangeStart, today],
-    queryFn: () => getRegisterCalendarEvents({ start: rangeStart, end: today }),
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
   });
 
   const headOptions = useMemo(() => {
@@ -165,19 +150,13 @@ function RegistryPerformancePanel() {
     return Array.from(byRegister.values()).sort((a, b) => a.completionRate - b.completionRate);
   }, [registers, events, today]);
 
-<<<<<<< HEAD
   // Apply the Cycle / Head / Status filters — everything below (cards,
   // table, and export) reacts to this SAME filtered set, so the screen and
   // the export can never disagree.
-=======
-  // Apply the Cycle / Head filters — everything below (cards, charts, table,
-  // export) reacts to this filtered set so what you see is what you export.
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
   const filteredSummaries = useMemo(() => {
     return summaries.filter((s) => {
       if (cycleFilter !== 'ALL' && s.register.checking_cycle !== cycleFilter) return false;
       if (headFilter !== 'ALL' && s.register.head_name !== headFilter) return false;
-<<<<<<< HEAD
       if (statusFilter !== 'ALL' && s.register.status !== statusFilter) return false;
       return true;
     });
@@ -191,11 +170,6 @@ function RegistryPerformancePanel() {
     if (headFilter === 'ALL') return staffPerformance;
     return staffPerformance.filter((row) => row.name === headFilter);
   }, [staffPerformance, headFilter]);
-=======
-      return true;
-    });
-  }, [summaries, cycleFilter, headFilter]);
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 
   // Overall performance: how much activity was "changed" (completed on time)
   // vs "not changed" (missed / never actioned) vs rejected, across every
@@ -209,7 +183,6 @@ function RegistryPerformancePanel() {
     return { totalCompleted, totalMissed, totalRejected, totalDue, completionRate };
   }, [filteredSummaries]);
 
-<<<<<<< HEAD
   // Total Registers KPI (requirement: Total Registers / Checked / Not
   // Checked, with Total = Checked + Not Checked). A register counts as
   // "Checked" here if it has at least one completed occurrence within the
@@ -279,27 +252,18 @@ function RegistryPerformancePanel() {
       [],
       ['Detailed Register Records'],
       ['Register', 'Register No', 'Head', 'Cycle', 'Status', 'Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due', 'Completion %'],
-=======
-  const handleExport = () => {
-    const rows: (string | number)[][] = [
-      ['Register', 'Register No', 'Head', 'Cycle', 'Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due', 'Completion %'],
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
       ...filteredSummaries.map((s) => [
         s.register.name,
         s.register.register_no,
         s.register.head_name,
         CYCLE_LABEL[s.register.checking_cycle],
-<<<<<<< HEAD
         s.register.status,
-=======
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
         s.completed,
         s.missed,
         s.rejected,
         s.total,
         s.completionRate,
       ]),
-<<<<<<< HEAD
       [],
       ['Detailed Task Performance Records'],
       ['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate %', 'Task Performance %'],
@@ -336,10 +300,6 @@ function RegistryPerformancePanel() {
     } finally {
       setIsExporting(false);
     }
-=======
-    ];
-    downloadCsv(`register_performance_${today}.csv`, rows);
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
   };
 
   const isLoading = registersLoading || eventsLoading;
@@ -365,7 +325,6 @@ function RegistryPerformancePanel() {
     <div className="space-y-6">
       {/* Filters + export */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#EFF2F6] bg-white p-4">
-<<<<<<< HEAD
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[#5B6E8C]">From</label>
@@ -388,9 +347,6 @@ function RegistryPerformancePanel() {
               className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
             />
           </div>
-=======
-        <div className="flex flex-wrap items-center gap-3">
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[#5B6E8C]">Cycle</label>
             <select
@@ -421,7 +377,6 @@ function RegistryPerformancePanel() {
               ))}
             </select>
           </div>
-<<<<<<< HEAD
           <div className="flex flex-col gap-1">
             <label className="text-xs font-medium text-[#5B6E8C]">Status</label>
             <select
@@ -464,15 +419,6 @@ function RegistryPerformancePanel() {
         </div>
       </div>
 
-=======
-        </div>
-        <Button variant="primary" size="sm" onClick={handleExport} disabled={filteredSummaries.length === 0}>
-          <Download size={14} />
-          Export CSV
-        </Button>
-      </div>
-
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
       {/* Overall performance summary: changed vs not changed vs overall rate */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
@@ -491,7 +437,6 @@ function RegistryPerformancePanel() {
           <p className="text-xs font-medium text-[#8A99B0]">Overall Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{overall.completionRate}%</p>
         </div>
-<<<<<<< HEAD
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
           <p className="text-xs font-medium text-[#8A99B0]">Task Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{taskTotals.taskPerformance}%</p>
@@ -500,8 +445,6 @@ function RegistryPerformancePanel() {
           <p className="text-xs font-medium text-[#8A99B0]">Final Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{finalPerformance}%</p>
         </div>
-=======
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">

@@ -335,15 +335,11 @@ function RegisterMonitoring() {
           onChange={(e) => setDepartmentFilter(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
           className="rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm"
         >
-<<<<<<< HEAD
           {/* A register's "department" is derived from its assigned Head's
               department (see backend registers list route), so this filter
               is already Head-based under the hood — only the label changes
               here, per the Register Monitoring naming requirement. */}
           <option value="ALL">All Head</option>
-=======
-          <option value="ALL">All Departments</option>
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
           {departments.map((d) => (
             <option key={d.id} value={d.id}>
               {d.name}

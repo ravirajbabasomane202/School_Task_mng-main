@@ -7,10 +7,6 @@ import Button from '../../components/common/Button';
 import TaskTable from '../../components/tables/TaskTable';
 import { ROLE_LABELS, ROLES } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
-<<<<<<< HEAD
-=======
-import api from '../../services/api';
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 import * as reportService from '../../services/reportService';
 import * as taskService from '../../services/taskService';
 import * as userService from '../../services/userService';
@@ -19,14 +15,6 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import type { Task, TaskStatus } from '../../types/task.types';
 import type { User } from '../../types/user.types';
 
-<<<<<<< HEAD
-=======
-interface Department {
-  id: number;
-  name: string;
-}
-
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 const statCards: Array<{ color: string; key: TaskStatus; label: string }> = [
   { color: 'bg-[#EAF3FC] text-[#185FA5]', key: 'PENDING', label: 'Pending' },
   { color: 'bg-[#FFF7E1] text-[#A86A00]', key: 'IN_PROGRESS', label: 'In Progress' },
@@ -79,10 +67,6 @@ function TaskMonitoring() {
   const [searchParams] = useSearchParams();
   const initialStatus = (searchParams.get('status') as TaskStatus | null) ?? 'ALL';
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>(initialStatus);
-<<<<<<< HEAD
-=======
-  const [departmentFilter, setDepartmentFilter] = useState('all');
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
   const [assigneeFilter, setAssigneeFilter] = useState('all');
   const [searchFilter, setSearchFilter] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -99,17 +83,6 @@ function TaskMonitoring() {
     queryFn: () => userService.getAllUsers()
   });
 
-<<<<<<< HEAD
-=======
-  const departmentsQuery = useQuery({
-    queryKey: ['departments', 'monitoring'],
-    queryFn: async () => {
-      const response = await api.get<Department[]>('/departments');
-      return response.data;
-    }
-  });
-
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
   useEffect(() => {
     if (taskQuery.data) {
       dispatch(setTasks(taskQuery.data));
@@ -145,13 +118,6 @@ function TaskMonitoring() {
         return false;
       }
 
-<<<<<<< HEAD
-=======
-      if (departmentFilter !== 'all' && String(task.department_id ?? '') !== departmentFilter) {
-        return false;
-      }
-
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
       if (assigneeFilter !== 'all' && String(task.assigned_to) !== assigneeFilter) {
         return false;
       }
@@ -161,12 +127,7 @@ function TaskMonitoring() {
         const haystack = [
           task.title,
           task.description ?? '',
-<<<<<<< HEAD
           task.assignedTo?.name ?? task.assignedToName ?? ''
-=======
-          task.assignedTo?.name ?? task.assignedToName ?? '',
-          task.department?.name ?? task.departmentName ?? ''
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
         ]
           .join(' ')
           .toLowerCase();
@@ -189,11 +150,7 @@ function TaskMonitoring() {
 
       return true;
     });
-<<<<<<< HEAD
   }, [assigneeFilter, dateFrom, dateTo, searchFilter, statusFilter, tasks]);
-=======
-  }, [assigneeFilter, dateFrom, dateTo, departmentFilter, searchFilter, statusFilter, tasks]);
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
 
   const handleExport = async (format: 'pdf' | 'excel') => {
     try {
@@ -204,11 +161,6 @@ function TaskMonitoring() {
         params: {
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
-<<<<<<< HEAD
-=======
-          departmentId: departmentFilter === 'all' ? 'all' : Number(departmentFilter)
-          ,
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
           status: statusFilter !== 'ALL' ? statusFilter : undefined,
           assignedTo: assigneeFilter !== 'all' ? Number(assigneeFilter) : undefined,
           search: searchFilter.trim() || undefined,
@@ -269,11 +221,7 @@ function TaskMonitoring() {
             </p>
             <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Task monitoring view</h2>
             <p className="mt-2 text-sm text-[#5B6E8C]">
-<<<<<<< HEAD
               Track tasks by status, assign head, and deadline range. Open any row to
-=======
-              Track tasks by status, department, assignee, and deadline range. Open any row to
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
               review its full history log.
             </p>
           </div>
@@ -301,11 +249,7 @@ function TaskMonitoring() {
             <input
               className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
               onChange={(event) => setSearchFilter(event.target.value)}
-<<<<<<< HEAD
               placeholder="Task title, assign head"
-=======
-              placeholder="Task title, department, assignee"
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
               value={searchFilter}
             />
           </label>
@@ -326,48 +270,18 @@ function TaskMonitoring() {
             </select>
           </label>
 
-<<<<<<< HEAD
           {/* Department has been removed from Task Monitor (filter, dropdown,
               search matching, and export param) per the Task Monitor
               requirements — it remains available elsewhere in the app
               (e.g. Task Assignment, Reports) where it is still needed. */}
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Assign Head</span>
-=======
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Department</span>
-            <select
-              className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-              onChange={(event) => setDepartmentFilter(event.target.value)}
-              value={departmentFilter}
-            >
-              <option value="all">All departments</option>
-              {(departmentsQuery.data ?? []).map((department) => (
-                <option key={department.id} value={department.id}>
-                  {department.name}
-                </option>
-              ))}
-              {!(departmentsQuery.data ?? []).some(
-                (d) => d.name.toLowerCase().includes('housekeeping')
-              ) && (
-                <option value="housekeeping">HouseKeeping</option>
-              )}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Assigned person</span>
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
             <select
               className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
               onChange={(event) => setAssigneeFilter(event.target.value)}
               value={assigneeFilter}
             >
-<<<<<<< HEAD
               <option value="all">All Head</option>
-=======
-              <option value="all">All people</option>
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
               {assignableUsers.map((user) => (
                 <option key={user.id} value={user.id}>
                   {user.name} - {getRoleLabel(user.role)}

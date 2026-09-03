@@ -122,27 +122,19 @@ function PerformanceAnalytics() {
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-<<<<<<< HEAD
         <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Head efficiency</h2>
-=======
-        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Department efficiency</h2>
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {departmentEfficiency.map((department) => (
             <div
               className="rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] p-4"
               key={department.id}
             >
-<<<<<<< HEAD
               {/* Display-only rename: this section shows the same
                   Department-based completion data (see monthly-comparison
                   API), now presented consistently under "Head" naming —
                   e.g. "Admission" -> "Admission Head" — without changing
                   the underlying Department data model. */}
               <p className="text-sm font-semibold text-[#1E293B]">{department.name} Head</p>
-=======
-              <p className="text-sm font-semibold text-[#1E293B]">{department.name}</p>
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
               <p className="mt-3 text-2xl font-semibold text-[#185FA5]">
                 {department.completionRate}%
               </p>

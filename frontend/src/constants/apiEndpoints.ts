@@ -30,10 +30,7 @@ export const API_ENDPOINTS = {
     monthly: '/reports/monthly',
     export: '/reports/export',
     performanceExport: '/reports/performance-export',
-<<<<<<< HEAD
     performanceFilteredExport: '/reports/performance/export',
-=======
->>>>>>> 9ef7ff741ab2c33484f668db43b12c0ac76fae30
     history: '/reports/history',
     download: (id: number, format: 'pdf' | 'excel') => `/reports/download/${id}/${format}`
   },
