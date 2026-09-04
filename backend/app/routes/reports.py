@@ -33,6 +33,68 @@ def _parse_date(value):
         return None
 
 
+def _apply_task_filters(
+    query,
+    status=None,
+    assigned_to=None,
+    search=None,
+    date_from=None,
+    date_to=None,
+    start_date_from=None,
+    due_date_to=None
+):
+    """Apply the status/assigned_to/search/date-range filters shared by every
+    caller of `_get_tasks`, regardless of the requesting user's role.
+    Department scoping is intentionally NOT handled here — the caller applies
+    it afterwards, since who gets to see which department differs by role.
+    """
+    if status and status != 'ALL':
+        query = query.filter_by(status=status)
+
+    if assigned_to:
+        try:
+            query = query.filter_by(assigned_to=int(assigned_to))
+        except ValueError:
+            pass
+
+    if search:
+        query = query.filter(
+            or_(Task.title.ilike(f'%{search}%'), Task.description.ilike(f'%{search}%'))
+        )
+
+    # Determine effective date range coming from either explicit date_from/date_to
+    # or the monitoring filters start_date_from/due_date_to.
+    eff_from = date_from or start_date_from
+    eff_to = date_to or due_date_to
+
+    if eff_from and eff_to:
+        end_of_day = eff_to + timedelta(days=1)
+        # Include tasks that either have due_date within range OR have start_date within range
+        # (and possibly no due_date). This mirrors client-side monitoring filters
+        query = query.filter(
+            or_(
+                and_(
+                    Task.start_date != None,
+                    Task.start_date <= end_of_day,
+                    or_(Task.due_date == None, Task.due_date >= eff_from)
+                ),
+                and_(
+                    Task.due_date != None,
+                    Task.due_date >= eff_from,
+                    Task.due_date < end_of_day
+                )
+            )
+        )
+    else:
+        if date_from:
+            query = query.filter(Task.due_date >= date_from)
+        if date_to:
+            end_of_day = date_to + timedelta(days=1)
+            query = query.filter(Task.due_date < end_of_day)
+
+    return query
+
+
 def _get_tasks(
     date_from,
     date_to,
@@ -46,7 +108,22 @@ def _get_tasks(
 ):
     query = Task.query
 
-    # Scope to the user's department unless they are CHAIRMAN/DIRECTOR
+    # Status/assigned_to/search/date-range filters ALWAYS apply, regardless
+    # of role — department scoping (below) is what differs between elevated
+    # and non-elevated users, not these filters.
+    query = _apply_task_filters(
+        query,
+        status=status,
+        assigned_to=assigned_to,
+        search=search,
+        date_from=date_from,
+        date_to=date_to,
+        start_date_from=start_date_from,
+        due_date_to=due_date_to
+    )
+
+    # Department scoping applied last: forced to the user's own department
+    # for non-elevated roles, an optional filter for CHAIRMAN/DIRECTOR.
     if user and user.role not in ELEVATED_ROLES:
         if dept_id and str(dept_id) != 'all':
             # Dept heads can only filter within their own department
@@ -65,50 +142,6 @@ def _get_tasks(
                 query = query.filter_by(department_id=int(dept_id))
             except ValueError:
                 pass
-
-        if status and status != 'ALL':
-            query = query.filter_by(status=status)
-
-        if assigned_to:
-            try:
-                query = query.filter_by(assigned_to=int(assigned_to))
-            except ValueError:
-                pass
-
-        if search:
-            query = query.filter(
-                or_(Task.title.ilike(f'%{search}%'), Task.description.ilike(f'%{search}%'))
-            )
-
-        # Determine effective date range coming from either explicit date_from/date_to
-        # or the monitoring filters start_date_from/due_date_to.
-        eff_from = date_from or start_date_from
-        eff_to = date_to or due_date_to
-
-        if eff_from and eff_to:
-            end_of_day = eff_to + timedelta(days=1)
-            # Include tasks that either have due_date within range OR have start_date within range
-            # (and possibly no due_date). This mirrors client-side monitoring filters
-            query = query.filter(
-                or_(
-                    and_(
-                        Task.start_date != None,
-                        Task.start_date <= end_of_day,
-                        or_(Task.due_date == None, Task.due_date >= eff_from)
-                    ),
-                    and_(
-                        Task.due_date != None,
-                        Task.due_date >= eff_from,
-                        Task.due_date < end_of_day
-                    )
-                )
-            )
-        else:
-            if date_from:
-                query = query.filter(Task.due_date >= date_from)
-            if date_to:
-                end_of_day = date_to + timedelta(days=1)
-                query = query.filter(Task.due_date < end_of_day)
 
     return query.order_by(Task.due_date.asc(), Task.created_at.desc()).all()
 
@@ -787,7 +820,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     # surfaced here as its own KPI to match the Task row's shape.
     register_delayed = total_missed
 
-    staff_rows = _staff_performance_rows()
+    staff_rows = _staff_performance_rows(date_from, date_to)
     if head and head.upper() != 'ALL':
         staff_rows = [row for row in staff_rows if row['name'] == head]
 

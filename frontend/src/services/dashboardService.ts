@@ -58,8 +58,13 @@ interface ApiResponse<T> {
   success: boolean;
 }
 
-export const getStaffPerformance = async (): Promise<PerformanceData[]> => {
-  const response = await api.get<ApiResponse<PerformanceData[]>>(API_ENDPOINTS.dashboard.performance);
+export const getStaffPerformance = async (range?: { dateFrom?: string; dateTo?: string }): Promise<PerformanceData[]> => {
+  const response = await api.get<ApiResponse<PerformanceData[]>>(API_ENDPOINTS.dashboard.performance, {
+    params: range && {
+      date_from: range.dateFrom,
+      date_to: range.dateTo
+    }
+  });
   return response.data.data;
 };
 

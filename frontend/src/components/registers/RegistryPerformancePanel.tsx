@@ -99,10 +99,12 @@ function RegistryPerformancePanel() {
   // Task Performance data (same source the Staff Performance table above
   // uses) — pulled in here too so the Performance screen's KPI summary and
   // its export can report Task Performance alongside Register Performance
-  // without a second, disconnected fetch/filter path.
+  // without a second, disconnected fetch/filter path. Scoped to the same
+  // Date Range filter as the Register Performance half above, so both
+  // halves of the panel respect the same date range consistently.
   const { data: staffPerformance = [] } = useQuery({
-    queryKey: ['staffPerformance'],
-    queryFn: getStaffPerformance,
+    queryKey: ['staffPerformance', 'performance-panel', dateFrom, dateTo],
+    queryFn: () => getStaffPerformance({ dateFrom, dateTo }),
   });
 
   const headOptions = useMemo(() => {

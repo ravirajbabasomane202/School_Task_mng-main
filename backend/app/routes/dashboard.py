@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -270,7 +270,17 @@ def dept_dashboard(dept_id):
     )
 
 
-def _staff_performance_rows():
+def _parse_date(value):
+    if not value:
+        return None
+
+    try:
+        return datetime.strptime(value, '%Y-%m-%d').date()
+    except ValueError:
+        return None
+
+
+def _staff_performance_rows(date_from=None, date_to=None):
     """Per-user Task/Register/Overall performance rows.
 
     Shared by the `/dashboard/performance` route AND the Performance-screen
@@ -278,6 +288,13 @@ def _staff_performance_rows():
     Task Performance numbers and the exported file are always computed by
     this SAME function rather than two parallel implementations that could
     drift apart.
+
+    `date_from`/`date_to` (plain `date` objects, inclusive on both ends) let
+    callers scope the Task-Performance half of these rows to a date range —
+    mirroring how the Register-Performance half already scopes register
+    occurrences to a range via `_registry_performance_summaries`. When
+    omitted, all tasks are considered (unfiltered), preserving existing
+    behaviour for callers that don't pass a range.
     """
     Task.mark_overdue_delayed()
     rows = []
@@ -288,7 +305,14 @@ def _staff_performance_rows():
 
     # Load all tasks for these users in one query instead of one per user
     user_ids = [u.id for u in department_users]
-    all_user_tasks = Task.query.filter(Task.assigned_to.in_(user_ids)).all() if user_ids else []
+    task_query = Task.query.filter(Task.assigned_to.in_(user_ids)) if user_ids else None
+
+    if task_query is not None and date_from and date_to:
+        start_dt = datetime.combine(date_from, datetime.min.time())
+        end_dt = datetime.combine(date_to, datetime.min.time()) + timedelta(days=1)
+        task_query = task_query.filter(Task.due_date >= start_dt, Task.due_date < end_dt)
+
+    all_user_tasks = task_query.all() if task_query is not None else []
 
     tasks_by_user: dict = {}
     for task in all_user_tasks:
@@ -347,7 +371,9 @@ def _staff_performance_rows():
 @dashboard_bp.route('/performance', methods=['GET'])
 @jwt_required()
 def performance():
-    return success(_staff_performance_rows())
+    date_from = _parse_date(request.args.get('date_from'))
+    date_to = _parse_date(request.args.get('date_to'))
+    return success(_staff_performance_rows(date_from, date_to))
 
 
 @dashboard_bp.route('/monthly-comparison', methods=['GET'])
