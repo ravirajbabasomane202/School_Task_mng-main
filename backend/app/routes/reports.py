@@ -781,6 +781,11 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     total_rejected = sum(s['rejected'] for s in summaries)
     total_due = total_completed + total_missed + total_rejected
     register_performance = round((total_completed / total_due) * 100) if total_due else 0
+    # "Delayed" for registers mirrors the Task side's definition: occurrences
+    # whose due date passed without being actioned (i.e. the same occurrence
+    # count already captured as `total_missed`/"Not checked" activity above),
+    # surfaced here as its own KPI to match the Task row's shape.
+    register_delayed = total_missed
 
     staff_rows = _staff_performance_rows()
     if head and head.upper() != 'ALL':
@@ -789,6 +794,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     total_tasks = sum(row['totalTasks'] for row in staff_rows)
     completed_tasks = sum(row['completedTasks'] for row in staff_rows)
     delayed_tasks = sum(row['delayedTasks'] for row in staff_rows)
+    not_completed_tasks = total_tasks - completed_tasks
     task_performance = round((completed_tasks / total_tasks) * 100) if total_tasks else 0
 
     if total_tasks and total_registers:
@@ -805,6 +811,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
             'totalRegisters': total_registers,
             'checked': checked,
             'notChecked': not_checked,
+            'delayed': register_delayed,
         },
         'overall': {
             'totalCompleted': total_completed,
@@ -816,6 +823,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
         'taskTotals': {
             'totalTasks': total_tasks,
             'completedTasks': completed_tasks,
+            'notCompletedTasks': not_completed_tasks,
             'delayedTasks': delayed_tasks,
             'taskPerformance': task_performance,
         },
@@ -852,41 +860,31 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     ])
     writer.writerow([])
 
-    writer.writerow(['Registration Performance'])
-    writer.writerow(['Total Registers', 'Checked Registers', 'Not Checked Registers'])
-    writer.writerow([
-        data['registerTotals']['totalRegisters'],
-        data['registerTotals']['checked'],
-        data['registerTotals']['notChecked']
-    ])
-    writer.writerow([])
-
-    writer.writerow(['Registration Activity'])
-    writer.writerow(['Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due'])
-    writer.writerow([
-        data['overall']['totalCompleted'],
-        data['overall']['totalMissed'],
-        data['overall']['totalRejected'],
-        data['overall']['totalDue']
-    ])
-    writer.writerow([])
-
     writer.writerow(['Task Performance'])
-    writer.writerow(['Total Tasks', 'Completed Tasks', 'Delayed Tasks'])
+    writer.writerow(['Total Task', 'Completed', 'Not Completed', 'Delayed', 'Performance'])
     writer.writerow([
         data['taskTotals']['totalTasks'],
         data['taskTotals']['completedTasks'],
-        data['taskTotals']['delayedTasks']
+        data['taskTotals']['notCompletedTasks'],
+        data['taskTotals']['delayedTasks'],
+        f"{data['taskTotals']['taskPerformance']}%"
+    ])
+    writer.writerow([])
+
+    writer.writerow(['Registration Performance'])
+    writer.writerow(['Total Register', 'Checked', 'Not Checked', 'Delayed', 'Performance'])
+    writer.writerow([
+        data['registerTotals']['totalRegisters'],
+        data['registerTotals']['checked'],
+        data['registerTotals']['notChecked'],
+        data['registerTotals']['delayed'],
+        f"{data['overall']['completionRate']}%"
     ])
     writer.writerow([])
 
     writer.writerow(['Performance Metrics'])
-    writer.writerow(['Task Performance %', 'Register Performance %', 'Final Performance %'])
-    writer.writerow([
-        data['taskTotals']['taskPerformance'],
-        data['overall']['completionRate'],
-        data['finalPerformance']
-    ])
+    writer.writerow(['Final Performance'])
+    writer.writerow([f"{data['finalPerformance']}%"])
     writer.writerow([])
 
     writer.writerow(['Detailed Register Records'])

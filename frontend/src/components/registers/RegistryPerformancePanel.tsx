@@ -183,27 +183,36 @@ function RegistryPerformancePanel() {
     return { totalCompleted, totalMissed, totalRejected, totalDue, completionRate };
   }, [filteredSummaries]);
 
-  // Total Registers KPI (requirement: Total Registers / Checked / Not
-  // Checked, with Total = Checked + Not Checked). A register counts as
-  // "Checked" here if it has at least one completed occurrence within the
-  // selected date range/filters; otherwise it is "Not Checked" — this
-  // covers registers that were only missed/rejected, or never actioned.
+  // Total Registers KPI (requirement: Total Register / Checked / Not
+  // Checked / Delayed / Performance). A register counts as "Checked" here
+  // if it has at least one completed occurrence within the selected date
+  // range/filters; otherwise it is "Not Checked" — this covers registers
+  // that were never actioned or were rejected. "Delayed" mirrors the Task
+  // side's definition: occurrences whose due date passed without being
+  // actioned (the register-level equivalent of a task auto-flipping to
+  // DELAYED once overdue) — i.e. the same occurrences counted in
+  // `overall.totalMissed` below, just surfaced here as a register KPI too.
   const registerTotals = useMemo(() => {
     const totalRegisters = filteredSummaries.length;
     const checked = filteredSummaries.filter((s) => s.completed > 0).length;
     const notChecked = totalRegisters - checked;
-    return { totalRegisters, checked, notChecked };
+    const delayed = filteredSummaries.reduce((sum, s) => sum + s.missed, 0);
+    return { totalRegisters, checked, notChecked, delayed };
   }, [filteredSummaries]);
 
-  // Task Performance KPI (requirement: Total/Completed/Delayed/Missed
-  // tasks) — aggregated from the same Task Performance rows shown (and
-  // filterable by Head) above.
+  // Task Performance KPI (requirement: Total Task / Completed / Not
+  // Completed / Delayed / Performance) — aggregated from the same Task
+  // Performance rows shown (and filterable by Head) above. "Not Completed"
+  // covers every task that isn't COMPLETED yet (missed/pending/in
+  // progress/escalated/delayed); "Delayed" is the subset of those that are
+  // specifically overdue (status DELAYED).
   const taskTotals = useMemo(() => {
     const totalTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.totalTasks, 0);
     const completedTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.completedTasks, 0);
     const delayedTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.delayedTasks, 0);
+    const notCompletedTasks = totalTasks - completedTasks;
     const taskPerformance = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    return { totalTasks, completedTasks, delayedTasks, taskPerformance };
+    return { totalTasks, completedTasks, delayedTasks, notCompletedTasks, taskPerformance };
   }, [filteredStaffPerformance]);
 
   // Final Performance: same 50/50 Task + Register blend the backend uses
@@ -234,21 +243,29 @@ function RegistryPerformancePanel() {
       ['Performance Export'],
       ['Filters', `Date: ${dateFrom} to ${dateTo}`, `Head: ${headLabel}`, `Cycle: ${cycleLabel}`, `Status: ${statusLabel}`],
       [],
-      ['Registration Performance'],
-      ['Total Registers', 'Checked Registers', 'Not Checked Registers'],
-      [registerTotals.totalRegisters, registerTotals.checked, registerTotals.notChecked],
-      [],
-      ['Registration Activity'],
-      ['Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due'],
-      [overall.totalCompleted, overall.totalMissed, overall.totalRejected, overall.totalDue],
-      [],
       ['Task Performance'],
-      ['Total Tasks', 'Completed Tasks', 'Delayed Tasks'],
-      [taskTotals.totalTasks, taskTotals.completedTasks, taskTotals.delayedTasks],
+      ['Total Task', 'Completed', 'Not Completed', 'Delayed', 'Performance'],
+      [
+        taskTotals.totalTasks,
+        taskTotals.completedTasks,
+        taskTotals.notCompletedTasks,
+        taskTotals.delayedTasks,
+        `${taskTotals.taskPerformance}%`,
+      ],
+      [],
+      ['Registration Performance'],
+      ['Total Register', 'Checked', 'Not Checked', 'Delayed', 'Performance'],
+      [
+        registerTotals.totalRegisters,
+        registerTotals.checked,
+        registerTotals.notChecked,
+        registerTotals.delayed,
+        `${overall.completionRate}%`,
+      ],
       [],
       ['Performance Metrics'],
-      ['Task Performance %', 'Register Performance %', 'Final Performance %'],
-      [taskTotals.taskPerformance, overall.completionRate, finalPerformance],
+      ['Final Performance'],
+      [`${finalPerformance}%`],
       [],
       ['Detailed Register Records'],
       ['Register', 'Register No', 'Head', 'Cycle', 'Status', 'Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due', 'Completion %'],
@@ -402,11 +419,36 @@ function RegistryPerformancePanel() {
         </Button>
       </div>
 
-      {/* Total Registers KPI: Total = Checked + Not Checked, all respecting
-          the filters above. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* Task Performance row: Total Task / Completed / Not Completed /
+          Delayed / Performance — all respecting the filters above. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Total Registers</p>
+          <p className="text-xs font-medium text-[#8A99B0]">Total Task</p>
+          <p className="mt-1 text-2xl font-semibold text-[#1E293B]">{taskTotals.totalTasks}</p>
+        </div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <p className="text-xs font-medium text-[#8A99B0]">Completed</p>
+          <p className="mt-1 text-2xl font-semibold text-emerald-600">{taskTotals.completedTasks}</p>
+        </div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <p className="text-xs font-medium text-[#8A99B0]">Not Completed</p>
+          <p className="mt-1 text-2xl font-semibold text-amber-600">{taskTotals.notCompletedTasks}</p>
+        </div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <p className="text-xs font-medium text-[#8A99B0]">Delayed</p>
+          <p className="mt-1 text-2xl font-semibold text-red-600">{taskTotals.delayedTasks}</p>
+        </div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <p className="text-xs font-medium text-[#8A99B0]">Performance</p>
+          <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{taskTotals.taskPerformance}%</p>
+        </div>
+      </div>
+
+      {/* Register Performance row: Total Register / Checked / Not Checked /
+          Delayed / Performance — mirrors the Task row above, same filters. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <p className="text-xs font-medium text-[#8A99B0]">Total Register</p>
           <p className="mt-1 text-2xl font-semibold text-[#1E293B]">{registerTotals.totalRegisters}</p>
         </div>
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
@@ -417,31 +459,19 @@ function RegistryPerformancePanel() {
           <p className="text-xs font-medium text-[#8A99B0]">Not Checked</p>
           <p className="mt-1 text-2xl font-semibold text-amber-600">{registerTotals.notChecked}</p>
         </div>
-      </div>
-
-      {/* Overall performance summary: changed vs not changed vs overall rate */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">checked (Completed)</p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-600">{overall.totalCompleted}</p>
+          <p className="text-xs font-medium text-[#8A99B0]">Delayed</p>
+          <p className="mt-1 text-2xl font-semibold text-red-600">{registerTotals.delayed}</p>
         </div>
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Not checked (Missed)</p>
-          <p className="mt-1 text-2xl font-semibold text-amber-600">{overall.totalMissed}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Rejected</p>
-          <p className="mt-1 text-2xl font-semibold text-red-600">{overall.totalRejected}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Overall Performance</p>
+          <p className="text-xs font-medium text-[#8A99B0]">Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{overall.completionRate}%</p>
         </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Task Performance</p>
-          <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{taskTotals.taskPerformance}%</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+      </div>
+
+      {/* Final Performance: the combined (50/50) Task + Register score. */}
+      <div className="flex justify-center">
+        <div className="w-full max-w-xs rounded-[20px] border border-[#EFF2F6] bg-white p-5 text-center">
           <p className="text-xs font-medium text-[#8A99B0]">Final Performance</p>
           <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{finalPerformance}%</p>
         </div>
