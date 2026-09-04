@@ -30,7 +30,7 @@ def list_leave():
     if not user:
         return error('Not found', 404)
 
-    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR', 'HOUSEKEEPING', 'FRONT_DESK'):
+    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR'):
         query = LeaveRequest.query
     else:
         query = LeaveRequest.query.filter_by(user_id=user_id)
@@ -122,7 +122,7 @@ def list_resumption():
     if not user:
         return error('Not found', 404)
 
-    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR', 'HOUSEKEEPING', 'FRONT_DESK'):
+    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR'):
         records = ResumptionRequest.query.order_by(ResumptionRequest.created_at.desc()).all()
     else:
         records = ResumptionRequest.query.filter_by(user_id=user_id).order_by(ResumptionRequest.created_at.desc()).all()

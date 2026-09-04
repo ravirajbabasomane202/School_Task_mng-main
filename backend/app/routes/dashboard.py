@@ -198,6 +198,16 @@ def dept_dashboard(dept_id):
             }
         )
 
+    current_user_id = int(get_jwt_identity())
+    user = db.session.get(User, current_user_id)
+    if not user:
+        return error('User not found', 401)
+
+    # Same cross-department guard as GET /tasks/dept/<dept_id>: non-elevated
+    # users may only view their own department's dashboard.
+    if user.role not in ('CHAIRMAN', 'DIRECTOR') and user.department_id != dept_id:
+        return error('Forbidden', 403)
+
     # ROOT CAUSE (Dashboard "2 tasks" vs My Tasks "1 task"): this endpoint used
     # to build the "myTasks" KPI card and the "myTasksList" table from
     # `Task.query.filter_by(department_id=dept_id)` — i.e. EVERY task that
@@ -214,7 +224,6 @@ def dept_dashboard(dept_id):
     # both screens are always consistent. `dept_id` is still used below for
     # department-wide context (announcements) which is intentionally
     # department-scoped, not user-scoped.
-    current_user_id = int(get_jwt_identity())
     tasks = Task.query.filter_by(assigned_to=current_user_id).all()
     total, completed, delayed, pending, in_progress, escalated, _ = _task_stats(tasks)
 
@@ -383,15 +392,26 @@ def monthly_comparison():
 @jwt_required()
 def metrics():
     Task.mark_overdue_delayed()
-    all_tasks = Task.query.all()
-    total, completed, delayed, pending, _, _, completion_rate = _task_stats(all_tasks)
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user:
+        return error('User not found', 401)
+
+    if user.role in ('CHAIRMAN', 'DIRECTOR'):
+        tasks = Task.query.all()
+        scope = 'SCHOOL_WIDE'
+    else:
+        tasks = Task.query.filter_by(department_id=user.department_id).all() if user.department_id else []
+        scope = 'DEPARTMENT'
+
+    total, completed, delayed, pending, _, _, completion_rate = _task_stats(tasks)
     return success(
         {
             'totalTasks': total,
             'completedTasks': completed,
             'delayedTasks': delayed,
             'pendingTasks': pending,
-            'completionRate': completion_rate
+            'completionRate': completion_rate,
+            'scope': scope
         }
     )
 
@@ -416,6 +436,17 @@ def role_analytics(role):
         return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
 
     dept_id = request.args.get('department_id') or (user.department_id if user else None)
+
+    # Non-elevated users may only ever query their own department's
+    # analytics — reject explicitly rather than silently overriding, so a
+    # caller passing the wrong department_id gets a clear signal.
+    if dept_id and user.role not in ('CHAIRMAN', 'DIRECTOR'):
+        try:
+            resolved_dept_id = int(dept_id)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'message': 'Invalid department_id', 'data': None}), 400
+        if resolved_dept_id != user.department_id:
+            return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
 
     if dept_id:
         tasks = Task.query.filter_by(department_id=dept_id).all()

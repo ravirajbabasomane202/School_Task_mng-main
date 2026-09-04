@@ -14,6 +14,7 @@ Covers:
 
 import io
 import os
+import uuid
 
 import pytest
 
@@ -24,10 +25,153 @@ def department(app_context, department):
     return department
 
 
+def _make_department(name_prefix='Recruit Dept'):
+    """Create a uniquely-named department, avoiding unique-name collisions
+    with the shared `department` fixture used elsewhere in this file."""
+    from app.models.department import Department
+    from app.extensions import db
+    dept = Department(name=f'{name_prefix} {uuid.uuid4().hex[:10]}', description='For department-scoping tests')
+    db.session.add(dept)
+    db.session.commit()
+    return dept
+
+
+@pytest.fixture
+def scoping_department(app_context):
+    return _make_department('Recruit Scoping Own')
+
+
+@pytest.fixture
+def other_scoping_department(app_context):
+    return _make_department('Recruit Scoping Other')
+
+
+def _dept_head_headers(app, client, department_id, role='IT'):
+    """Create a department-head user pinned to `department_id` and return
+    bearer-token auth headers for them. `role` defaults to IT, a
+    DEPARTMENT_HEAD_ROLES entry that is NOT one of the
+    RECRUITMENT_ELEVATED_ROLES (CHAIRMAN/DIRECTOR/HR), so it should always
+    be force-scoped to its own department.
+    """
+    from app.extensions import db
+    from app.models.user import User
+
+    email = f'recruit-dept-head-{department_id}-{uuid.uuid4().hex[:8]}@school.test'
+    plain = str(uuid.uuid4())[:12]
+    with app.app_context():
+        user = User(
+            name=f'Recruit Dept Head {department_id}',
+            email=email,
+            role=role,
+            department_id=department_id,
+            is_active=True,
+        )
+        user.set_password(plain)
+        db.session.add(user)
+        db.session.commit()
+
+    resp = client.post('/api/auth/login', json={'email': email, 'password': plain})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    token = resp.get_json()['data']['accessToken']
+    return {'Authorization': f'Bearer {token}'}
+
+
 # ── helpers ─────────────────────────────────────────────────────────────────
 
 def _auth(auth_headers, role: str) -> dict:
     return auth_headers.get(role, {})
+
+
+# ── Department scoping (Finding 12-style fix) ────────────────────────────────
+
+class TestDepartmentScoping:
+    """A department-head (non-elevated) user must only ever see recruitment
+    postings — and their applications — for their own department, on
+    GET /recruitment and the applications sub-resource, regardless of any
+    department_id they try to pass as a query param.
+    """
+
+    def test_list_only_returns_own_department(self, client, auth_headers, app, scoping_department, other_scoping_department):
+        client.post(
+            '/api/recruitment',
+            json={'position_title': 'Own Dept Role', 'department_id': scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        )
+        client.post(
+            '/api/recruitment',
+            json={'position_title': 'Other Dept Role', 'department_id': other_scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        )
+
+        head_headers = _dept_head_headers(app, client, scoping_department.id)
+
+        resp = client.get('/api/recruitment', headers=head_headers)
+        assert resp.status_code == 200
+        rows = resp.get_json()['data']
+        assert len(rows) >= 1
+        assert all(r['department_id'] == scoping_department.id for r in rows)
+        assert not any(r['department_id'] == other_scoping_department.id for r in rows)
+
+    def test_list_ignores_client_supplied_department_id(self, client, auth_headers, app, scoping_department, other_scoping_department):
+        client.post(
+            '/api/recruitment',
+            json={'position_title': 'Own Dept Role 2', 'department_id': scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        )
+        client.post(
+            '/api/recruitment',
+            json={'position_title': 'Other Dept Role 2', 'department_id': other_scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        )
+
+        head_headers = _dept_head_headers(app, client, scoping_department.id)
+
+        # Even asking explicitly for the other department must not leak it.
+        resp = client.get(f'/api/recruitment?department_id={other_scoping_department.id}', headers=head_headers)
+        assert resp.status_code == 200
+        rows = resp.get_json()['data']
+        assert not any(r['department_id'] == other_scoping_department.id for r in rows)
+        assert all(r['department_id'] == scoping_department.id for r in rows)
+
+    def test_applications_scoped_through_parent_department(self, client, auth_headers, app, scoping_department, other_scoping_department):
+        # Postings in each department, each with one applicant.
+        own_posting = client.post(
+            '/api/recruitment',
+            json={'position_title': 'Own Dept Posting', 'department_id': scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        ).get_json()['data']
+        other_posting = client.post(
+            '/api/recruitment',
+            json={'position_title': 'Other Dept Posting', 'department_id': other_scoping_department.id},
+            headers=_auth(auth_headers, 'hr'),
+        ).get_json()['data']
+
+        client.post(
+            f"/api/recruitment/{own_posting['id']}/applications",
+            data={'applicant_name': 'Own Dept Candidate', 'email': 'own-candidate@test.com'},
+            headers=_auth(auth_headers, 'hr'),
+        )
+        client.post(
+            f"/api/recruitment/{other_posting['id']}/applications",
+            data={'applicant_name': 'Other Dept Candidate', 'email': 'other-candidate@test.com'},
+            headers=_auth(auth_headers, 'hr'),
+        )
+
+        head_headers = _dept_head_headers(app, client, scoping_department.id)
+
+        # Own department's posting: applications are visible.
+        own_resp = client.get(f"/api/recruitment/{own_posting['id']}/applications", headers=head_headers)
+        assert own_resp.status_code == 200
+        own_apps = own_resp.get_json()['data']
+        assert len(own_apps) == 1
+        assert own_apps[0]['applicant_name'] == 'Own Dept Candidate'
+
+        # Other department's posting: candidate data must not be reachable,
+        # even though it's requested by a valid recruitment_id — the sub-
+        # resource is scoped through the PARENT posting's department, not
+        # independently trusted.
+        other_resp = client.get(f"/api/recruitment/{other_posting['id']}/applications", headers=head_headers)
+        assert other_resp.status_code == 403
 
 
 # ── GET /api/recruitment ──────────────────────────────────────────────────────

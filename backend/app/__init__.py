@@ -1,8 +1,71 @@
 import os
 import re
 from flask import Flask, request, send_from_directory, jsonify
+from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy import or_
 from config import config
 from app.extensions import db, migrate, jwt, socketio, bcrypt, scheduler
+
+# Roles that can view any task's files regardless of assignment/department.
+UPLOAD_TASK_ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR'}
+# Roles that can view any recruitment application's resume regardless of department.
+UPLOAD_RECRUITMENT_ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR', 'HR'}
+
+
+def _resolve_upload_owner(normalized_filename):
+    """Map an /uploads/<filename> path to the DB record that owns it.
+
+    Never trust the URL path itself: only a filename that exactly matches a
+    path already stored on a Task (attachment_path/proof_path) or a
+    RecruitmentApplication (resume_path) is considered "owned" by that
+    record. Anything else (typos, guessed paths, directory listings,
+    leftover/orphaned files on disk) resolves to None so the route can 404.
+
+    Returns a (kind, record) tuple, or None if the filename can't be mapped
+    to any authorized record.
+    """
+    from app.models.task import Task
+    from app.models.recruitment import RecruitmentApplication
+
+    full_rel_path = f'uploads/{normalized_filename}'
+
+    task = Task.query.filter(
+        or_(Task.attachment_path == full_rel_path, Task.proof_path == full_rel_path)
+    ).first()
+    if task is not None:
+        return ('task', task)
+
+    # Resume paths are stored as a bare (already-unique) filename rather than
+    # a full relative path, so match on the basename.
+    basename = normalized_filename.rsplit('/', 1)[-1]
+    application = RecruitmentApplication.query.filter_by(resume_path=basename).first()
+    if application is not None:
+        return ('resume', application)
+
+    return None
+
+
+def _user_can_view_upload(user, kind, record):
+    if kind == 'task':
+        task = record
+        if user.role in UPLOAD_TASK_ELEVATED_ROLES:
+            return True
+        if task.assigned_to == user.id:
+            return True
+        return bool(user.department_id and task.department_id == user.department_id)
+
+    if kind == 'resume':
+        application = record
+        recruitment = application.recruitment
+        if user.role in UPLOAD_RECRUITMENT_ELEVATED_ROLES:
+            return True
+        return bool(
+            user.department_id
+            and recruitment is not None
+            and recruitment.department_id == user.department_id
+        )
+
+    return False
 
 
 DEVTUNNEL_FRONTEND_ORIGIN = re.compile(
@@ -212,8 +275,32 @@ def create_app(config_name=None):
         app.logger.info('[Scheduler] APScheduler started – escalation job runs every hour.')
 
     # Static file serving for uploads
+    #
+    # Files under UPLOAD_FOLDER back sensitive records (task attachments/
+    # completion proof, recruitment resumes, ...), so this can't be a plain
+    # static route: it must (1) require a valid JWT and (2) confirm the
+    # requesting user is actually allowed to see whichever record the
+    # filename belongs to. The filename -> record mapping is resolved via
+    # _resolve_upload_owner, which only trusts a filename that matches a
+    # path already stored on a DB record - the URL path alone grants nothing.
     @app.route('/uploads/<path:filename>')
+    @jwt_required()
     def serve_upload(filename):
+        from app.models.user import User
+
+        user = db.session.get(User, int(get_jwt_identity()))
+        if not user or not user.is_active:
+            return jsonify({'success': False, 'message': 'User not found or inactive', 'data': None}), 401
+
+        normalized_filename = filename.replace('\\', '/').lstrip('/')
+        owner = _resolve_upload_owner(normalized_filename)
+        if owner is None:
+            return jsonify({'success': False, 'message': 'File not found', 'data': None}), 404
+
+        kind, record = owner
+        if not _user_can_view_upload(user, kind, record):
+            return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
+
         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
     # Register SocketIO events

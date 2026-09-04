@@ -15,6 +15,13 @@ recruitment_bp = Blueprint('recruitment', __name__)
 
 HR_ROLES = ('HR', 'CHAIRMAN')
 
+# CHAIRMAN/DIRECTOR are the org-wide elevated roles; HR is the designated
+# recruitment-management role (creates/updates postings and applications for
+# every department's vacancies, same as FINANCE for purchase orders) and so
+# also needs cross-department visibility. Everyone else is scoped to their
+# own department, regardless of any department_id they pass in.
+RECRUITMENT_ELEVATED_ROLES = ('CHAIRMAN', 'DIRECTOR', 'HR')
+
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
 
@@ -40,15 +47,30 @@ def _get_upload_path(filename: str) -> tuple[str, str]:
 @recruitment_bp.route('', methods=['GET'])
 @jwt_required()
 def list_recruitments():
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user:
+        return error('User not found', 401)
+
     query = Recruitment.query
     status = request.args.get('status')
     department_id = request.args.get('department_id')
-    
+
     if status:
         query = query.filter_by(status=status)
-    if department_id:
-        query = query.filter_by(department_id=department_id)
-    
+
+    if user.role in RECRUITMENT_ELEVATED_ROLES:
+        # Elevated roles can filter by any department, or see all if omitted.
+        if department_id:
+            query = query.filter_by(department_id=int(department_id))
+    else:
+        # Everyone else only ever sees their own department's postings, no
+        # matter what department_id (if any) was passed in the query string.
+        if user.department_id:
+            query = query.filter_by(department_id=user.department_id)
+        else:
+            return success([])
+
     return success([r.to_dict() for r in query.order_by(Recruitment.created_at.desc()).all()])
 
 
@@ -105,6 +127,20 @@ def update_recruitment(recruitment_id: int):
 @recruitment_bp.route('/<int:recruitment_id>/applications', methods=['GET'])
 @jwt_required()
 def list_applications(recruitment_id: int):
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user:
+        return error('User not found', 401)
+
+    # Applications carry no department_id of their own — scope is derived
+    # from the PARENT recruitment posting's department_id. Never trust a
+    # client-supplied department value for this sub-resource.
+    recruitment = Recruitment.query.get_or_404(recruitment_id)
+
+    if user.role not in RECRUITMENT_ELEVATED_ROLES:
+        if not user.department_id or recruitment.department_id != user.department_id:
+            return error('Forbidden: recruitment posting belongs to another department', 403)
+
     applications = RecruitmentApplication.query.filter_by(recruitment_id=recruitment_id).all()
     return success([a.to_dict() for a in applications])
 

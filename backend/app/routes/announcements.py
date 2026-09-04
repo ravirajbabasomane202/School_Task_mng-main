@@ -32,7 +32,20 @@ def list_announcements():
 @announcements_bp.route('/<int:ann_id>', methods=['GET'])
 @jwt_required()
 def get_announcement(ann_id):
+    user_id = get_jwt_identity()
+    user = db.session.get(User, user_id)
+    if not user:
+        return error('User not found', 401)
+
     ann = Announcement.query.get_or_404(ann_id)
+
+    # Same ALL-vs-department visibility rule as list_announcements: a
+    # DEPARTMENT-targeted announcement is only visible to users in that
+    # department, unless they're CHAIRMAN/DIRECTOR (who see everything).
+    if ann.target != 'ALL' and user.role not in ('CHAIRMAN', 'DIRECTOR'):
+        if not user.department_id or ann.department_id != user.department_id:
+            return error('Forbidden: announcement belongs to another department', 403)
+
     return success(ann.to_dict())
 
 

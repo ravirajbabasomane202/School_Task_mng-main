@@ -10,7 +10,44 @@ Covers:
   PUT    /api/leave/resumption/<id>/process — approve/reject resumption
 """
 
+import uuid
+
 import pytest
+
+
+def _make_department(app_context, name_prefix='Leave Dept'):
+    from app.extensions import db
+    from app.models.department import Department
+
+    dept = Department(name=f'{name_prefix} {uuid.uuid4().hex[:10]}', description='For leave scoping tests')
+    db.session.add(dept)
+    db.session.commit()
+    return dept
+
+
+def _make_user(app, client, role, department_id=None):
+    from app.extensions import db
+    from app.models.user import User
+
+    email = f'leave-test-{uuid.uuid4().hex[:8]}@school.test'
+    plain = str(uuid.uuid4())[:12]
+    with app.app_context():
+        user = User(
+            name=f'{role} Leave Tester',
+            email=email,
+            role=role,
+            department_id=department_id,
+            is_active=True,
+        )
+        user.set_password(plain)
+        db.session.add(user)
+        db.session.commit()
+        user_id = user.id
+
+    resp = client.post('/api/auth/login', json={'email': email, 'password': plain})
+    assert resp.status_code == 200, resp.get_data(as_text=True)
+    token = resp.get_json()['data']['accessToken']
+    return user_id, {'Authorization': f'Bearer {token}'}
 
 
 def _leave_payload(user_id: int, start: str = '2026-06-01', end: str = '2026-06-05') -> dict:
@@ -34,6 +71,75 @@ class TestListLeaveRequests:
         body = resp.get_json()
         assert body['success'] is True
         assert isinstance(body['data'], list)
+
+
+class TestLeaveDepartmentScoping:
+    """HOUSEKEEPING/FRONT_DESK are ordinary department-head roles, not
+    cross-department reviewers like CHAIRMAN/DIRECTOR/HR — they must only
+    ever see their own leave/resumption requests, never another
+    department's (or another user's, even within the same department,
+    since leave.py's non-elevated branch scopes to the requester)."""
+
+    def test_housekeeping_only_sees_own_requests(self, client, app, app_context):
+        dept = _make_department(app_context, 'Leave Dept Housekeeping')
+        other_dept = _make_department(app_context, 'Leave Dept Other')
+
+        hk_user_id, hk_headers = _make_user(app, client, 'HOUSEKEEPING', department_id=dept.id)
+        _, other_headers = _make_user(app, client, 'IT', department_id=other_dept.id)
+
+        # A leave request from a user in a different department.
+        client.post('/api/leave', json=_leave_payload(0), headers=other_headers)
+        # The HOUSEKEEPING user's own leave request.
+        own_resp = client.post('/api/leave', json=_leave_payload(0), headers=hk_headers)
+        own_id = own_resp.get_json()['data']['id']
+
+        resp = client.get('/api/leave', headers=hk_headers)
+        assert resp.status_code == 200
+        rows = resp.get_json()['data']
+        assert all(r['user_id'] == hk_user_id for r in rows)
+        assert any(r['id'] == own_id for r in rows)
+
+    def test_front_desk_only_sees_own_requests(self, client, app, app_context):
+        dept = _make_department(app_context, 'Leave Dept FrontDesk')
+        other_dept = _make_department(app_context, 'Leave Dept Other 2')
+
+        fd_user_id, fd_headers = _make_user(app, client, 'FRONT_DESK', department_id=dept.id)
+        _, other_headers = _make_user(app, client, 'IT', department_id=other_dept.id)
+
+        client.post('/api/leave', json=_leave_payload(0), headers=other_headers)
+        own_resp = client.post('/api/leave', json=_leave_payload(0), headers=fd_headers)
+        own_id = own_resp.get_json()['data']['id']
+
+        resp = client.get('/api/leave', headers=fd_headers)
+        assert resp.status_code == 200
+        rows = resp.get_json()['data']
+        assert all(r['user_id'] == fd_user_id for r in rows)
+        assert any(r['id'] == own_id for r in rows)
+
+    def test_housekeeping_only_sees_own_resumption_requests(self, client, app, app_context):
+        dept = _make_department(app_context, 'Leave Dept Housekeeping Resumption')
+        other_dept = _make_department(app_context, 'Leave Dept Other Resumption')
+
+        hk_user_id, hk_headers = _make_user(app, client, 'HOUSEKEEPING', department_id=dept.id)
+        _, other_headers = _make_user(app, client, 'IT', department_id=other_dept.id)
+
+        client.post(
+            '/api/leave/resumption',
+            json={'resumption_date': '2026-06-10', 'notes': 'other dept'},
+            headers=other_headers,
+        )
+        own_resp = client.post(
+            '/api/leave/resumption',
+            json={'resumption_date': '2026-06-11', 'notes': 'own'},
+            headers=hk_headers,
+        )
+        own_id = own_resp.get_json()['data']['id']
+
+        resp = client.get('/api/leave/resumption', headers=hk_headers)
+        assert resp.status_code == 200
+        rows = resp.get_json()['data']
+        assert all(r['user_id'] == hk_user_id for r in rows)
+        assert any(r['id'] == own_id for r in rows)
 
 
 class TestSubmitLeave:

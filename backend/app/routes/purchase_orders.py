@@ -9,19 +9,41 @@ from app.utils.decorators import roles_required
 
 po_bp = Blueprint('purchase_orders', __name__)
 
+# CHAIRMAN/DIRECTOR are the org-wide elevated roles; FINANCE is the designated
+# PO reviewer (approves/rejects POs submitted from every department) and so
+# also needs cross-department visibility. Everyone else (including PURCHASE,
+# which only creates/submits/marks-ordered POs) is scoped to their own
+# department, regardless of any department_id they pass in.
+PO_ELEVATED_ROLES = ('CHAIRMAN', 'DIRECTOR', 'FINANCE')
+
 
 @po_bp.route('', methods=['GET'])
 @jwt_required()
 def list_purchase_orders():
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user:
+        return error('User not found', 401)
+
     query = PurchaseOrder.query
     status = request.args.get('status')
     department_id = request.args.get('department_id')
-    
+
     if status:
         query = query.filter_by(status=status)
-    if department_id:
-        query = query.filter_by(department_id=department_id)
-    
+
+    if user.role in PO_ELEVATED_ROLES:
+        # Elevated roles can filter by any department, or see all if omitted.
+        if department_id:
+            query = query.filter_by(department_id=int(department_id))
+    else:
+        # Everyone else only ever sees their own department's POs, no matter
+        # what department_id (if any) was passed in the query string.
+        if user.department_id:
+            query = query.filter_by(department_id=user.department_id)
+        else:
+            return success([])
+
     return success([po.to_dict() for po in query.order_by(PurchaseOrder.created_at.desc()).all()])
 
 
@@ -35,13 +57,40 @@ def get_purchase_order(po_id: int):
 @po_bp.route('/stats', methods=['GET'])
 @jwt_required()
 def po_stats():
-    total = PurchaseOrder.query.count()
-    pending = PurchaseOrder.query.filter_by(status='PENDING').count()
-    approved = PurchaseOrder.query.filter_by(status='APPROVED').count()
-    rejected = PurchaseOrder.query.filter_by(status='REJECTED').count()
-    ordered = PurchaseOrder.query.filter_by(status='ORDERED').count()
-    draft = PurchaseOrder.query.filter_by(status='DRAFT').count()
-    
+    user_id = int(get_jwt_identity())
+    user = db.session.get(User, user_id)
+    if not user:
+        return error('User not found', 401)
+
+    department_id = request.args.get('department_id')
+    base_query = PurchaseOrder.query
+
+    if user.role in PO_ELEVATED_ROLES:
+        # Elevated roles can filter by any department, or see all if omitted.
+        if department_id:
+            base_query = base_query.filter_by(department_id=int(department_id))
+    else:
+        # Everyone else is force-scoped to their own department, ignoring
+        # any department_id passed in.
+        if user.department_id:
+            base_query = base_query.filter_by(department_id=user.department_id)
+        else:
+            return success({
+                'total': 0,
+                'pending': 0,
+                'approved': 0,
+                'rejected': 0,
+                'ordered': 0,
+                'draft': 0,
+            })
+
+    total = base_query.count()
+    pending = base_query.filter_by(status='PENDING').count()
+    approved = base_query.filter_by(status='APPROVED').count()
+    rejected = base_query.filter_by(status='REJECTED').count()
+    ordered = base_query.filter_by(status='ORDERED').count()
+    draft = base_query.filter_by(status='DRAFT').count()
+
     return success({
         'total': total,
         'pending': pending,

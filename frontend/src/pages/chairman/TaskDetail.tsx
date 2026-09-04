@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
@@ -13,7 +13,7 @@ import * as taskService from '../../services/taskService';
 import { useAppSelector } from '../../store/hooks';
 import type { Task, TaskHistory, TaskStatus } from '../../types/task.types';
 import { ROLES } from '../../constants/roles';
-import { getBackendBaseUrl } from '../../utils/apiBase';
+import { downloadAuthenticatedUpload } from '../../utils/fileDownload';
 
 /* ─── Lookup maps ─────────────────────────────────────────── */
 
@@ -290,15 +290,14 @@ function TaskDetailContent() {
     toast.success('Task escalated successfully.');
   };
 
-  const attachmentUrl = useMemo(() => {
-    if (!task?.attachment_path) return null;
-    return `${getBackendBaseUrl()}/${task.attachment_path.replace(/^\/+/, '')}`;
-  }, [task?.attachment_path]);
-
-  const proofUrl = useMemo(() => {
-    if (!task?.proof_path) return null;
-    return `${getBackendBaseUrl()}/${task.proof_path.replace(/^\/+/, '')}`;
-  }, [task?.proof_path]);
+  const handleDownload = async (path: string | null | undefined, label: string) => {
+    if (!path) return;
+    try {
+      await downloadAuthenticatedUpload(path);
+    } catch {
+      toast.error(`Could not download the ${label}. You may not have access to this file.`);
+    }
+  };
 
   const fallbackPath =
     user?.role === ROLES.CHAIRMAN
@@ -398,29 +397,27 @@ function TaskDetailContent() {
             <p className="text-sm font-medium text-[#1E293B]">{fmtDate(task.due_date)}</p>
           </MetaField>
           <MetaField label="Brief attachment">
-            {attachmentUrl ? (
-              <a
+            {task.attachment_path ? (
+              <button
+                type="button"
                 className="text-sm font-semibold text-[#185FA5] hover:underline"
-                href={attachmentUrl}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => handleDownload(task.attachment_path, 'attachment')}
               >
                 Download ↗
-              </a>
+              </button>
             ) : (
               <p className="text-sm text-[#8A99B0]">None</p>
             )}
           </MetaField>
           <MetaField label="Completion proof">
-            {proofUrl ? (
-              <a
+            {task.proof_path ? (
+              <button
+                type="button"
                 className="text-sm font-semibold text-[#185FA5] hover:underline"
-                href={proofUrl}
-                rel="noreferrer"
-                target="_blank"
+                onClick={() => handleDownload(task.proof_path, 'completion proof')}
               >
                 Download ↗
-              </a>
+              </button>
             ) : task.status === 'COMPLETED' ? (
               <p className="text-sm font-semibold text-[#D64545]">Missing</p>
             ) : (
