@@ -52,14 +52,6 @@ MONTH_NAMES = [
 ]
 
 
-def _health_color(percentage):
-    if percentage >= 70:
-        return '#22C55E'
-    if percentage >= 40:
-        return '#F59E0B'
-    return '#EF4444'
-
-
 def _task_stats(tasks):
     total = len(tasks)
     completed = sum(1 for task in tasks if task.status == 'COMPLETED')
@@ -86,23 +78,6 @@ def chairman_dashboard():
         all_tasks
     )
     pending_approvals = Approval.query.filter_by(status='PENDING').count()
-
-    # Group tasks by department_id in Python — avoids one query per department
-    tasks_by_dept: dict = {}
-    for t in all_tasks:
-        tasks_by_dept.setdefault(t.department_id, []).append(t)
-
-    department_rows = []
-    for department in Department.query.order_by(Department.name).all():
-        department_tasks = tasks_by_dept.get(department.id, [])
-        _, _, _, _, _, _, department_completion = _task_stats(department_tasks)
-        department_rows.append(
-            {
-                'name': department.name,
-                'completionPct': department_completion,
-                'healthColor': _health_color(department_completion)
-            }
-        )
 
     # Use joinedload to avoid per-task department lazy-load (N+1)
     alert_tasks = (
@@ -170,7 +145,6 @@ def chairman_dashboard():
                 'escalated': escalated
             },
             'pendingApprovals': pending_approvals,
-            'departments': department_rows,
             'alerts': alerts,
             'recentTasks': [task.to_dict() for task in recent_tasks],
             'pendingApprovalsList': pending_approvals_list

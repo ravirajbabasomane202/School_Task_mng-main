@@ -6,7 +6,6 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import SelectWithOther from '../../components/common/SelectWithOther';
 import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
-import { createDepartment, getAllDepartments } from '../../services/departmentService';
 import { createRole, getAllRoles } from '../../services/roleService';
 import api from '../../services/api';
 import type { User } from '../../types/user.types';
@@ -15,7 +14,6 @@ interface AddUserForm {
   name: string;
   email: string;
   role: string;
-  department_id: number | null;
   password: string;
 }
 
@@ -23,7 +21,6 @@ interface EditUserForm {
   name: string;
   email: string;
   role: string;
-  department_id: number | null;
   password?: string;
 }
 
@@ -43,14 +40,12 @@ const UserManagement: React.FC = () => {
     name: '',
     email: '',
     role: '',
-    department_id: null,
     password: ''
   });
   const [editForm, setEditForm] = useState<EditUserForm>({
     name: '',
     email: '',
-    role: '',
-    department_id: null
+    role: ''
   });
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
@@ -61,11 +56,6 @@ const UserManagement: React.FC = () => {
       const response = await api.get<ApiResponse<User[]>>('/users');
       return response.data.data;
     }
-  });
-
-  const { data: departments } = useQuery({
-    queryKey: ['departments'],
-    queryFn: getAllDepartments
   });
 
   const { data: customRoles } = useQuery({
@@ -84,21 +74,10 @@ const UserManagement: React.FC = () => {
     return [...builtIn, ...custom];
   }, [customRoles]);
 
-  const departmentOptions = useMemo(
-    () => (departments ?? []).map((department) => ({ label: department.name, value: String(department.id) })),
-    [departments]
-  );
-
   const handleCreateRole = async (name: string) => {
     const role = await createRole(name);
     void queryClient.invalidateQueries({ queryKey: ['roles'] });
     return { label: role.name, value: role.name };
-  };
-
-  const handleCreateDepartment = async (name: string) => {
-    const department = await createDepartment(name);
-    void queryClient.invalidateQueries({ queryKey: ['departments'] });
-    return { label: department.name, value: String(department.id) };
   };
 
   const addUserMutation = useMutation({
@@ -109,7 +88,7 @@ const UserManagement: React.FC = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsAddModalOpen(false);
-      setAddForm({ name: '', email: '', role: '', department_id: null, password: '' });
+      setAddForm({ name: '', email: '', role: '', password: '' });
       setAddErrors({});
       toast.success('User added successfully');
     },
@@ -179,8 +158,7 @@ const UserManagement: React.FC = () => {
     setEditForm({
       name: user.name,
       email: user.email,
-      role: user.role,
-      department_id: user.department_id
+      role: user.role
     });
     setIsEditModalOpen(true);
   };
@@ -258,22 +236,6 @@ const UserManagement: React.FC = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">Department</label>
-            <SelectWithOther
-              error={addErrors.department_id}
-              inputPlaceholder="Enter Department"
-              label="Department"
-              onChange={(value) =>
-                setAddForm({ ...addForm, department_id: value ? Number.parseInt(value, 10) : null })
-              }
-              onCreate={handleCreateDepartment}
-              options={departmentOptions}
-              saveLabel="Save Department"
-              selectPlaceholder="Select Department"
-              value={addForm.department_id ? String(addForm.department_id) : ''}
-            />
-          </div>
-          <div>
             <label className="block text-sm font-medium text-gray-700">Temporary Password</label>
             <input
               type="password"
@@ -336,22 +298,6 @@ const UserManagement: React.FC = () => {
               saveLabel="Save Role"
               selectPlaceholder="Select Role"
               value={editForm.role}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Department</label>
-            <SelectWithOther
-              error={editErrors.department_id}
-              inputPlaceholder="Enter Department"
-              label="Department"
-              onChange={(value) =>
-                setEditForm({ ...editForm, department_id: value ? Number.parseInt(value, 10) : null })
-              }
-              onCreate={handleCreateDepartment}
-              options={departmentOptions}
-              saveLabel="Save Department"
-              selectPlaceholder="Select Department"
-              value={editForm.department_id ? String(editForm.department_id) : ''}
             />
           </div>
           <div>

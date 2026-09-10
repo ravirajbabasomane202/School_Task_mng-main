@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Download } from 'lucide-react';
 import Badge from '../../components/common/Badge';
+import Button from '../../components/common/Button';
 import RegisterCalendar from '../../components/registers/RegisterCalendar';
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
-import { formatDate } from '../../utils/dateUtils';
+import { formatDate, todayISO } from '../../utils/dateUtils';
+import { downloadCsv } from '../../utils/fileDownload';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
 import type { Register, RegisterCalendarEvent, RegisterCycle, RegisterPriority, RegisterStatus } from '../../types/register.types';
 
@@ -60,11 +63,37 @@ function RegistersPage() {
     setDetailsRegister(event.register);
   };
 
+  // Exports exactly the registers already shown on this page (scoped to the
+  // signed-in user by the backend) — no separate API call, so the export
+  // can never include anything not already authorized and visible here.
+  const handleExport = () => {
+    const rows: (string | number | null | undefined)[][] = [
+      ['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Start Date', 'Status', 'Next Due Date'],
+      ...registers.map((r) => [
+        r.name,
+        r.register_no,
+        r.head_name,
+        CYCLE_LABEL[r.checking_cycle],
+        r.priority,
+        formatDate(r.start_date),
+        r.status,
+        formatDate(r.next_due_date),
+      ]),
+    ];
+    downloadCsv(`registers_${todayISO()}.csv`, rows);
+  };
+
   return (
     <div className="space-y-6 p-6">
-      <div>
-        <h1 className="text-xl font-semibold text-[#1E293B]">Registers</h1>
-        <p className="mt-1 text-sm text-[#5B6E8C]">View-only access to your registers and their schedules</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold text-[#1E293B]">Registers</h1>
+          <p className="mt-1 text-sm text-[#5B6E8C]">View-only access to your registers and their schedules</p>
+        </div>
+        <Button variant="primary" size="sm" onClick={handleExport} disabled={registers.length === 0}>
+          <Download size={14} />
+          Export CSV
+        </Button>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-[#EFF2F6] bg-white">

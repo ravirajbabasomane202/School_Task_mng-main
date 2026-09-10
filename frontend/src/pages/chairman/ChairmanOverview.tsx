@@ -5,7 +5,6 @@ import toast from 'react-hot-toast';
 
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
-import DepartmentHealthBar from '../../components/charts/DepartmentHealthBar';
 import TaskTable from '../../components/tables/TaskTable';
 import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
@@ -35,7 +34,6 @@ interface DashboardData {
     delayed: number;
     escalated: number;
   };
-  departments: { name: string; completionPct: number; healthColor: string }[];
   alerts: DashboardAlert[];
   recentTasks: Task[];
   pendingApprovalsList: {
@@ -176,7 +174,7 @@ function ChairmanOverview() {
               School status and leadership control
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5B6E8C]">
-              Review task health, department performance, staff productivity, approvals, and
+              Review task health, staff productivity, approvals, and
               active alerts from one chairman dashboard.
             </p>
           </div>
@@ -188,9 +186,6 @@ function ChairmanOverview() {
             </Button>
             <Button onClick={() => navigate('/chairman/task-monitor')} variant="ghost">
               Monitor tasks
-            </Button>
-            <Button onClick={() => navigate('/chairman/reports')} variant="ghost">
-              Open MIS
             </Button>
           </div>
         </div>
@@ -219,19 +214,22 @@ function ChairmanOverview() {
         ))}
       </div>
 
+      {/* Row 1: Recent task assignments | Active alerts */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Department health</h3>
-            <button
-              className="bg-transparent text-xs text-blue-600"
-              onClick={() => navigate('/chairman/performance')}
-              type="button"
-            >
-              Full analytics
-            </button>
+            <h3 className="text-lg font-semibold">Recent task assignments</h3>
+            <Button onClick={() => navigate('/chairman/task-assignment')} size="sm">
+              Assign task +
+            </Button>
           </div>
-          <DepartmentHealthBar departments={dashboardData.departments} />
+          <TaskTable
+            emptyMessage="Newly assigned tasks will appear here."
+            onRowClick={(task) => navigate(`/task/${task.id}`)}
+            onStatusChange={handleStatusChange}
+            showActions={false}
+            tasks={dashboardData.recentTasks.slice(0, 5)}
+          />
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -260,45 +258,8 @@ function ChairmanOverview() {
         </div>
       </div>
 
+      {/* Row 2: Top performers | Pending approvals */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
-                Department Performance Panel
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Leadership performance</h2>
-            </div>
-            <Badge variant="blue">{performanceData.length} profiles</Badge>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {performanceData.map((user) => (
-              <div
-                className="grid gap-2 rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4 md:grid-cols-[1.3fr,0.7fr,0.7fr,0.7fr]"
-                key={user.userId}
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[#1E293B]">{getRoleLabel(user.role)}</p>
-                  <p className="text-sm text-[#5B6E8C]">{user.name}</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.completedTasks}/{user.totalTasks}</p>
-                  <p>Completed</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.performanceScore}%</p>
-                  <p>Score</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.delayRate}%</p>
-                  <p>Delay rate</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -327,24 +288,6 @@ function ChairmanOverview() {
               </div>
             ))}
           </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Recent task assignments</h3>
-            <Button onClick={() => navigate('/chairman/task-assignment')} size="sm">
-              Assign task +
-            </Button>
-          </div>
-          <TaskTable
-            emptyMessage="Newly assigned tasks will appear here."
-            onRowClick={(task) => navigate(`/task/${task.id}`)}
-            onStatusChange={handleStatusChange}
-            showActions={false}
-            tasks={dashboardData.recentTasks.slice(0, 5)}
-          />
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
@@ -399,6 +342,47 @@ function ChairmanOverview() {
             ) : (
               <p className="text-sm text-[#8A99B0]">No pending approvals at the moment.</p>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Leadership performance panel (not part of the 4-widget layout spec; kept below, unmodified) */}
+      <div className="grid grid-cols-1 gap-6">
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
+                Leadership Performance Panel
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Leadership performance</h2>
+            </div>
+            <Badge variant="blue">{performanceData.length} profiles</Badge>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {performanceData.map((user) => (
+              <div
+                className="grid gap-2 rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4 md:grid-cols-[1.3fr,0.7fr,0.7fr,0.7fr]"
+                key={user.userId}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-[#1E293B]">{getRoleLabel(user.role)}</p>
+                  <p className="text-sm text-[#5B6E8C]">{user.name}</p>
+                </div>
+                <div className="text-sm text-[#36506C]">
+                  <p className="font-medium text-[#1E293B]">{user.completedTasks}/{user.totalTasks}</p>
+                  <p>Completed</p>
+                </div>
+                <div className="text-sm text-[#36506C]">
+                  <p className="font-medium text-[#1E293B]">{user.performanceScore}%</p>
+                  <p>Score</p>
+                </div>
+                <div className="text-sm text-[#36506C]">
+                  <p className="font-medium text-[#1E293B]">{user.delayRate}%</p>
+                  <p>Delay rate</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

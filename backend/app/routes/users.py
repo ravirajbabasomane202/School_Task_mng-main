@@ -71,8 +71,7 @@ def create_user():
     user = User(
         name=data['name'].strip(),
         email=data['email'].lower().strip(),
-        role=data['role'],
-        department_id=data.get('department_id')
+        role=data['role']
     )
     user.set_password(data['password'])
     db.session.add(user)
@@ -105,8 +104,6 @@ def update_user(user_id):
         if data['role'] == 'CHAIRMAN':
             return error('Cannot assign CHAIRMAN role via this endpoint', 403)
         user.role = data['role']
-    if 'department_id' in data:
-        user.department_id = data['department_id']
     if 'password' in data and data['password']:
         user.set_password(data['password'])
 

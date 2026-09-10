@@ -21,6 +21,23 @@ interface PerformanceData {
   overallPerformance: number;
 }
 
+/** Light, professional per-column colors for the Staff performance table
+ * below, replacing the old whole-row red/green highlight (which painted
+ * every column the same color regardless of what it measured). Each
+ * column keeps its own subtle tint so figures stay easy to tell apart
+ * without being loud or reducing contrast. */
+type StaffColumnColor = 'blue' | 'green' | 'red' | 'cyan' | 'purple' | 'indigo' | 'teal';
+
+const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: string }> = {
+  blue: { header: 'bg-blue-50 text-blue-700', text: 'text-blue-700' },
+  green: { header: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-700' },
+  red: { header: 'bg-red-50 text-red-700', text: 'text-red-700' },
+  cyan: { header: 'bg-cyan-50 text-cyan-700', text: 'text-cyan-700' },
+  purple: { header: 'bg-purple-50 text-purple-700', text: 'text-purple-700' },
+  indigo: { header: 'bg-indigo-50 text-indigo-700', text: 'text-indigo-700' },
+  teal: { header: 'bg-teal-50 text-teal-700', text: 'text-teal-700' }
+};
+
 interface MonthlyDepartmentData {
   departmentId: number;
   name: string;
@@ -160,47 +177,58 @@ function PerformanceAnalytics() {
             <thead>
               <tr className="border-b border-[#EFF2F6]">
                 <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Role</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Total tasks</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completed</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Delayed</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Delay rate</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Total registers</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completed registers</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Task performance</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Register performance</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Overall performance</th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.blue.header}`}>
+                  Total tasks
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
+                  Completed
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                  Delayed
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                  Delay rate
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
+                  Total registers
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
+                  Completed registers
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.purple.header}`}>
+                  Task performance
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.indigo.header}`}>
+                  Register performance
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.teal.header}`}>
+                  Overall performance
+                </th>
               </tr>
             </thead>
             <tbody>
               {staffRows.map((user) => (
-                <tr
-                  key={user.userId}
-                  className={`border-b border-[#EFF2F6] ${
-                    user.overallPerformance >= 75
-                      ? 'bg-green-50'
-                      : user.overallPerformance < 50
-                        ? 'bg-red-50'
-                        : ''
-                  }`}
-                >
+                <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
                   <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.totalTasks}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.completedTasks}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.delayedTasks}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.delayRate}%</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.totalRegisters}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.completedRegisters}</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.performanceScore}%</td>
-                  <td className="px-4 py-3 text-[#1E293B]">{user.registerPerformance}%</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-16 rounded-full bg-gray-200">
                         <div
-                          className="h-2 rounded-full bg-blue-500"
+                          className="h-2 rounded-full bg-teal-500"
                           style={{ width: `${user.overallPerformance}%` }}
                         />
                       </div>
-                      <span className="text-sm text-[#1E293B]">{user.overallPerformance}%</span>
+                      <span className={`text-sm font-medium ${STAFF_COLUMN_COLOR.teal.text}`}>
+                        {user.overallPerformance}%
+                      </span>
                     </div>
                   </td>
                 </tr>

@@ -55,7 +55,6 @@ export const API_ENDPOINTS = {
   dashboard: {
     chairman: '/dashboard/chairman',
     director: '/dashboard/director',
-    department: '/dashboard/department',
     metrics: '/dashboard/metrics',
     performance: '/dashboard/performance',
     monthlyComparison: '/dashboard/monthly-comparison'

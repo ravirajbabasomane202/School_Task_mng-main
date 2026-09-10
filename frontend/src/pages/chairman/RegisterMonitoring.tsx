@@ -9,6 +9,7 @@ import Input from '../../components/common/Input';
 import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPopup';
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
+import { downloadCsv } from '../../utils/fileDownload';
 import {
   deleteRegister,
   getRegisterHeads,
@@ -223,11 +224,7 @@ function RegisterMonitoring() {
   // a separate "Export Report (Excel)" / "Export (PDF)" pair living on the
   // Staff Performance page that produced a second, disconnected download.
   const handleExport = () => {
-    const csvCell = (value: string | number) => {
-      const str = String(value ?? '');
-      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
-    };
-    const rows: (string | number)[][] = [
+    const rows: (string | number | null | undefined)[][] = [
       ['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Status', 'Next Due Date', 'Last Completed'],
       ...registers.map((r) => [
         r.name,
@@ -257,16 +254,7 @@ function RegisterMonitoring() {
         `${p.overallPerformance}%`,
       ]),
     ];
-    const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `registers_${todayISO()}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
+    downloadCsv(`registers_${todayISO()}.csv`, rows);
   };
 
   return (

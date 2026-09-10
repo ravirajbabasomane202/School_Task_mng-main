@@ -32,7 +32,6 @@ interface DashboardData {
     delayed: number;
     escalated: number;
   };
-  departments: { name: string; completionPct: number; healthColor: string }[];
   recentTasks: Task[];
 }
 
@@ -84,31 +83,11 @@ function DirectorOverview() {
         ))}
       </div>
 
-      {/* Chart + Department Health */}
+      {/* Task Status Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="text-sm font-semibold text-[#1E293B] mb-4">Task Status Distribution</h3>
           <TaskStatusPieChart data={taskStatusData} />
-        </div>
-
-        <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
-          <h3 className="text-sm font-semibold text-[#1E293B] mb-4">Department Health</h3>
-          <div className="space-y-3">
-            {data.departments.map((dept) => (
-              <div key={dept.name} className="flex items-center gap-3">
-                <span className="text-xs text-[#5B6E8C] w-24 truncate">{dept.name}</span>
-                <div className="flex-1 h-2 rounded-full bg-[#EFF2F6]">
-                  <div
-                    className="h-2 rounded-full transition-all"
-                    style={{ width: `${dept.completionPct}%`, backgroundColor: dept.healthColor }}
-                  />
-                </div>
-                <span className="text-xs font-medium text-[#1E293B] w-8 text-right">
-                  {dept.completionPct}%
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
 

@@ -39,11 +39,6 @@ interface DirectorDashboardData {
     delayed: number;
     escalated: number;
   };
-  departments: {
-    name: string;
-    completionPct: number;
-    healthColor: string;
-  }[];
   recentTasks: Array<{
     id: number;
     title: string;

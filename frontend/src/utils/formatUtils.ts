@@ -82,27 +82,6 @@ export function formatPercent(value: number): string {
 }
 
 /**
- * Return a department health colour label based on completion percentage.
- */
-export function getHealthColor(completionPct: number): 'green' | 'yellow' | 'red' {
-  if (completionPct >= 75) return 'green';
-  if (completionPct >= 40) return 'yellow';
-  return 'red';
-}
-
-/**
- * Return Tailwind text + background classes for a health colour.
- */
-export function getHealthBadgeClass(color: 'green' | 'yellow' | 'red'): string {
-  const map = {
-    green: 'bg-green-100 text-green-700',
-    yellow: 'bg-yellow-100 text-yellow-700',
-    red: 'bg-red-100 text-red-700'
-  };
-  return map[color];
-}
-
-/**
  * Capitalise the first letter of a string.
  */
 export function capitalise(str: string | null | undefined): string {

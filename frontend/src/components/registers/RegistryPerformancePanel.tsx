@@ -29,6 +29,51 @@ const DOT_CLASS: Record<RegisterDotColor, string> = {
   gray: 'bg-[#E2E8F0]',
 };
 
+/** Light, professional color variants for the Task/Register/Final
+ * Performance KPI boxes below. Each variant is a subtle tinted
+ * background + matching border + a readable, higher-contrast value
+ * color — kept separate from DOT_CLASS (which colors the daily
+ * activity dots, not these summary boxes). Centralizing the classes
+ * here keeps the 11 KPI boxes visually consistent and avoids
+ * repeating the same Tailwind class strings at every call site. */
+type KpiColor = 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'cyan' | 'orange' | 'indigo' | 'teal';
+
+const KPI_COLOR_CLASS: Record<KpiColor, { box: string; value: string }> = {
+  blue: { box: 'border-blue-100 bg-blue-50', value: 'text-blue-700' },
+  green: { box: 'border-emerald-100 bg-emerald-50', value: 'text-emerald-700' },
+  yellow: { box: 'border-amber-100 bg-amber-50', value: 'text-amber-700' },
+  red: { box: 'border-red-100 bg-red-50', value: 'text-red-700' },
+  purple: { box: 'border-purple-100 bg-purple-50', value: 'text-purple-700' },
+  cyan: { box: 'border-cyan-100 bg-cyan-50', value: 'text-cyan-700' },
+  orange: { box: 'border-orange-100 bg-orange-50', value: 'text-orange-700' },
+  indigo: { box: 'border-indigo-100 bg-indigo-50', value: 'text-indigo-700' },
+  teal: { box: 'border-teal-100 bg-teal-50', value: 'text-teal-700' },
+};
+
+/** A single KPI summary box (label + value) with a light, color-coded
+ * background. Used for the Task Performance / Register Performance /
+ * Final Performance rows so every box shares the same markup and
+ * only the color variant differs. */
+function KpiBox({
+  label,
+  value,
+  color,
+  className = ''
+}: {
+  label: string;
+  value: string | number;
+  color: KpiColor;
+  className?: string;
+}) {
+  const classes = KPI_COLOR_CLASS[color];
+  return (
+    <div className={`rounded-[20px] border p-5 ${classes.box} ${className}`}>
+      <p className="text-xs font-medium text-[#5B6E8C]">{label}</p>
+      <p className={`mt-1 text-2xl font-semibold ${classes.value}`}>{value}</p>
+    </div>
+  );
+}
+
 function daysAgoISO(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
@@ -422,61 +467,37 @@ function RegistryPerformancePanel() {
       </div>
 
       {/* Task Performance row: Total Task / Completed / Not Completed /
-          Delayed / Performance — all respecting the filters above. */}
+          Delayed / Performance — all respecting the filters above. Each
+          box uses a distinct light color so the five figures are easy
+          to tell apart at a glance (see KPI_COLOR_CLASS above). */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Total Task</p>
-          <p className="mt-1 text-2xl font-semibold text-[#1E293B]">{taskTotals.totalTasks}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Completed</p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-600">{taskTotals.completedTasks}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Not Completed</p>
-          <p className="mt-1 text-2xl font-semibold text-amber-600">{taskTotals.notCompletedTasks}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Delayed</p>
-          <p className="mt-1 text-2xl font-semibold text-red-600">{taskTotals.delayedTasks}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Performance</p>
-          <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{taskTotals.taskPerformance}%</p>
-        </div>
+        <KpiBox color="blue" label="Total Task" value={taskTotals.totalTasks} />
+        <KpiBox color="green" label="Completed" value={taskTotals.completedTasks} />
+        <KpiBox color="yellow" label="Not Completed" value={taskTotals.notCompletedTasks} />
+        <KpiBox color="red" label="Delayed" value={taskTotals.delayedTasks} />
+        <KpiBox color="purple" label="Performance" value={`${taskTotals.taskPerformance}%`} />
       </div>
 
       {/* Register Performance row: Total Register / Checked / Not Checked /
-          Delayed / Performance — mirrors the Task row above, same filters. */}
+          Delayed / Performance — mirrors the Task row above, same filters.
+          Delayed/Performance use their own shades (orange/indigo) so this
+          row stays visually distinct from the Task Performance row. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Total Register</p>
-          <p className="mt-1 text-2xl font-semibold text-[#1E293B]">{registerTotals.totalRegisters}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Checked</p>
-          <p className="mt-1 text-2xl font-semibold text-emerald-600">{registerTotals.checked}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Not Checked</p>
-          <p className="mt-1 text-2xl font-semibold text-amber-600">{registerTotals.notChecked}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Delayed</p>
-          <p className="mt-1 text-2xl font-semibold text-red-600">{registerTotals.delayed}</p>
-        </div>
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <p className="text-xs font-medium text-[#8A99B0]">Performance</p>
-          <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{overall.completionRate}%</p>
-        </div>
+        <KpiBox color="cyan" label="Total Register" value={registerTotals.totalRegisters} />
+        <KpiBox color="green" label="Checked" value={registerTotals.checked} />
+        <KpiBox color="yellow" label="Not Checked" value={registerTotals.notChecked} />
+        <KpiBox color="orange" label="Delayed" value={registerTotals.delayed} />
+        <KpiBox color="indigo" label="Performance" value={`${overall.completionRate}%`} />
       </div>
 
       {/* Final Performance: the combined (50/50) Task + Register score. */}
       <div className="flex justify-center">
-        <div className="w-full max-w-xs rounded-[20px] border border-[#EFF2F6] bg-white p-5 text-center">
-          <p className="text-xs font-medium text-[#8A99B0]">Final Performance</p>
-          <p className="mt-1 text-2xl font-semibold text-[#185FA5]">{finalPerformance}%</p>
-        </div>
+        <KpiBox
+          className="w-full max-w-xs text-center"
+          color="teal"
+          label="Final Performance"
+          value={`${finalPerformance}%`}
+        />
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">

@@ -42,3 +42,37 @@ export async function downloadAuthenticatedUpload(relativePath: string, download
     URL.revokeObjectURL(blobUrl);
   }
 }
+
+/**
+ * Escapes a single CSV cell value (quotes it if it contains a comma,
+ * double-quote, or newline). Shared by every client-side CSV export in the
+ * app so formatting/edge-case handling only needs to live in one place.
+ */
+export function csvCell(value: string | number | null | undefined): string {
+  const str = String(value ?? '');
+  return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+}
+
+/**
+ * Builds a CSV file from an array of rows (first row is typically the
+ * header) and triggers a browser download for it. This is the single
+ * client-side CSV export path for report-style screens (Task/Register
+ * reports, etc.) that export data the user already fetched through an
+ * authorized API call — no extra backend round-trip needed.
+ */
+export function downloadCsv(filename: string, rows: (string | number | null | undefined)[][]): void {
+  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+
+  try {
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
