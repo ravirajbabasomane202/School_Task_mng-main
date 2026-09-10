@@ -110,14 +110,14 @@ function PerformanceAnalytics() {
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
                   Delay rate
                 </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.purple.header}`}>
+                  Task performance
+                </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   Total registers
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
                   Completed registers
-                </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.purple.header}`}>
-                  Task performance
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.indigo.header}`}>
                   Register performance
@@ -135,9 +135,9 @@ function PerformanceAnalytics() {
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
