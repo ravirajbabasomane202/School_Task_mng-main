@@ -1,10 +1,9 @@
-import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import RegistryPerformancePanel from '../../components/registers/RegistryPerformancePanel';
 import { ROLE_LABELS } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
-import { getMonthlyComparison, getStaffPerformance } from '../../services/dashboardService';
+import { getStaffPerformance } from '../../services/dashboardService';
 
 interface PerformanceData {
   userId: number;
@@ -38,68 +37,15 @@ const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: strin
   teal: { header: 'bg-teal-50 text-teal-700', text: 'text-teal-700' }
 };
 
-interface MonthlyDepartmentData {
-  departmentId: number;
-  name: string;
-  monthlyRates: Array<{
-    month: string;
-    completionRate: number;
-    totalTasks: number;
-    completedTasks: number;
-  }>;
-}
-
-const MONTH_ORDER = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December'
-] as const;
-
 function PerformanceAnalytics() {
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['staffPerformance'],
     queryFn: getStaffPerformance
   });
 
-  const { data: monthlyData, isLoading: monthlyLoading } = useQuery({
-    queryKey: ['monthlyComparison'],
-    queryFn: getMonthlyComparison
-  });
-
   const staffRows = (performanceData ?? []) as PerformanceData[];
-  const monthlyRows = (monthlyData ?? []) as MonthlyDepartmentData[];
 
-  const departmentEfficiency = useMemo(() => {
-    return monthlyRows
-      .map((department) => {
-        const latestMonth = [...department.monthlyRates]
-          .sort(
-            (left, right) =>
-              MONTH_ORDER.indexOf(left.month as (typeof MONTH_ORDER)[number]) -
-              MONTH_ORDER.indexOf(right.month as (typeof MONTH_ORDER)[number])
-          )
-          .slice(-1)[0];
-
-        return {
-          id: department.departmentId,
-          name: department.name,
-          completionRate: latestMonth?.completionRate ?? 0,
-          totalTasks: latestMonth?.totalTasks ?? 0
-        };
-      })
-      .sort((left, right) => right.completionRate - left.completionRate);
-  }, [monthlyRows]);
-
-  if (performanceLoading || monthlyLoading) {
+  if (performanceLoading) {
     return <div className="p-6">Loading...</div>;
   }
 
@@ -135,31 +81,6 @@ function PerformanceAnalytics() {
           <p className="text-sm text-[#5B6E8C]">Delay rate</p>
           <p className="mt-3 text-xl font-semibold text-[#1E293B]">{delayRate}%</p>
           <p className="mt-2 text-sm text-[#8A99B0]">Share of tasks currently delayed.</p>
-        </div>
-      </div>
-
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Head efficiency</h2>
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {departmentEfficiency.map((department) => (
-            <div
-              className="rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] p-4"
-              key={department.id}
-            >
-              {/* Display-only rename: this section shows the same
-                  Department-based completion data (see monthly-comparison
-                  API), now presented consistently under "Head" naming —
-                  e.g. "Admission" -> "Admission Head" — without changing
-                  the underlying Department data model. */}
-              <p className="text-sm font-semibold text-[#1E293B]">{department.name} Head</p>
-              <p className="mt-3 text-2xl font-semibold text-[#185FA5]">
-                {department.completionRate}%
-              </p>
-              <p className="mt-2 text-sm text-[#8A99B0]">
-                Based on {department.totalTasks} tasks in the latest tracked month.
-              </p>
-            </div>
-          ))}
         </div>
       </div>
 
