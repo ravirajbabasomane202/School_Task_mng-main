@@ -29,6 +29,9 @@ interface DeptDashboardData {
   myTasksList: Task[];
 }
 
+const asArray = <T,>(value: T[] | undefined | null): T[] =>
+  Array.isArray(value) ? value : [];
+
 interface UpdateStatusModalProps {
   isOpen: boolean;
   isSubmitting: boolean;
@@ -122,7 +125,20 @@ const DeptOverview: React.FC = () => {
     queryKey: ['dept-dashboard', user?.department_id],
     queryFn: async () => {
       const response = await api.get(`/dashboard/dept/${user?.department_id}`);
-      return response.data.data as DeptDashboardData;
+      const data = response.data.data as Partial<DeptDashboardData> | null;
+
+      return {
+        myTasks: {
+          total: data?.myTasks?.total ?? 0,
+          pending: data?.myTasks?.pending ?? 0,
+          inProgress: data?.myTasks?.inProgress ?? 0,
+          completed: data?.myTasks?.completed ?? 0,
+          delayed: data?.myTasks?.delayed ?? 0
+        },
+        taskStatusData: asArray(data?.taskStatusData),
+        recentAnnouncements: asArray(data?.recentAnnouncements),
+        myTasksList: asArray(data?.myTasksList)
+      } satisfies DeptDashboardData;
     },
     enabled: Boolean(user?.department_id)
   });

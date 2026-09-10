@@ -56,6 +56,9 @@ interface PerformanceRow {
   delayRate: number;
 }
 
+const asArray = <T,>(value: T[] | undefined | null): T[] =>
+  Array.isArray(value) ? value : [];
+
 const severityVariantMap = {
   Critical: 'red',
   Escalated: 'red',
@@ -77,7 +80,19 @@ function ChairmanOverview() {
     queryKey: ['chairman-dashboard'],
     queryFn: async () => {
       const response = await api.get('/dashboard/chairman');
-      return response.data.data as DashboardData;
+      const data = response.data.data as Partial<DashboardData> | null;
+
+      return {
+        totalTasks: data?.totalTasks ?? 0,
+        completedTasks: data?.completedTasks ?? 0,
+        completionPercentage: data?.completionPercentage ?? 0,
+        delayedTasks: data?.delayedTasks ?? 0,
+        pendingApprovals: data?.pendingApprovals ?? 0,
+        taskBreakdown: data?.taskBreakdown,
+        alerts: asArray(data?.alerts),
+        recentTasks: asArray(data?.recentTasks),
+        pendingApprovalsList: asArray(data?.pendingApprovalsList)
+      } satisfies DashboardData;
     },
     refetchInterval: 30000
   });
@@ -109,7 +124,7 @@ function ChairmanOverview() {
 
   const dashboardData = dashboardQuery.data;
   const performanceData = useMemo(() => {
-    return ((performanceQuery.data ?? []) as PerformanceRow[])
+    return asArray(performanceQuery.data as PerformanceRow[] | undefined)
       .sort((left, right) => {
         const leftIndex = TASK_ASSIGNABLE_ROLES.indexOf(left.role);
         const rightIndex = TASK_ASSIGNABLE_ROLES.indexOf(right.role);

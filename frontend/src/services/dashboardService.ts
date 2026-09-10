@@ -70,5 +70,20 @@ export const getMonthlyComparison = async (): Promise<MonthlyComparisonData[]> =
 
 export const getDirectorDashboard = async (): Promise<DirectorDashboardData> => {
   const response = await api.get<ApiResponse<DirectorDashboardData>>(API_ENDPOINTS.dashboard.director);
-  return response.data.data;
+  const data = response.data.data as Partial<DirectorDashboardData> | null;
+
+  return {
+    totalTasks: data?.totalTasks ?? 0,
+    completedTasks: data?.completedTasks ?? 0,
+    completionPercentage: data?.completionPercentage ?? 0,
+    delayedTasks: data?.delayedTasks ?? 0,
+    taskBreakdown: {
+      pending: data?.taskBreakdown?.pending ?? 0,
+      inProgress: data?.taskBreakdown?.inProgress ?? 0,
+      completed: data?.taskBreakdown?.completed ?? 0,
+      delayed: data?.taskBreakdown?.delayed ?? 0,
+      escalated: data?.taskBreakdown?.escalated ?? 0
+    },
+    recentTasks: Array.isArray(data?.recentTasks) ? data.recentTasks : []
+  };
 };

@@ -47,8 +47,12 @@ const renderLegend = (props?: { payload?: LegendEntry[] }) => {
 };
 
 const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({ data }) => {
-  const totalTasks = data.reduce((sum, item) => sum + item.value, 0);
-  const chartData = totalTasks > 0 ? data : EMPTY_STATE_DATA;
+  // Dashboard responses can temporarily omit chart data during an API rollout
+  // or after a cached response. A chart should render its empty state, not
+  // take down the entire dashboard in that case.
+  const safeData = Array.isArray(data) ? data : [];
+  const totalTasks = safeData.reduce((sum, item) => sum + item.value, 0);
+  const chartData = totalTasks > 0 ? safeData : EMPTY_STATE_DATA;
 
   return (
     <div className="flex flex-col items-center">
