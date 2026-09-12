@@ -4,6 +4,7 @@ import RegistryPerformancePanel from '../../components/registers/RegistryPerform
 import { ROLE_LABELS } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { getStaffPerformance } from '../../services/dashboardService';
+import { REGISTER_CYCLES, type RegisterCycle } from '../../types/register.types';
 
 interface PerformanceData {
   userId: number;
@@ -15,6 +16,7 @@ interface PerformanceData {
   performanceScore: number;
   delayRate: number;
   totalRegisters: number;
+  checkingCycles: string[];
   completedRegisters: number;
   missedRegisters: number;
   rejectedRegisters: number;
@@ -22,11 +24,22 @@ interface PerformanceData {
   overallPerformance: number;
 }
 
-/** Light, professional per-column colors for the Staff performance table
- * below, replacing the old whole-row red/green highlight (which painted
- * every column the same color regardless of what it measured). Each
- * column keeps its own subtle tint so figures stay easy to tell apart
- * without being loud or reducing contrast. */
+// Reuse the same Daily/Weekly/... labels the Register screens already use,
+// so "Estimated checking cycle" reads the same way everywhere in the app.
+const CYCLE_LABEL: Record<string, string> = Object.fromEntries(
+  REGISTER_CYCLES.map(({ value, label }) => [value, label])
+);
+
+function formatCheckingCycles(cycles: string[]): string {
+  if (!cycles.length) return 'N/A';
+  return cycles.map((cycle) => CYCLE_LABEL[cycle as RegisterCycle] ?? cycle).join(', ');
+}
+
+/** Light, professional per-column colors for the Task performance / Register
+ * performance tables below, replacing the old whole-row red/green highlight
+ * (which painted every column the same color regardless of what it
+ * measured). Each column keeps its own subtle tint so figures stay easy to
+ * tell apart without being loud or reducing contrast. */
 type StaffColumnColor = 'blue' | 'green' | 'red' | 'cyan' | 'purple' | 'indigo' | 'teal';
 
 const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: string }> = {
@@ -86,14 +99,12 @@ function PerformanceAnalytics() {
         </div>
       </div>
 
+      {/* Task performance — its own table, separate from Register
+          performance below, so each metric reads as its own report instead
+          of one wide combined row. */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#1E293B]">Staff performance</h2>
-          {/* Export buttons removed from here — Staff Performance values are
-              now included directly in the Register Monitoring export
-              (Chairman -> Register Monitoring -> Export), scoped to whatever
-              filters are applied there, instead of a second, separate
-              export flow. */}
+          <h2 className="text-xl font-semibold text-[#1E293B]">Task performance</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -115,8 +126,42 @@ function PerformanceAnalytics() {
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.purple.header}`}>
                   Task performance
                 </th>
+              </tr>
+            </thead>
+            <tbody>
+              {staffRows.map((user) => (
+                <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
+                  <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Register performance — separate table, with its own Total/Completed/
+          Missed/Rejected/Estimated checking cycle/Performance columns plus
+          Overall performance (which blends both halves), instead of being
+          combined into the Task performance table above. */}
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold text-[#1E293B]">Register performance</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#EFF2F6]">
+                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Role</th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   Total registers
+                </th>
+                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.blue.header}`}>
+                  Estimated checking cycle
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
                   Completed
@@ -139,12 +184,10 @@ function PerformanceAnalytics() {
               {staffRows.map((user) => (
                 <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
                   <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
+                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>
+                    {formatCheckingCycles(user.checkingCycles)}
+                  </td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.missedRegisters}</td>
                   <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.rejectedRegisters}</td>

@@ -8,7 +8,7 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.models.department import Department
 from app.models.notification import Announcement
-from app.models.register import Register, RegisterOccurrence
+from app.models.register import Register, RegisterOccurrence, CYCLES
 from app.models.task import Task
 from app.models.user import TASK_ASSIGNABLE_ROLES, User
 from app.utils.response import success, error
@@ -334,6 +334,16 @@ def _staff_performance_rows(date_from=None, date_to=None):
         user_registers = registers_by_user.get(user.id, [])
         total_registers = len(user_registers)
 
+        # Distinct Checking Cycles across this head's registers, ordered
+        # fastest-to-slowest (same order as `CYCLES` on the Register model)
+        # rather than insertion order, so e.g. "Daily, Monthly" always reads
+        # the same way regardless of how the registers were created.
+        cycle_rank = {cycle: index for index, cycle in enumerate(CYCLES)}
+        checking_cycles = sorted(
+            {register.cycle for register in user_registers},
+            key=lambda cycle: cycle_rank.get(cycle, len(CYCLES))
+        )
+
         completed_registers = missed_registers = rejected_registers = 0
         for register in user_registers:
             for occ in register.generate_occurrences(
@@ -368,6 +378,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 'performanceScore': performance_score,
                 'delayRate': delay_rate,
                 'totalRegisters': total_registers,
+                'checkingCycles': checking_cycles,
                 'completedRegisters': completed_registers,
                 'missedRegisters': missed_registers,
                 'rejectedRegisters': rejected_registers,
