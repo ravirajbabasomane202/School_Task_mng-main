@@ -12,6 +12,8 @@ interface PerformanceData {
   delayRate: number;
   totalRegisters: number;
   completedRegisters: number;
+  missedRegisters: number;
+  rejectedRegisters: number;
   registerPerformance: number;
   overallPerformance: number;
 }

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
@@ -8,7 +8,7 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.models.department import Department
 from app.models.notification import Announcement
-from app.models.register import Register
+from app.models.register import Register, RegisterOccurrence
 from app.models.task import Task
 from app.models.user import TASK_ASSIGNABLE_ROLES, User
 from app.utils.response import success, error
@@ -300,6 +300,28 @@ def _staff_performance_rows(date_from=None, date_to=None):
     for register in all_user_registers:
         registers_by_user.setdefault(register.head_id, []).append(register)
 
+    # Register Performance is scored the SAME way as the Registry Performance
+    # panel/export (`_registry_performance_summaries`): by walking each
+    # register's projected checking-cycle occurrences over a date range and
+    # counting Completed/Missed/Rejected, NOT by looking at a register's
+    # current point-in-time `computed_status()`. A register's status is
+    # almost never left sitting on `OK` (`COMPLETED`) between cycles, so the
+    # old status-based tally was ~always 0% regardless of real activity.
+    today = datetime.now(timezone.utc).date()
+    range_start = date_from or (today - timedelta(days=90))
+    range_end = date_to or today
+
+    all_register_ids = [register.id for register in all_user_registers]
+    occurrence_maps = {register_id: {} for register_id in all_register_ids}
+    if all_register_ids:
+        range_occurrences = RegisterOccurrence.query.filter(
+            RegisterOccurrence.register_id.in_(all_register_ids),
+            RegisterOccurrence.occurrence_date >= range_start,
+            RegisterOccurrence.occurrence_date <= range_end,
+        ).all()
+        for occ in range_occurrences:
+            occurrence_maps[occ.register_id][occ.occurrence_date] = occ
+
     for user in department_users:
         user_tasks = tasks_by_user.get(user.id, [])
         total = len(user_tasks)
@@ -311,11 +333,24 @@ def _staff_performance_rows(date_from=None, date_to=None):
 
         user_registers = registers_by_user.get(user.id, [])
         total_registers = len(user_registers)
-        completed_registers = sum(
-            1 for register in user_registers if register.computed_status() == 'COMPLETED'
-        )
+
+        completed_registers = missed_registers = rejected_registers = 0
+        for register in user_registers:
+            for occ in register.generate_occurrences(
+                range_start, range_end, today, occurrence_map=occurrence_maps[register.id]
+            ):
+                if occ['date'] > today:
+                    continue
+                if occ['status'] == 'COMPLETED':
+                    completed_registers += 1
+                elif occ['status'] == 'FAILED':
+                    rejected_registers += 1
+                elif occ['status'] == 'PENDING':
+                    missed_registers += 1
+
+        registers_due = completed_registers + missed_registers + rejected_registers
         register_performance = (
-            round((completed_registers / total_registers) * 100) if total_registers else 0
+            round((completed_registers / registers_due) * 100) if registers_due else 0
         )
 
         overall_performance = _overall_performance(
@@ -334,6 +369,8 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 'delayRate': delay_rate,
                 'totalRegisters': total_registers,
                 'completedRegisters': completed_registers,
+                'missedRegisters': missed_registers,
+                'rejectedRegisters': rejected_registers,
                 'registerPerformance': register_performance,
                 'overallPerformance': overall_performance
             }
