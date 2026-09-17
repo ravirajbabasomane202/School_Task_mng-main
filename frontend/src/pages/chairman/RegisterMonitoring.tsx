@@ -10,6 +10,7 @@ import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPo
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
 import { downloadCsv } from '../../utils/fileDownload';
+import { isRegisterUpdatable } from '../../utils/registerUtils';
 import {
   deleteRegister,
   getRegisterHeads,
@@ -197,7 +198,16 @@ function RegisterMonitoring() {
   // "Update Status" always resolves to exactly ONE occurrence: today's.
   // Registers are cyclic, so there is nothing meaningful about updating
   // "the whole series" — only the current day's entry ever needs a status.
+  // For non-DAILY cycles, this is additionally gated on the register's
+  // current cycle actually being due (see `isRegisterUpdatable`) — the
+  // Actions button is disabled in that case, but this guard is kept too
+  // in case the handler is ever reached another way.
   const openTodayStatusModal = (register: Register) => {
+    const updatability = isRegisterUpdatable(register);
+    if (!updatability.updatable) {
+      toast.error(updatability.reason ?? 'Status can only be updated for the current cycle.');
+      return;
+    }
     const today = todayISO();
     setOccurrenceTarget({
       id: `${register.id}:${today}`,
@@ -382,14 +392,28 @@ function RegisterMonitoring() {
                       <button onClick={() => openEdit(r)} className="text-xs text-blue-600 hover:underline" type="button">
                         Edit
                       </button>
-                      <button
-                        onClick={() => openTodayStatusModal(r)}
-                        className="text-xs text-emerald-600 hover:underline"
-                        type="button"
-                        title="Updates only today's entry for this cyclic register"
-                      >
-                        Update Status
-                      </button>
+                      {(() => {
+                        const updatability = isRegisterUpdatable(r);
+                        return (
+                          <button
+                            onClick={() => openTodayStatusModal(r)}
+                            disabled={!updatability.updatable}
+                            className={
+                              updatability.updatable
+                                ? 'text-xs text-emerald-600 hover:underline'
+                                : 'text-xs text-[#B7C0CD] cursor-not-allowed'
+                            }
+                            type="button"
+                            title={
+                              updatability.updatable
+                                ? "Updates only today's entry for this cyclic register"
+                                : updatability.reason
+                            }
+                          >
+                            Update Status
+                          </button>
+                        );
+                      })()}
                       <button
                         onClick={() => setCalendarRegister(r)}
                         className="text-xs text-[#185FA5] hover:underline"

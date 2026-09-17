@@ -7,6 +7,7 @@ import Badge from '../common/Badge';
 import { getRegisterCalendarFor, updateOccurrenceStatus } from '../../services/registerService';
 import type { Register, RegisterComputedStatus, RegisterDotColor, RegisterStatus } from '../../types/register.types';
 import { REGISTER_STATUSES } from '../../types/register.types';
+import { isEditableOccurrenceDate, isRegisterUpdatable } from '../../utils/registerUtils';
 
 interface RegisterCalendarPopupProps {
   register: Register | null;
@@ -70,9 +71,13 @@ function todayKeyStr(): string {
  * Small popup calendar for a single Register. This is now the ONLY calendar
  * in Register Monitoring (the full page-level calendar was removed), so it
  * carries all the same click-to-update behaviour that used to live there —
- * scoped to exactly one occurrence at a time, and only ever TODAY's:
- * clicking today's dot opens an editable status update; clicking any other
- * date (including an already-missed daily entry) opens a read-only view.
+ * scoped to exactly one occurrence at a time. For DAILY registers that is
+ * always today; for WEEKLY/15_DAYS/MONTHLY/QUARTERLY/HALF_YEARLY/YEARLY
+ * registers it is today (or the cycle's current due date) but ONLY while
+ * that cycle is actually due and not already recorded — see
+ * `isEditableOccurrenceDate` / `isRegisterUpdatable`. Every other date
+ * (including an already-missed entry, or today when the cycle isn't due
+ * or has already been closed) opens a read-only view instead.
  */
 function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps) {
   const qc = useQueryClient();
@@ -110,7 +115,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['registers'] });
       qc.invalidateQueries({ queryKey: ['register-calendar'] });
-      toast.success('Today’s status updated');
+      toast.success('Status updated');
       setSelectedDate(null);
     },
     onError: () => toast.error('Failed to update status'),
@@ -124,7 +129,8 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
   const handleAnchorChange = () => setSelectedDate(null);
 
   const selectedEntry = selectedDate ? entriesByDate.get(selectedDate) : undefined;
-  const isSelectedToday = selectedDate === todayKeyStr();
+  const isSelectedEditable = register && selectedDate ? isEditableOccurrenceDate(register, selectedDate) : false;
+  const registerUpdatability = register ? isRegisterUpdatable(register) : { updatable: false };
 
   const currentMonth = anchor.getMonth();
 
@@ -179,6 +185,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
               const isCurrentMonth = day.getMonth() === currentMonth;
               const isToday = key === todayKeyStr();
               const isSelected = key === selectedDate;
+              const isEditableDay = register ? isEditableOccurrenceDate(register, key) : false;
               return (
                 <button
                   key={key}
@@ -195,7 +202,13 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                     dot ? 'cursor-pointer hover:bg-[#F5F9FD]' : 'cursor-default',
                     isSelected ? 'ring-2 ring-inset ring-[#185FA5]' : '',
                   ].join(' ')}
-                  title={dot ? (isToday ? 'Click to update today’s status' : 'Click to view (read-only)') : undefined}
+                  title={
+                    dot
+                      ? isEditableDay
+                        ? 'Click to update status'
+                        : 'Click to view (read-only)'
+                      : undefined
+                  }
                 >
                   <span
                     className={[
@@ -222,11 +235,13 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
             ))}
           </div>
 
-          {/* Clicking today's dot opens this editable panel — the same
-              "update status" action that used to live in the full page
-              calendar, now folded into this popup. Any other date (including
-              an already-missed daily entry) opens a read-only panel instead:
-              only today can ever be changed here. */}
+          {/* Clicking the editable dot (today, or the cycle's current due
+              date — see `isEditableOccurrenceDate`) opens this editable
+              panel — the same "update status" action that used to live in
+              the full page calendar, now folded into this popup. Any other
+              date (including an already-missed entry, or today itself when
+              the cycle isn't due yet or has already been closed) opens a
+              read-only panel instead. */}
           {selectedDate && selectedEntry ? (
             <div className="rounded-[12px] border border-[#EFF2F6] bg-[#FAFCFE] p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -234,10 +249,10 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                 <Badge variant={COMPUTED_BADGE[selectedEntry.status]}>{COMPUTED_LABEL[selectedEntry.status]}</Badge>
               </div>
 
-              {isSelectedToday ? (
+              {isSelectedEditable ? (
                 <div className="space-y-2">
                   <label className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-[#36506C]">Update today's status</span>
+                    <span className="text-[11px] font-medium text-[#36506C]">Update status</span>
                     <select
                       value={pendingStatus}
                       onChange={(e) => setPendingStatus(e.target.value as RegisterStatus)}
@@ -268,7 +283,8 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                 </div>
               ) : (
                 <p className="text-xs text-[#8A99B0]">
-                  This date is read-only — only today's entry can be updated for a cyclic register.
+                  {registerUpdatability.reason ??
+                    "This date is read-only — only the current cycle's due date can be updated."}
                 </p>
               )}
             </div>
