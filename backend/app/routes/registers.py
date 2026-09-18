@@ -4,7 +4,16 @@ from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
-from app.models.register import Register, RegisterOccurrence, CYCLES, PRIORITIES, STATUSES, calculate_next_due_date, _add_months
+from app.models.register import (
+    Register,
+    RegisterOccurrence,
+    CYCLES,
+    PRIORITIES,
+    STATUSES,
+    calculate_next_due_date,
+    fetch_current_cycle_occurrences,
+    _add_months,
+)
 from app.models.user import User, DEPARTMENT_HEAD_ROLES
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
@@ -138,34 +147,27 @@ def list_registers():
 
     registers = query.order_by(Register.next_due_date.asc()).all()
 
-    # The Status column must reflect TODAY's occurrence (the only thing
-    # "Update Status" ever writes now), not the register's own stale
-    # `status` field -- batch-fetch today's occurrence rows in one query.
+    # The Status column must reflect each register's OWN current-cycle
+    # occurrence (today for DAILY, the exact cyclic `next_due_date`
+    # otherwise -- the only date "Update Status" is now restricted to), not
+    # the register's own stale `status` field. Batch-fetch those rows (one
+    # query, even though the relevant date differs per register).
     today = date.today()
-    register_ids = [r.id for r in registers]
-    todays_occurrences = {}
-    if register_ids:
-        todays_occurrences = {
-            occ.register_id: occ
-            for occ in RegisterOccurrence.query.filter(
-                RegisterOccurrence.register_id.in_(register_ids),
-                RegisterOccurrence.occurrence_date == today,
-            ).all()
-        }
+    current_occurrences = fetch_current_cycle_occurrences(registers, today)
 
     # The status filter must match the SAME effective status shown to the
-    # user (today's occurrence when one exists, else the register's own
-    # `status`). Filtering on the raw `Register.status` column here missed
-    # OK/REJECTED registers because that column is never touched by the
-    # per-occurrence "Update Status" action anymore.
+    # user (the current-cycle occurrence when one exists, else the
+    # register's own `status`). Filtering on the raw `Register.status`
+    # column here missed OK/REJECTED registers because that column is never
+    # touched by the per-occurrence "Update Status" action anymore.
     if status:
         status = status.upper()
         registers = [
             r for r in registers
-            if r.effective_today_status(today, todays_occurrences.get(r.id))[0] == status
+            if r.effective_today_status(today, current_occurrences.get(r.id))[0] == status
         ]
 
-    return success([r.to_dict(today=today, occurrence=todays_occurrences.get(r.id)) for r in registers])
+    return success([r.to_dict(today=today, occurrence=current_occurrences.get(r.id)) for r in registers])
 
 
 @registers_bp.route('/calendar', methods=['GET'])
@@ -215,10 +217,17 @@ def calendar_events():
         for occ in all_occurrences:
             occurrence_maps[occ.register_id][occ.occurrence_date] = occ
 
+    # Each register's embedded `register` dict (used by the frontend for
+    # Status badges / `isRegisterUpdatable`) must reflect ITS OWN
+    # current-cycle occurrence date, not "today" -- that date can fall
+    # outside [start, end] (e.g. an overdue WEEKLY due date from months ago
+    # while paging near today), so it is fetched separately here rather than
+    # sourced from `occurrence_maps` above.
+    current_occurrences = fetch_current_cycle_occurrences(registers, today)
+
     events = []
     for r in registers:
-        todays_occurrence = occurrence_maps[r.id].get(today)
-        register_dict = r.to_dict(today=today, occurrence=todays_occurrence)
+        register_dict = r.to_dict(today=today, occurrence=current_occurrences.get(r.id))
         for occ in r.generate_occurrences(start, end, today, occurrence_map=occurrence_maps[r.id]):
             occ_date = occ['date']
             computed_status = occ['status']
@@ -265,8 +274,11 @@ def get_register(register_id: int):
         return error('You do not have access to this register', 403)
 
     today = date.today()
-    todays_occurrence = RegisterOccurrence.query.filter_by(register_id=register_id, occurrence_date=today).first()
-    return success(register.to_dict(today=today, occurrence=todays_occurrence))
+    current_occurrence = RegisterOccurrence.query.filter_by(
+        register_id=register_id,
+        occurrence_date=register.current_cycle_occurrence_date(today),
+    ).first()
+    return success(register.to_dict(today=today, occurrence=current_occurrence))
 
 
 @registers_bp.route('', methods=['POST'])
@@ -541,10 +553,13 @@ def register_calendar(register_id: int):
         for occ in register.generate_occurrences(range_start, range_end, today)
     ]
 
-    todays_occurrence = RegisterOccurrence.query.filter_by(register_id=register_id, occurrence_date=today).first()
+    current_occurrence = RegisterOccurrence.query.filter_by(
+        register_id=register_id,
+        occurrence_date=register.current_cycle_occurrence_date(today),
+    ).first()
 
     return success({
-        'register': register.to_dict(today=today, occurrence=todays_occurrence),
+        'register': register.to_dict(today=today, occurrence=current_occurrence),
         'month': anchor.strftime('%Y-%m'),
         'entries': entries,
     })

@@ -302,7 +302,14 @@ class TestUpdateOccurrenceStatus:
         assert len(before_by_date) >= 3, 'need multiple occurrences in range for this test to be meaningful'
 
         occurrence_dates = sorted(before_by_date)
-        target_date = occurrence_dates[1]  # edit ONE occurrence only
+        # Edit ONE occurrence only, and deliberately NOT the register's
+        # current cyclic due date (start_date + 7 days) -- that date drives
+        # the register's own effective `status` (see
+        # `test_editing_the_due_date_occurrence_updates_effective_status`
+        # below), so picking any *other* occurrence here keeps this test
+        # about "editing occurrence X doesn't leak into occurrence Y".
+        due_date = created['data']['next_due_date']
+        target_date = next(d for d in occurrence_dates if d != due_date)
 
         resp = client.patch(
             f'/api/registers/{register_id}/occurrences/{target_date}/status',
@@ -330,6 +337,48 @@ class TestUpdateOccurrenceStatus:
         register_after = client.get(f'/api/registers/{register_id}', headers=auth_headers['chairman']).get_json()['data']
         assert register_after['status'] == created['data']['status']
         assert register_after['next_due_date'] == created['data']['next_due_date']
+
+    def test_editing_the_due_date_occurrence_updates_effective_status(self, client, auth_headers):
+        """Regression test for the "Update Status button lands away from the
+        exact cyclic date" bug: a WEEKLY (or other non-DAILY) register's
+        displayed `status` / dot must reflect an occurrence recorded on its
+        exact cyclic `next_due_date`, even when that due date is overdue and
+        today is a different day entirely -- not just an occurrence recorded
+        for literally "today". This is what lets the Register Monitoring
+        Status column and "already recorded" gating (`isRegisterUpdatable`)
+        immediately react to an update made against the real due date.
+        """
+        start_date = date.today() - timedelta(days=35)
+        created = client.post(
+            '/api/registers',
+            json=_payload(cycle='WEEKLY', start_date=start_date.isoformat()),
+            headers=auth_headers['chairman'],
+        ).get_json()
+        register_id = created['data']['id']
+        due_date = created['data']['next_due_date']
+        assert due_date != date.today().isoformat(), 'the due date must be overdue and NOT today for this test'
+        assert created['data']['status'] == 'IDLE'
+
+        resp = client.patch(
+            f'/api/registers/{register_id}/occurrences/{due_date}/status',
+            json={'status': 'OK'},
+            headers=auth_headers['chairman'],
+        )
+        assert resp.status_code == 200
+
+        register_after = client.get(f'/api/registers/{register_id}', headers=auth_headers['chairman']).get_json()['data']
+        # The raw due date itself is untouched (still the series-level date)...
+        assert register_after['next_due_date'] == due_date
+        # ...but the displayed/effective status now reflects the recorded
+        # outcome for that exact due date, not a stale IDLE/PENDING.
+        assert register_after['status'] == 'OK'
+        assert register_after['computed_status'] == 'COMPLETED'
+        assert register_after['dot_color'] == 'green'
+
+        # The list endpoint (Register Monitoring's table) must agree.
+        listed = client.get('/api/registers', headers=auth_headers['chairman']).get_json()['data']
+        listed_register = next(r for r in listed if r['id'] == register_id)
+        assert listed_register['status'] == 'OK'
 
     def test_editing_occurrence_is_idempotent_and_updates_same_row(self, client, auth_headers):
         created = client.post('/api/registers', json=_payload(cycle='WEEKLY'), headers=auth_headers['chairman']).get_json()

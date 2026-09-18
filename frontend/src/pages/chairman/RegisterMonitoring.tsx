@@ -10,7 +10,7 @@ import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPo
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
 import { downloadCsv } from '../../utils/fileDownload';
-import { isRegisterUpdatable } from '../../utils/registerUtils';
+import { currentCycleOccurrenceDate, isRegisterUpdatable } from '../../utils/registerUtils';
 import {
   deleteRegister,
   getRegisterHeads,
@@ -195,27 +195,31 @@ function RegisterMonitoring() {
     updateMutation.mutate({ id: editingRegister.id, data: editForm });
   };
 
-  // "Update Status" always resolves to exactly ONE occurrence: today's.
-  // Registers are cyclic, so there is nothing meaningful about updating
-  // "the whole series" — only the current day's entry ever needs a status.
-  // For non-DAILY cycles, this is additionally gated on the register's
-  // current cycle actually being due (see `isRegisterUpdatable`) — the
-  // Actions button is disabled in that case, but this guard is kept too
-  // in case the handler is ever reached another way.
+  // "Update Status" always resolves to exactly ONE occurrence: the
+  // register's exact current cyclic due date — today for DAILY registers,
+  // but the cycle's actual `next_due_date` for everything else (see
+  // `currentCycleOccurrenceDate`). Registers are cyclic, so there is
+  // nothing meaningful about updating "the whole series" — only that one
+  // due entry ever needs a status. Previously this always used "today",
+  // which for an overdue WEEKLY/MONTHLY/etc register recorded the status
+  // days or weeks away from the exact date the calendar shows as due —
+  // this is gated on the register's current cycle actually being due (see
+  // `isRegisterUpdatable`) — the Actions button is disabled in that case,
+  // but this guard is kept too in case the handler is ever reached another way.
   const openTodayStatusModal = (register: Register) => {
     const updatability = isRegisterUpdatable(register);
     if (!updatability.updatable) {
       toast.error(updatability.reason ?? 'Status can only be updated for the current cycle.');
       return;
     }
-    const today = todayISO();
+    const dueDate = currentCycleOccurrenceDate(register);
     setOccurrenceTarget({
-      id: `${register.id}:${today}`,
+      id: `${register.id}:${dueDate}`,
       register_id: register.id,
       occurrence_id: null,
-      occurrence_date: today,
+      occurrence_date: dueDate,
       title: `${register.name} (${register.register_no})`,
-      date: today,
+      date: dueDate,
       status: register.status,
       computed_status: register.computed_status,
       color: 'gray',

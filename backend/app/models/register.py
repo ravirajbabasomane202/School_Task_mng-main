@@ -56,6 +56,41 @@ def calculate_next_due_date(from_date, cycle: str):
     return _skip_sunday(due)
 
 
+def fetch_current_cycle_occurrences(registers, today=None):
+    """Batch-fetch, for each register, the `RegisterOccurrence` row for ITS
+    OWN `current_cycle_occurrence_date()` -- today for DAILY, the exact
+    cyclic `next_due_date` for every other cycle.
+
+    This replaces the old pattern of fetching "today's occurrence" for every
+    register with one shared date, which silently missed a WEEKLY/MONTHLY/
+    etc register's real (and possibly overdue) due-date row whenever that
+    date wasn't today. Registers can have different current-cycle dates, so
+    this queries across the whole set of (register_id, date) pairs in one
+    round trip instead of one query per register.
+    """
+    today = today or date.today()
+    if not registers:
+        return {}
+
+    wanted = {(r.id, r.current_cycle_occurrence_date(today)) for r in registers}
+    wanted = {(rid, d) for rid, d in wanted if d is not None}
+    if not wanted:
+        return {}
+
+    register_ids = list({rid for rid, _ in wanted})
+    dates = list({d for _, d in wanted})
+    rows = RegisterOccurrence.query.filter(
+        RegisterOccurrence.register_id.in_(register_ids),
+        RegisterOccurrence.occurrence_date.in_(dates),
+    ).all()
+
+    result = {}
+    for occ in rows:
+        if (occ.register_id, occ.occurrence_date) in wanted:
+            result[occ.register_id] = occ
+    return result
+
+
 class RegisterOccurrence(db.Model):
     """A single dated occurrence of a recurring Register's cycle.
 
@@ -163,6 +198,26 @@ class Register(db.Model):
             'UPCOMING': 'gray',
         }[self.computed_status(today)]
 
+    def current_cycle_occurrence_date(self, today=None):
+        """The one date "Update Status" (the Register Monitoring quick action
+        AND the calendar popup) is currently allowed to act on for this
+        register: for DAILY registers that is always today (a daily register
+        is only ever about "did today get done", never a specific missed
+        day); for every other cycle it is the register's exact cyclic
+        `next_due_date` -- the same date the calendar highlights/marks as
+        due -- NOT today, which can be several days/weeks away from it for a
+        WEEKLY/MONTHLY/etc register that is overdue.
+
+        This is the single source of truth the frontend's
+        `isEditableOccurrenceDate` mirrors, and what `effective_today_status`
+        below uses to decide which `RegisterOccurrence` row (if any) drives
+        the register's displayed Status / "already recorded" gating.
+        """
+        today = today or date.today()
+        if self.cycle == 'DAILY':
+            return today
+        return self.next_due_date
+
     def generate_occurrences(self, range_start, range_end, today=None, occurrence_map=None):
         """Project the full recurring series for this register's Checking Cycle
         across [range_start, range_end], instead of surfacing only the single
@@ -230,15 +285,16 @@ class Register(db.Model):
                 covered_dates.add(cursor)
             cursor = calculate_next_due_date(cursor, self.cycle)
 
-        # "Update Status" (Register Monitoring / calendar popup) always writes
-        # its RegisterOccurrence row for TODAY, regardless of whether today
-        # actually falls on this register's cyclic schedule above -- e.g. a
-        # WEEKLY register due every Monday can still be marked OK/REJECTED on
-        # a Wednesday. Without this, that occurrence is a real DB row but the
-        # cyclic walk never visits its date, so it silently vanishes from the
-        # calendar and from anything built on it (e.g. Register Performance's
-        # completed/missed/rejected counts). Surface any such off-cycle,
-        # individually-recorded occurrence that falls in range too.
+        # "Update Status" (Register Monitoring / calendar popup) is now
+        # restricted to writing at `current_cycle_occurrence_date()` -- today
+        # for DAILY, the exact cyclic `next_due_date` for everything else --
+        # so it normally lands squarely on a date the cyclic walk above
+        # already visits. This safety net stays for any occurrence that ends
+        # up recorded off-cycle regardless (legacy rows from before this fix,
+        # direct API calls, etc.): without it, such a row is a real DB entry
+        # whose date the cyclic walk never visits, so it would silently
+        # vanish from the calendar and from anything built on it (e.g.
+        # Register Performance's completed/missed/rejected counts).
         for occ_date, record in occurrence_map.items():
             if range_start <= occ_date <= range_end and occ_date not in covered_dates:
                 occurrences.append({
@@ -252,19 +308,28 @@ class Register(db.Model):
         return occurrences
 
     def effective_today_status(self, today=None, occurrence=None):
-        """Return (status, computed_status, dot_color) for "today" specifically.
+        """Return (status, computed_status, dot_color) for THIS register's
+        current cycle occurrence -- see `current_cycle_occurrence_date`.
 
         The list/detail views show a single Status badge per register, and
-        the only thing that is ever updated now is TODAY's occurrence (see
-        `update_occurrence_status`) -- so that badge must reflect today's
-        `RegisterOccurrence` row when one exists, not the register's own
-        stale `status` column (which nothing writes to anymore once "Edit
-        Entire Series" was removed from the UI). Falls back to the
-        register-level computed status when today has no occurrence record
-        yet (e.g. a WEEKLY register on a day that isn't due).
+        the "Update Status" quick action is restricted to exactly one date
+        (today for DAILY, the exact cyclic `next_due_date` for every other
+        cycle) -- so that badge must reflect THAT date's `RegisterOccurrence`
+        row when one exists, not the register's own stale `status` column
+        (which nothing writes to anymore once "Edit Entire Series" was
+        removed from the UI), and not necessarily today's row: a WEEKLY
+        register recorded on its actual (possibly overdue) due date must show
+        that outcome immediately, even though the due date isn't today.
+        Falls back to the register-level computed status when the current
+        cycle date has no occurrence record yet.
+
+        NOTE: callers must fetch `occurrence` by
+        `self.current_cycle_occurrence_date(today)`, not by `today` --
+        see `fetch_current_cycle_occurrences` for the batched version.
         """
         today = today or date.today()
-        if occurrence is not None and occurrence.occurrence_date == today:
+        current_date = self.current_cycle_occurrence_date(today)
+        if occurrence is not None and current_date is not None and occurrence.occurrence_date == current_date:
             return occurrence.status, occurrence.computed_status(), occurrence.dot_color()
         return self.status, self.computed_status(today), self.dot_color(today)
 

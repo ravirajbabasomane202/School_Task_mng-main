@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.department import Department
-from app.models.register import Register, RegisterOccurrence
+from app.models.register import Register, RegisterOccurrence, fetch_current_cycle_occurrences
 from app.models.report import ReportHistory
 from app.models.task import Task
 from app.models.user import User
@@ -748,19 +748,15 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
         for occ in all_occurrences:
             occurrence_maps[occ.register_id][occ.occurrence_date] = occ
 
-    todays_occurrences = {}
-    if register_ids:
-        todays_occurrences = {
-            occ.register_id: occ
-            for occ in RegisterOccurrence.query.filter(
-                RegisterOccurrence.register_id.in_(register_ids),
-                RegisterOccurrence.occurrence_date == today,
-            ).all()
-        }
+    # Match `register.status` on the Register Monitoring / calendar popup:
+    # keyed by each register's OWN current-cycle occurrence date (today for
+    # DAILY, the exact cyclic `next_due_date` otherwise), not a single
+    # shared "today" for every register.
+    current_occurrences = fetch_current_cycle_occurrences(registers, today)
 
     summaries = []
     for register in registers:
-        effective_status = register.effective_today_status(today, todays_occurrences.get(register.id))[0]
+        effective_status = register.effective_today_status(today, current_occurrences.get(register.id))[0]
         if status and status.upper() != 'ALL' and effective_status != status.upper():
             continue
 
