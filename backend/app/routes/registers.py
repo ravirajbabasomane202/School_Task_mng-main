@@ -148,9 +148,9 @@ def list_registers():
     registers = query.order_by(Register.next_due_date.asc()).all()
 
     # The Status column must reflect each register's OWN current-cycle
-    # occurrence (today for DAILY, the exact cyclic `next_due_date`
-    # otherwise -- the only date "Update Status" is now restricted to), not
-    # the register's own stale `status` field. Batch-fetch those rows (one
+    # occurrence (today for DAILY, the most recent cyclic due date otherwise
+    # -- the only date "Update Status" is now restricted to), not the
+    # register's own stale `status` field. Batch-fetch those rows (one
     # query, even though the relevant date differs per register).
     today = date.today()
     current_occurrences = fetch_current_cycle_occurrences(registers, today)
@@ -530,7 +530,7 @@ def register_calendar(register_id: int):
         return error('You do not have access to this register', 403)
 
     today = date.today()
-    month_str = request.args.get('month')  # 'YYYY-MM', defaults to the due date's month
+    month_str = request.args.get('month')  # 'YYYY-MM', defaults to the current due date's month
     if month_str:
         try:
             year, month = (int(part) for part in month_str.split('-'))
@@ -538,7 +538,13 @@ def register_calendar(register_id: int):
         except (ValueError, TypeError):
             return error('month must be in YYYY-MM format', 400)
     else:
-        anchor = register.next_due_date.replace(day=1) if register.next_due_date else today.replace(day=1)
+        # Open on the month of the register's CURRENT cyclic occurrence
+        # (walked from `start_date`, not the stale `next_due_date` -- see
+        # `current_cycle_occurrence_date`), so a long-running WEEKLY/
+        # MONTHLY/etc register opens showing today's actual due cell instead
+        # of always jumping back to its very first due month.
+        default_anchor_date = register.current_cycle_occurrence_date(today) or register.next_due_date or today
+        anchor = default_anchor_date.replace(day=1)
 
     range_start = anchor
     range_end = _add_months(anchor, 1) - timedelta(days=1)

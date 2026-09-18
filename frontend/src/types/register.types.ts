@@ -53,6 +53,18 @@ export interface Register {
   dot_color: RegisterDotColor;
   start_date: string;
   next_due_date: string;
+  /**
+   * The date "Update Status" actually targets right now — the most recent
+   * cyclic occurrence at/before today (today itself for DAILY), computed by
+   * the backend from `start_date` + `checking_cycle`. This is deliberately
+   * NOT `next_due_date`, which is frozen at creation and never advances, so
+   * it goes stale as soon as a register has been due more than once (e.g. a
+   * WEEKLY register that started 18 Aug 2026 keeps `next_due_date` at
+   * 25 Aug 2026 forever, while `current_due_date` correctly walks forward
+   * to 15 Sep, 22 Sep, ... as today advances). `null` means the series
+   * hasn't started yet (`start_date` is in the future).
+   */
+  current_due_date: string | null;
   last_completed_date?: string | null;
   created_by?: number | null;
   created_by_name?: string | null;

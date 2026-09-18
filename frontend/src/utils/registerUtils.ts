@@ -8,42 +8,67 @@ export interface RegisterUpdatability {
 }
 
 /**
- * Decide whether a Register's status can currently be updated — purely from
- * data the API already returns (`checking_cycle`, `next_due_date`,
- * `status`), no new backend endpoint required.
+ * The one date "Update Status" is currently allowed to act on for this
+ * register: `register.current_due_date`, computed by the BACKEND as today
+ * for DAILY registers, or the most recent cyclic occurrence at/before today
+ * (walked from `start_date` + `checking_cycle`) for every other cycle.
  *
- * All cycles (DAILY included) are only updatable once their current cycle
- * is actually due, i.e. once `next_due_date` has arrived (due today or
- * overdue). DAILY used to be special-cased to "always updatable", which
- * meant the "Update Status" action never disabled itself after today's
- * entry had already been recorded — this now matches the other cycles.
+ * IMPORTANT: this is deliberately NOT `register.next_due_date`. That field
+ * is set once at register creation and never advances on its own — "Edit
+ * This Occurrence" (the only thing the quick action and the calendar popup
+ * ever call) intentionally never mutates the shared Register row (see
+ * `update_occurrence_status` on the backend) — so for any register whose
+ * series has moved past its very first due date, `next_due_date` is simply
+ * stale. Example: a WEEKLY register that started 18 Aug 2026 has cyclic
+ * occurrences on 18, 25 Aug, then 1, 8, 15, 22, 29 Sep, ... — but
+ * `next_due_date` stays frozen at 25 Aug 2026 forever. On 18 Sep 2026,
+ * `current_due_date` correctly resolves to 15 Sep 2026 (the most recent
+ * occurrence not yet in the future) — the same cell the calendar itself
+ * highlights as due — while `next_due_date` would wrongly point at a date
+ * over three weeks in the past.
  *
- * IMPORTANT: `next_due_date` is set once at creation and never advances on
- * its own -- "Edit This Occurrence" (the only thing the quick action and
- * the calendar popup ever call) intentionally never mutates the shared
- * Register row (see `update_occurrence_status` on the backend), so this
- * check alone does NOT "close" a cycle once it's overdue -- it only ever
- * asks "has this series' first due date arrived yet". A missed cycle
- * stays flagged as due (by design: it can be caught up on any later day,
- * not only its exact recurring date -- see `generate_occurrences` on the
- * Register model for the same off-cycle allowance).
+ * The cyclic math is intentionally done server-side (same step function the
+ * calendar's own occurrence generator uses) rather than re-implemented here,
+ * so the two can never drift apart.
  *
- * What actually closes the door until the next cycle is the `status` check
- * below: the API returns the current cycle's own recorded outcome in
- * `register.status` — the occurrence at `currentCycleOccurrenceDate`
- * (today for DAILY, the exact overdue `next_due_date` otherwise) — when one
- * exists (falling back to the register's stale default otherwise), so once
- * that date has been recorded, this correctly disables until the due date
- * itself advances server-side.
+ * Returns `null` when the register's series hasn't started yet
+ * (`start_date` is still in the future) — there is nothing to update yet.
  */
-export function isRegisterUpdatable(register: Register, today: string = todayISO()): RegisterUpdatability {
-  const nextCycleReason = `Status can only be updated for the current cycle. Next cycle starts on ${formatDate(
-    register.next_due_date
-  )}.`;
+export function currentCycleOccurrenceDate(register: Register): string | null {
+  return register.current_due_date ?? null;
+}
 
-  const cycleIsDue = !register.next_due_date || register.next_due_date <= today;
-  if (!cycleIsDue) {
-    return { updatable: false, reason: nextCycleReason };
+/**
+ * Decide whether a Register's status can currently be updated — purely from
+ * data the API already returns (`current_due_date`, `status`), no new
+ * backend endpoint required.
+ *
+ * A register is updatable once it has a current cyclic occurrence at all
+ * (`current_due_date` is set — i.e. its series has actually started) AND
+ * that occurrence hasn't already been recorded. A missed cycle stays
+ * flagged as due (by design: it can be caught up on any later day, and
+ * `current_due_date` keeps pointing at the same overdue occurrence until it
+ * is recorded — see `generate_occurrences` on the Register model for the
+ * same off-cycle allowance).
+ *
+ * What closes the door until the next cycle is the `status` check below:
+ * the API returns the current cycle's own recorded outcome in
+ * `register.status` — the occurrence at `current_due_date` — when one
+ * exists (falling back to the register's stale default otherwise), so once
+ * that date has been recorded, this correctly disables until
+ * `current_due_date` itself moves on to the next occurrence (which happens
+ * automatically as today advances, no explicit "advance the cycle" step
+ * needed).
+ */
+export function isRegisterUpdatable(register: Register): RegisterUpdatability {
+  const dueDate = currentCycleOccurrenceDate(register);
+  if (!dueDate) {
+    return {
+      updatable: false,
+      reason: `Status can only be updated once the register's Start Date (${formatDate(
+        register.start_date
+      )}) arrives.`,
+    };
   }
 
   if (register.status === 'OK' || register.status === 'REJECTED') {
@@ -54,30 +79,16 @@ export function isRegisterUpdatable(register: Register, today: string = todayISO
 }
 
 /**
- * The one date "Update Status" is currently allowed to act on for this
- * register: for DAILY registers that is always today (a daily register is
- * only ever about "did today get done"); for every other cycle it is the
- * register's exact cyclic `next_due_date` — the same date the calendar
- * highlights as due — which can be days or weeks away from today when the
- * cycle is overdue. Both the Register Monitoring quick action and the
- * calendar popup must target this exact date, not "today", or the recorded
- * status lands on the wrong occurrence and never matches what the calendar
- * shows as due.
- */
-export function currentCycleOccurrenceDate(register: Register, today: string = todayISO()): string {
-  return register.checking_cycle === 'DAILY' ? today : register.next_due_date;
-}
-
-/**
  * Whether a specific calendar date (YYYY-MM-DD) is the one date this
  * register can currently be edited from — the cycle's exact current due
  * date (see `currentCycleOccurrenceDate`) — and only while the register as
  * a whole is updatable per `isRegisterUpdatable` (so an already-closed or
- * not-yet-due cycle blocks editing even on that cell).
+ * not-yet-started cycle blocks editing even on that cell).
  */
 export function isEditableOccurrenceDate(register: Register, date: string, today: string = todayISO()): boolean {
-  if (!isRegisterUpdatable(register, today).updatable) {
+  void today; // kept for call-site backward compatibility; the due date now comes from the backend.
+  if (!isRegisterUpdatable(register).updatable) {
     return false;
   }
-  return date === currentCycleOccurrenceDate(register, today);
+  return date === currentCycleOccurrenceDate(register);
 }
