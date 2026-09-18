@@ -410,7 +410,7 @@ function RegisterMonitoring() {
                             type="button"
                             title={
                               updatability.updatable
-                                ? "Updates only today's entry for this cyclic register"
+                                ? "Updates only the exact scheduled entry for this cyclic register"
                                 : updatability.reason
                             }
                           >

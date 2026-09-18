@@ -470,14 +470,16 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
     occurrence.completed_by = user_id
     occurrence.completed_at = datetime.now(timezone.utc)
 
-    # IMPORTANT: this endpoint must NEVER touch `register.status` /
-    # `register.next_due_date` (see `test_editing_one_occurrence_does_not_
-    # change_others`) -- that's the whole point of "Edit This Occurrence"
-    # vs. "Edit Entire Series" (`update_status` above). Gating for the
-    # "Update Status" quick action is handled entirely on the frontend in
-    # `isRegisterUpdatable`, using the per-day effective status this
-    # endpoint's response (and `list_registers`) already return -- not by
-    # mutating the shared Register row.
+    # The monitoring-page quick action is allowed only on the exact scheduled
+    # date. Once that scheduled occurrence is recorded, move the cycle to its
+    # next scheduled date. Historical/calendar edits remain occurrence-only.
+    today = date.today()
+    if new_status in ('OK', 'REJECTED'):
+        if register.cycle == 'DAILY' and parsed_date == today:
+            register.next_due_date = _advance(parsed_date, register.cycle)
+        elif register.cycle != 'DAILY' and parsed_date == register.next_due_date and parsed_date == today:
+            register.next_due_date = _advance(parsed_date, register.cycle)
+
     db.session.commit()
 
     return success({

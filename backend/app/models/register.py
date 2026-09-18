@@ -99,25 +99,38 @@ class Register(db.Model):
     # ------------------------------------------------------------------
 
     def current_cycle_occurrence_date(self, today):
-        """The one date "Update Status" (quick action) currently targets:
+        """Return the exact scheduled date for the current cycle.
 
-        - None if the series hasn't started yet (start_date is in the future).
-        - `today` for a DAILY register (every day is its own occurrence).
-        - Otherwise, the register's stored `next_due_date` once that date
-          has arrived (start_date <= today), or `start_date` itself while
-          still waiting for that first due date to arrive. `next_due_date`
-          only ever moves forward via the whole-series status update
-          (`PATCH /status`) -- editing an individual occurrence never
-          touches it -- so this deliberately does NOT re-walk the cycle
-          from scratch on every call.
+        DAILY registers are due every day after the start date. For every
+        other cycle, the first due date is ``start_date + cycle`` and each
+        later due date is another cycle step. If an older due date was
+        missed, move the *displayed* due date forward to the first scheduled
+        date on/after today; this prevents the Update Status action from
+        remaining enabled indefinitely after a missed cycle.
+
+        The returned date is therefore either today's date (when the cycle
+        is actually due), a future scheduled date (button disabled), or None
+        before the register starts.
         """
         if self.start_date is None or self.start_date > today:
             return None
         if self.cycle == 'DAILY':
             return today
-        if self.next_due_date is None or self.next_due_date > today:
-            return self.start_date
-        return self.next_due_date
+
+        due = self.next_due_date or calculate_next_due_date(self.start_date, self.cycle)
+        if due is None:
+            return None
+
+        # Never let a stale next_due_date make a missed weekly/monthly/etc.
+        # cycle look editable on a random later date. Find the next scheduled
+        # occurrence on or after today.
+        guard = 0
+        while due < today:
+            due = _advance(due, self.cycle)
+            guard += 1
+            if guard > 10000:
+                break
+        return due
 
     def generate_occurrences(self, range_start, range_end, today, occurrence_map=None):
         """Every cyclic occurrence date within [range_start, range_end],

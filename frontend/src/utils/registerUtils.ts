@@ -43,13 +43,9 @@ export function currentCycleOccurrenceDate(register: Register): string | null {
  * data the API already returns (`current_due_date`, `status`), no new
  * backend endpoint required.
  *
- * A register is updatable once it has a current cyclic occurrence at all
- * (`current_due_date` is set — i.e. its series has actually started) AND
- * that occurrence hasn't already been recorded. A missed cycle stays
- * flagged as due (by design: it can be caught up on any later day, and
- * `current_due_date` keeps pointing at the same overdue occurrence until it
- * is recorded — see `generate_occurrences` on the Register model for the
- * same off-cycle allowance).
+ * A register is updatable only when its exact scheduled occurrence is today
+ * and that occurrence has not already been recorded. Between scheduled dates
+ * the action stays disabled; a missed date moves to the next scheduled cycle.
  *
  * What closes the door until the next cycle is the `status` check below:
  * the API returns the current cycle's own recorded outcome in
@@ -68,6 +64,14 @@ export function isRegisterUpdatable(register: Register): RegisterUpdatability {
       reason: `Status can only be updated once the register's Start Date (${formatDate(
         register.start_date
       )}) arrives.`,
+    };
+  }
+
+  const today = todayISO();
+  if (dueDate !== today) {
+    return {
+      updatable: false,
+      reason: `Update Status is available only on the scheduled date (${formatDate(dueDate)}).`,
     };
   }
 
