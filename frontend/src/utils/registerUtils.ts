@@ -12,11 +12,11 @@ export interface RegisterUpdatability {
  * data the API already returns (`checking_cycle`, `next_due_date`,
  * `status`), no new backend endpoint required.
  *
- * - DAILY registers can always be updated (today's entry) — unchanged
- *   behaviour.
- * - WEEKLY / 15_DAYS / MONTHLY / QUARTERLY / HALF_YEARLY / YEARLY registers
- *   are only updatable once their current cycle is actually due, i.e. once
- *   `next_due_date` has arrived (due today or overdue).
+ * All cycles (DAILY included) are only updatable once their current cycle
+ * is actually due, i.e. once `next_due_date` has arrived (due today or
+ * overdue). DAILY used to be special-cased to "always updatable", which
+ * meant the "Update Status" action never disabled itself after today's
+ * entry had already been recorded — this now matches the other cycles.
  *
  * Recording a status (OK or REJECTED) always advances `next_due_date` to
  * the next cycle server-side (`update_status` / `update_occurrence_status`
@@ -29,10 +29,6 @@ export interface RegisterUpdatability {
  * wasn't advanced.
  */
 export function isRegisterUpdatable(register: Register, today: string = todayISO()): RegisterUpdatability {
-  if (register.checking_cycle === 'DAILY') {
-    return { updatable: true };
-  }
-
   const nextCycleReason = `Status can only be updated for the current cycle. Next cycle starts on ${formatDate(
     register.next_due_date
   )}.`;

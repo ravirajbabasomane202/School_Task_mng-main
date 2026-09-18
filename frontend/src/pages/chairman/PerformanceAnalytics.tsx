@@ -161,7 +161,7 @@ function PerformanceAnalytics() {
                   Total registers
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.blue.header}`}>
-                  Estimated checking cycle
+                  checking cycle
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
                   Completed
@@ -173,7 +173,7 @@ function PerformanceAnalytics() {
                   Rejected
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
-                  Total checked
+                  Total Estimated check
                 </th>
                 <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.indigo.header}`}>
                   Register performance
