@@ -17,6 +17,19 @@ def _add_months(base: date, months: int) -> date:
     return date(year, month, day)
 
 
+def _skip_sunday(d: date) -> date:
+    """The college is closed on Sundays, so a computed due date that lands
+    on a Sunday is pushed to the following Monday instead. Applied once
+    here so every caller (register creation, `update_status`,
+    `update_occurrence_status`, and the recurring calendar walk in
+    `Register.generate_occurrences`, which all funnel through this
+    function) picks it up automatically.
+    """
+    if d.weekday() == 6:  # Monday=0 ... Sunday=6
+        return d + timedelta(days=1)
+    return d
+
+
 def calculate_next_due_date(from_date, cycle: str):
     """Return the next due date after `from_date` for the given cycle."""
     if isinstance(from_date, datetime):
@@ -24,21 +37,23 @@ def calculate_next_due_date(from_date, cycle: str):
 
     cycle = (cycle or '').upper()
     if cycle == 'DAILY':
-        return from_date + timedelta(days=1)
-    if cycle == 'WEEKLY':
-        return from_date + timedelta(days=7)
-    if cycle == '15_DAYS':
-        return from_date + timedelta(days=15)
-    if cycle == 'MONTHLY':
-        return _add_months(from_date, 1)
-    if cycle == 'QUARTERLY':
-        return _add_months(from_date, 3)
-    if cycle == 'HALF_YEARLY':
-        return _add_months(from_date, 6)
-    if cycle == 'YEARLY':
-        return _add_months(from_date, 12)
-    # Fallback: treat unknown cycles like monthly
-    return _add_months(from_date, 1)
+        due = from_date + timedelta(days=1)
+    elif cycle == 'WEEKLY':
+        due = from_date + timedelta(days=7)
+    elif cycle == '15_DAYS':
+        due = from_date + timedelta(days=15)
+    elif cycle == 'MONTHLY':
+        due = _add_months(from_date, 1)
+    elif cycle == 'QUARTERLY':
+        due = _add_months(from_date, 3)
+    elif cycle == 'HALF_YEARLY':
+        due = _add_months(from_date, 6)
+    elif cycle == 'YEARLY':
+        due = _add_months(from_date, 12)
+    else:
+        # Fallback: treat unknown cycles like monthly
+        due = _add_months(from_date, 1)
+    return _skip_sunday(due)
 
 
 class RegisterOccurrence(db.Model):

@@ -398,7 +398,10 @@ def update_status(register_id: int):
     # Automatically calculate the next due date based on the cycle after
     # each completed update (i.e. whenever the status moves out of IDLE).
     if new_status in ('OK', 'REJECTED'):
-        base_date = register.next_due_date or register.start_date or date.today()
+        # Anchor to TODAY (not a stale stored due date) so a register
+        # that's missed several cycles catches up to a real future date
+        # in one step -- see the matching fix in update_occurrence_status.
+        base_date = max(register.next_due_date or register.start_date or date.today(), date.today())
         if new_status == 'OK':
             register.last_completed_date = base_date
         register.next_due_date = calculate_next_due_date(base_date, register.cycle)
@@ -455,6 +458,14 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
     occurrence.completed_by = user_id
     occurrence.completed_at = datetime.now(timezone.utc)
 
+    # IMPORTANT: this endpoint must NEVER touch `register.status` /
+    # `register.next_due_date` (see `test_editing_one_occurrence_does_not_
+    # change_others`) -- that's the whole point of "Edit This Occurrence"
+    # vs. "Edit Entire Series" (`update_status` above). Gating for the
+    # "Update Status" quick action is handled entirely on the frontend in
+    # `isRegisterUpdatable`, using the per-day effective status this
+    # endpoint's response (and `list_registers`) already return -- not by
+    # mutating the shared Register row.
     db.session.commit()
 
     return success({

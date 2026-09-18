@@ -18,15 +18,22 @@ export interface RegisterUpdatability {
  * meant the "Update Status" action never disabled itself after today's
  * entry had already been recorded — this now matches the other cycles.
  *
- * Recording a status (OK or REJECTED) always advances `next_due_date` to
- * the next cycle server-side (`update_status` / `update_occurrence_status`
- * in the backend both do this), so once a cycle has been recorded,
- * `next_due_date` is already in the future — the same `next_due_date`
- * check below then naturally keeps blocking edits until the next cycle
- * actually arrives, with no separate "already recorded" bookkeeping
- * needed on the front end. The explicit `status` check is kept as a
- * defensive fallback for the (data-anomaly) case where `next_due_date`
- * wasn't advanced.
+ * IMPORTANT: `next_due_date` is set once at creation and never advances on
+ * its own -- "Edit This Occurrence" (the only thing the quick action and
+ * the calendar popup ever call) intentionally never mutates the shared
+ * Register row (see `update_occurrence_status` on the backend), so this
+ * check alone does NOT "close" a cycle once it's overdue -- it only ever
+ * asks "has this series' first due date arrived yet". A missed cycle
+ * stays flagged as due (by design: it can be caught up on any later day,
+ * not only its exact recurring date -- see `generate_occurrences` on the
+ * Register model for the same off-cycle allowance).
+ *
+ * What actually closes the door for the rest of TODAY is the `status`
+ * check below: the API already returns TODAY's own recorded outcome in
+ * `register.status` when an occurrence exists for today (falling back to
+ * the register's stale default otherwise), so once today has been
+ * recorded, this correctly disables until a fresh calendar day resets it
+ * server-side.
  */
 export function isRegisterUpdatable(register: Register, today: string = todayISO()): RegisterUpdatability {
   const nextCycleReason = `Status can only be updated for the current cycle. Next cycle starts on ${formatDate(
@@ -39,7 +46,7 @@ export function isRegisterUpdatable(register: Register, today: string = todayISO
   }
 
   if (register.status === 'OK' || register.status === 'REJECTED') {
-    return { updatable: false, reason: nextCycleReason };
+    return { updatable: false, reason: 'Already recorded for today.' };
   }
 
   return { updatable: true };
