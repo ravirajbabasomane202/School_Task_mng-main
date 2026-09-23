@@ -13,7 +13,6 @@ from app.models.register import (
     calculate_next_due_date,
     fetch_current_cycle_occurrences,
     _add_months,
-    _advance,
 )
 from app.models.user import User, DEPARTMENT_HEAD_ROLES
 from app.utils.response import success, error
@@ -474,18 +473,42 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
     # The monitoring-page quick action is allowed only on the exact scheduled
     # date. Once that scheduled occurrence is recorded, move the cycle to its
     # next scheduled date. Historical/calendar edits remain occurrence-only.
+    #
+    # Use calculate_next_due_date (already imported) — not the private
+    # `_advance` helper — so this path cannot raise NameError.
     today = date.today()
     if new_status in ('OK', 'REJECTED'):
         if register.cycle == 'DAILY' and parsed_date == today:
-            register.next_due_date = _advance(parsed_date, register.cycle)
-        elif register.cycle != 'DAILY' and parsed_date == register.next_due_date and parsed_date == today:
-            register.next_due_date = _advance(parsed_date, register.cycle)
+            register.next_due_date = calculate_next_due_date(parsed_date, register.cycle)
+            if new_status == 'OK':
+                register.last_completed_date = parsed_date
+        elif (
+            register.cycle != 'DAILY'
+            and parsed_date == today
+            and parsed_date == register.current_cycle_occurrence_date(today)
+        ):
+            # Advance from the cycle's *current* due (not a possibly stale
+            # stored next_due_date), only when that due is today.
+            register.next_due_date = calculate_next_due_date(parsed_date, register.cycle)
+            if new_status == 'OK':
+                register.last_completed_date = parsed_date
 
     db.session.commit()
 
+    # Re-resolve the current-cycle occurrence for the response so the list/
+    # calendar immediately reflect OK/REJECTED for DAILY (current due = today)
+    # and for other cycles when the closed date is still the current due.
+    response_occurrence = occurrence
+    current_due = register.current_cycle_occurrence_date(today)
+    if current_due is not None and occurrence.occurrence_date != current_due:
+        response_occurrence = RegisterOccurrence.query.filter_by(
+            register_id=register_id,
+            occurrence_date=current_due,
+        ).first()
+
     return success({
         'occurrence': occurrence.to_dict(),
-        'register': register.to_dict(today=date.today(), occurrence=occurrence),
+        'register': register.to_dict(today=today, occurrence=response_occurrence),
     }, 'Occurrence updated successfully')
 
 
