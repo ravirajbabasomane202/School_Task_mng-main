@@ -13,6 +13,7 @@ from app.models.register import (
     calculate_next_due_date,
     fetch_current_cycle_occurrences,
     _add_months,
+    _advance,
 )
 from app.models.user import User, DEPARTMENT_HEAD_ROLES
 from app.utils.response import success, error
