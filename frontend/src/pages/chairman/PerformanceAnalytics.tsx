@@ -12,12 +12,18 @@ interface PerformanceData {
   role: keyof typeof ROLE_LABELS;
   totalTasks: number;
   completedTasks: number;
+  onTimeCompleteTasks: number;
+  completedAfterDueTasks: number;
+  pendingTasks: number;
   delayedTasks: number;
   performanceScore: number;
   delayRate: number;
   totalRegisters: number;
   checkingCycles: string[];
   completedRegisters: number;
+  onTimeCompleteRegisters: number;
+  completedAfterDueRegisters: number;
+  pendingRegisters: number;
   missedRegisters: number;
   rejectedRegisters: number;
   registerPerformance: number;
@@ -50,6 +56,13 @@ const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: strin
   purple: { header: 'bg-[#2E75B6] text-white', text: 'text-purple-700' },
   indigo: { header: 'bg-[#2E75B6] text-white', text: 'text-indigo-700' },
   teal: { header: 'bg-[#2E75B6] text-white', text: 'text-teal-700' }
+};
+
+/** Soft tints for the three completion categories (same palette as the exports). */
+const CATEGORY_CELL = {
+  onTime: 'bg-[#E3F6E8] text-[#14532D]',
+  late: 'bg-[#FEF3C7] text-[#78350F]',
+  pending: 'bg-[#FDE2E2] text-[#7F1D1D]'
 };
 
 function PerformanceAnalytics() {
@@ -115,7 +128,13 @@ function PerformanceAnalytics() {
                   Total tasks
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  Completed
+                  On Time Complete
+                </th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
+                  Complete After Due Date
+                </th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
+                  Pending
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   Delayed
@@ -133,7 +152,9 @@ function PerformanceAnalytics() {
                 <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
                   <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{user.onTimeCompleteTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{user.completedAfterDueTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.pendingTasks}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
@@ -164,13 +185,13 @@ function PerformanceAnalytics() {
                   checking cycle
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  Completed
+                  On Time Complete
+                </th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
+                  Complete After Due Date
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Missed
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Rejected
+                  Pending
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   Total Estimated check
@@ -191,11 +212,11 @@ function PerformanceAnalytics() {
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>
                     {formatCheckingCycles(user.checkingCycles)}
                   </td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.missedRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.rejectedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{user.onTimeCompleteRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{user.completedAfterDueRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.pendingRegisters}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>
-                    {user.completedRegisters + user.missedRegisters + user.rejectedRegisters}
+                    {user.onTimeCompleteRegisters + user.completedAfterDueRegisters + user.pendingRegisters}
                   </td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
                   <td className="px-4 py-3">

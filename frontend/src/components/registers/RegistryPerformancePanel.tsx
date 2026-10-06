@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
+import toast from 'react-hot-toast';
 import Badge from '../common/Badge';
 import Button from '../common/Button';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
 import { getStaffPerformance } from '../../services/dashboardService';
 import { exportPerformanceReportFiltered } from '../../services/reportService';
-import { getRoleLabel } from '../../utils/roleUtils';
 import { todayISO } from '../../utils/dateUtils';
 import type { Register, RegisterCycle, RegisterDotColor } from '../../types/register.types';
 
@@ -85,6 +85,10 @@ interface RegisterSummary {
   completed: number;
   missed: number;
   rejected: number;
+  /** Completion-timing buckets: onTime + late + pending === total. */
+  onTime: number;
+  late: number;
+  pending: number;
   total: number;
   completionRate: number;
   /** Chronological dot colors for the last ~30 days, oldest first — this IS
@@ -93,28 +97,6 @@ interface RegisterSummary {
    * only has an occurrence on the days its own Checking Cycle actually falls
    * due. */
   strip: { date: string; color: RegisterDotColor }[];
-}
-
-/** Escape a value for safe inclusion in a CSV cell. */
-function csvCell(value: string | number): string {
-  const str = String(value);
-  if (/[",\n]/.test(str)) {
-    return `"${str.replace(/"/g, '""')}"`;
-  }
-  return str;
-}
-
-function downloadCsv(filename: string, rows: (string | number)[][]) {
-  const csv = rows.map((row) => row.map(csvCell).join(',')).join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
 }
 
 function RegistryPerformancePanel() {
@@ -168,6 +150,9 @@ function RegistryPerformancePanel() {
         completed: 0,
         missed: 0,
         rejected: 0,
+        onTime: 0,
+        late: 0,
+        pending: 0,
         total: 0,
         completionRate: 0,
         strip: [],
@@ -184,13 +169,20 @@ function RegistryPerformancePanel() {
       if (!summary) continue;
 
       summary.strip.push({ date: event.date, color: event.dot_color });
-      if (event.computed_status === 'COMPLETED') summary.completed += 1;
-      else if (event.computed_status === 'FAILED') summary.rejected += 1;
+      if (event.computed_status === 'COMPLETED') {
+        summary.completed += 1;
+        // On time unless the check was recorded after the period's due date
+        // (no due date / no recorded time counts as on time).
+        const done = event.completed_at ? event.completed_at.slice(0, 10) : null;
+        if (event.period_end && done && done > event.period_end) summary.late += 1;
+        else summary.onTime += 1;
+      } else if (event.computed_status === 'FAILED') summary.rejected += 1;
       else if (event.computed_status === 'PENDING') summary.missed += 1;
     }
 
     for (const summary of byRegister.values()) {
       summary.total = summary.completed + summary.missed + summary.rejected;
+      summary.pending = summary.missed + summary.rejected;
       summary.completionRate = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
       summary.strip.sort((a, b) => a.date.localeCompare(b.date));
       summary.strip = summary.strip.slice(-30);
@@ -280,76 +272,9 @@ function RegistryPerformancePanel() {
 
   const [isExporting, setIsExporting] = useState(false);
 
-  /** Falls back to the previous client-side CSV (built from the exact same
-   * filtered data already on screen) if the backend export is unavailable
-   * for any reason, so exporting never breaks entirely. */
-  const exportClientCsv = () => {
-    const headLabel = headFilter === 'ALL' ? 'All heads' : headFilter;
-    const cycleLabel = cycleFilter === 'ALL' ? 'All cycles' : CYCLE_LABEL[cycleFilter];
-    const statusLabel = statusFilter === 'ALL' ? 'All statuses' : statusFilter;
-
-    const rows: (string | number)[][] = [
-      ['Performance Export'],
-      ['Filters', `Date: ${dateFrom} to ${dateTo}`, `Head: ${headLabel}`, `Cycle: ${cycleLabel}`, `Status: ${statusLabel}`],
-      [],
-      ['Task Performance'],
-      ['Total Task', 'Completed', 'Not Completed', 'Delayed', 'Performance'],
-      [
-        taskTotals.totalTasks,
-        taskTotals.completedTasks,
-        taskTotals.notCompletedTasks,
-        taskTotals.delayedTasks,
-        `${taskTotals.taskPerformance}%`,
-      ],
-      [],
-      ['Registration Performance'],
-      ['Total Register', 'Checked', 'Not Checked', 'Delayed', 'Performance'],
-      [
-        registerTotals.totalRegisters,
-        registerTotals.checked,
-        registerTotals.notChecked,
-        registerTotals.delayed,
-        `${overall.completionRate}%`,
-      ],
-      [],
-      ['Performance Metrics'],
-      ['Final Performance'],
-      [`${finalPerformance}%`],
-      [],
-      ['Detailed Register Records'],
-      // Same columns, in the same order, as the backend export (`reports.py`).
-      ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', 'On time Checked', 'Missed Checking', 'Total Delayed', 'Total Checked', 'Completion%'],
-      ...filteredSummaries.map((s) => [
-        s.register.name,
-        s.register.register_no,
-        s.register.head_name,
-        CYCLE_LABEL[s.register.checking_cycle],
-        s.completed,
-        s.missed,
-        s.rejected,
-        s.total,
-        s.completionRate,
-      ]),
-      [],
-      ['Detailed Task Performance Records'],
-      ['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate %', 'Task Performance %'],
-      ...filteredStaffPerformance.map((row) => [
-        getRoleLabel(row.role),
-        row.totalTasks,
-        row.completedTasks,
-        row.delayedTasks,
-        row.delayRate,
-        row.performanceScore,
-      ]),
-    ];
-    downloadCsv(`performance_export_${today}.csv`, rows);
-  };
-
-  // Primary export path: ask the backend to compute and stream the CSV
-  // directly from the same shared filtering/aggregation functions the
-  // on-screen numbers use (see `backend/app/routes/reports.py`), so large
-  // datasets don't need to be pulled to the client first. Falls back to the
-  // client-side CSV above if the request fails for any reason.
+  // Ask the backend to build the styled Excel file from the same shared
+  // filtering/aggregation functions the on-screen numbers use (see
+  // `backend/app/routes/reports.py`), with the same filters as the screen.
   const handleExport = async () => {
     setIsExporting(true);
     try {
@@ -361,8 +286,8 @@ function RegistryPerformancePanel() {
         status: statusFilter
       });
     } catch (err) {
-      console.error('Backend performance export failed, falling back to client CSV', err);
-      exportClientCsv();
+      console.error('Performance Excel export failed', err);
+      toast.error('Unable to export the Excel file right now.');
     } finally {
       setIsExporting(false);
     }
@@ -464,7 +389,7 @@ function RegistryPerformancePanel() {
           disabled={filteredSummaries.length === 0 || isExporting}
         >
           <Download size={14} />
-          {isExporting ? 'Exporting…' : 'Export CSV'}
+          {isExporting ? 'Exporting…' : 'Export Excel'}
         </Button>
       </div>
 
@@ -516,9 +441,9 @@ function RegistryPerformancePanel() {
                 <th className="px-4 py-3 text-left font-semibold">Head Name</th>
                 <th className="px-4 py-3 text-left font-semibold">Checking Cycle</th>
                 <th className="px-4 py-3 text-left font-semibold">Recent activity</th>
-                <th className="px-4 py-3 text-center font-semibold">On time Checked</th>
-                <th className="px-4 py-3 text-center font-semibold">Missed Checking</th>
-                <th className="px-4 py-3 text-center font-semibold">Total Delayed</th>
+                <th className="px-4 py-3 text-center font-semibold">On Time Complete</th>
+                <th className="px-4 py-3 text-center font-semibold">Complete After Due Date</th>
+                <th className="px-4 py-3 text-center font-semibold">Pending</th>
                 <th className="px-4 py-3 text-center font-semibold">Total Checked</th>
                 <th className="px-4 py-3 text-center font-semibold">Completion%</th>
               </tr>
@@ -554,9 +479,9 @@ function RegistryPerformancePanel() {
                         <span className="text-xs text-[#C3CCDA]">No activity yet</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.completed}</td>
-                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.missed}</td>
-                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.rejected}</td>
+                    <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
+                    <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.pending}</td>
                     <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">

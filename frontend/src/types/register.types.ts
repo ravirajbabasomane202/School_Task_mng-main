@@ -137,6 +137,8 @@ export interface RegisterCalendarEvent {
   /** The checking period this entry represents (inclusive). `date` is its start. */
   period_start?: string;
   period_end?: string;
+  /** When the check was recorded (ISO), or null if unchecked. */
+  completed_at?: string | null;
   title: string;
   date: string;
   status: RegisterStatus;

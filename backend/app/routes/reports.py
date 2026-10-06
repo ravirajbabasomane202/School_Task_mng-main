@@ -17,6 +17,10 @@ from app.routes.dashboard import _overall_performance, _staff_performance_rows
 from app.routes.registers import _scope_to_user
 from app.utils.response import error, success
 from app.utils.decorators import roles_required
+from app.utils.completion import (
+    CAT_LATE, CAT_ON_TIME, CAT_PENDING, as_utc_date, register_completion_category,
+    task_completion_category
+)
 
 reports_bp = Blueprint('reports', __name__)
 ALLOWED_REPORT_TYPES = {'DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM', 'HOUSEKEEPING'}
@@ -146,45 +150,9 @@ def _get_tasks(
     return query.order_by(Task.due_date.asc(), Task.created_at.desc()).all()
 
 
-CAT_ON_TIME = 'ON_TIME'
-CAT_LATE = 'LATE'
-CAT_PENDING = 'PENDING'
-
-
-def _as_utc_date(value):
-    """Date part of a (naive or aware) datetime, normalised to UTC so that
-    SQLite (naive) and PostgreSQL (aware) values compare the same way."""
-    if value is None:
-        return None
-    if value.tzinfo is not None:
-        value = value.astimezone(timezone.utc)
-    return value.date()
-
-
-def _completion_category(task):
-    """Classify a task into exactly one of: on-time complete, completed after
-    the due date, or pending (not completed).
-
-    - Not COMPLETED                       -> PENDING
-    - COMPLETED, no due date              -> ON_TIME
-    - COMPLETED, completed_at <= due date -> ON_TIME
-    - COMPLETED, completed_at >  due date -> LATE
-    Comparison is by calendar day (due dates are day-level deadlines). A
-    completed task with no completed_at falls back to updated_at, and to
-    ON_TIME if neither is available, so this never raises.
-    """
-    if task.status != 'COMPLETED':
-        return CAT_PENDING
-
-    due = _as_utc_date(task.due_date)
-    if due is None:
-        return CAT_ON_TIME
-
-    done = _as_utc_date(task.completed_at) or _as_utc_date(task.updated_at)
-    if done is None:
-        return CAT_ON_TIME
-
-    return CAT_ON_TIME if done <= due else CAT_LATE
+# Completion-category logic is shared with routes/dashboard.py; see utils/completion.py.
+_as_utc_date = as_utc_date
+_completion_category = task_completion_category
 
 
 def _report_title(assigned_to=None):
@@ -656,12 +624,10 @@ def _generate_pdf(title, tasks, summary=None, period=None):
     # ---- summary ----------------------------------------------------------
     if summary:
         summary_header = [
-            'Total', 'Completed', 'Delayed', 'Pending',
-            'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
+            'Total', 'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
         ]
         summary_values = [
-            str(summary['total']), str(summary['completed']),
-            str(summary['delayed']), str(summary['pending']),
+            str(len(tasks)),
             str(counts[CAT_ON_TIME]), str(counts[CAT_LATE]), str(counts[CAT_PENDING])
         ]
         summary_table = Table(
@@ -673,9 +639,9 @@ def _generate_pdf(title, tasks, summary=None, period=None):
         )
         summary_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), _hex(HEADER_COLOR)),
-            ('BACKGROUND', (4, 1), (4, 1), _hex(ROW_STYLES[CAT_ON_TIME]['bg'])),
-            ('BACKGROUND', (5, 1), (5, 1), _hex(ROW_STYLES[CAT_LATE]['bg'])),
-            ('BACKGROUND', (6, 1), (6, 1), _hex(ROW_STYLES[CAT_PENDING]['bg'])),
+            ('BACKGROUND', (1, 1), (1, 1), _hex(ROW_STYLES[CAT_ON_TIME]['bg'])),
+            ('BACKGROUND', (2, 1), (2, 1), _hex(ROW_STYLES[CAT_LATE]['bg'])),
+            ('BACKGROUND', (3, 1), (3, 1), _hex(ROW_STYLES[CAT_PENDING]['bg'])),
             ('GRID', (0, 0), (-1, -1), 0.5, _hex('#CBD5E1')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
             ('TOPPADDING', (0, 0), (-1, -1), 6),
@@ -797,14 +763,10 @@ def _generate_excel(title, tasks, summary=None, period=None):
     # summary / totals
     if summary:
         labels = [
-            'Total', 'Completed', 'Delayed', 'Pending',
-            'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
+            'Total', 'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
         ]
-        values = [
-            summary['total'], summary['completed'], summary['delayed'], summary['pending'],
-            counts[CAT_ON_TIME], counts[CAT_LATE], counts[CAT_PENDING]
-        ]
-        tints = [None] * 4 + [ROW_STYLES[CAT_ON_TIME], ROW_STYLES[CAT_LATE], ROW_STYLES[CAT_PENDING]]
+        values = [len(tasks), counts[CAT_ON_TIME], counts[CAT_LATE], counts[CAT_PENDING]]
+        tints = [None, ROW_STYLES[CAT_ON_TIME], ROW_STYLES[CAT_LATE], ROW_STYLES[CAT_PENDING]]
         rows.append(f'<tr>{spacer}{"".join(th(label) for label in labels)}</tr>')
         value_cells = []
         for value, meta in zip(values, tints):
@@ -1085,11 +1047,18 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
             continue
 
         completed = missed = rejected = 0
+        on_time = late = 0
         for occ in register.generate_occurrences(date_from, date_to, today, occurrence_map=occurrence_maps[register.id]):
             if occ['date'] > today:
                 continue
             if occ['status'] == 'COMPLETED':
                 completed += 1
+                if register_completion_category(
+                    occ['status'], occ['period_end'], occ.get('completed_at')
+                ) == CAT_LATE:
+                    late += 1
+                else:
+                    on_time += 1
             elif occ['status'] == 'FAILED':
                 rejected += 1
             elif occ['status'] == 'PENDING':
@@ -1105,6 +1074,10 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
                 'completed': completed,
                 'missed': missed,
                 'rejected': rejected,
+                # Completion-timing buckets; on-time + after-due + pending == total.
+                'onTimeComplete': on_time,
+                'completedAfterDue': late,
+                'pending': missed + rejected,
                 'total': total,
                 'completionRate': completion_rate,
             }
@@ -1148,6 +1121,9 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     completed_tasks = sum(row['completedTasks'] for row in staff_rows)
     delayed_tasks = sum(row['delayedTasks'] for row in staff_rows)
     not_completed_tasks = total_tasks - completed_tasks
+    on_time_tasks = sum(row['onTimeCompleteTasks'] for row in staff_rows)
+    late_tasks = sum(row['completedAfterDueTasks'] for row in staff_rows)
+    pending_tasks = sum(row['pendingTasks'] for row in staff_rows)
     task_performance = round((completed_tasks / total_tasks) * 100) if total_tasks else 0
 
     if total_tasks and total_registers:
@@ -1178,12 +1154,199 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
             'completedTasks': completed_tasks,
             'notCompletedTasks': not_completed_tasks,
             'delayedTasks': delayed_tasks,
+            'onTimeCompleteTasks': on_time_tasks,
+            'completedAfterDueTasks': late_tasks,
+            'pendingTasks': pending_tasks,
             'taskPerformance': task_performance,
         },
         'finalPerformance': final_performance,
         'summaries': summaries,
         'staffRows': staff_rows,
     }
+
+
+def _performance_excel(data, date_from, date_to, head, cycle, status):
+    """Styled Excel (.xls, HTML table) for the Performance screen, built from
+    the SAME dataset as the screen (`_performance_export_data`) and styled like
+    the Task Monitor Excel: header band, blue table header, left spacer column,
+    soft green/yellow/red category cells, legend, centered numbers, a totals row
+    under every table and empty space at the end.
+    """
+    def escape(value):
+        return str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+    ncols = 9
+    spacer = '<td style="width:24px"></td>'
+    cell_base = 'padding:6px 10px;border:1px solid #CBD5E1'
+    th_style = f'background:{HEADER_COLOR};color:#FFFFFF;font-weight:bold;text-align:center;{cell_base}'
+    cat_cols = {  # column index (within a table) -> category style
+        CAT_ON_TIME: ROW_STYLES[CAT_ON_TIME],
+        CAT_LATE: ROW_STYLES[CAT_LATE],
+        CAT_PENDING: ROW_STYLES[CAT_PENDING],
+    }
+
+    def th(label):
+        return f'<th bgcolor="{HEADER_COLOR}" style="{th_style}">{escape(label)}</th>'
+
+    def gap(height=10):
+        return f'<tr>{spacer}<td colspan="{ncols}" style="height:{height}px"></td></tr>'
+
+    def section_title(text):
+        return (
+            f'<tr>{spacer}<td colspan="{ncols}" style="color:#1E3A5F;font-weight:bold;'
+            f'font-size:12pt;padding:4px 2px">{escape(text)}</td></tr>'
+        )
+
+    def td(value, align='center', cat=None, bold=False, total=False):
+        meta = cat_cols.get(cat)
+        if meta:
+            bg, fg = meta['bg'], meta['fg']
+        elif total:
+            bg, fg = '#E2E8F0', '#1E293B'
+        else:
+            bg, fg = '#FFFFFF', '#1E293B'
+        weight = 'font-weight:bold;' if (bold or total) else ''
+        return (
+            f'<td bgcolor="{bg}" style="background:{bg};color:{fg};{weight}'
+            f'text-align:{align};{cell_base}">{escape(value)}</td>'
+        )
+
+    def table(headers, body_rows, total_row, cat_for_col, left_cols=(0,)):
+        """headers: labels; body_rows/total_row: lists of values; cat_for_col:
+        {col_index: CAT_*} for the three category columns."""
+        out = [f'<tr>{spacer}{"".join(th(h) for h in headers)}</tr>']
+        for row in body_rows:
+            cells = [
+                td(v, 'left' if i in left_cols else 'center', cat_for_col.get(i))
+                for i, v in enumerate(row)
+            ]
+            out.append(f'<tr>{spacer}{"".join(cells)}</tr>')
+        cells = [
+            td(v, 'left' if i in left_cols else 'center', cat_for_col.get(i), total=True)
+            for i, v in enumerate(total_row)
+        ]
+        out.append(f'<tr>{spacer}{"".join(cells)}</tr>')
+        return out
+
+    head_label = head if head and head.upper() != 'ALL' else 'All heads'
+    cycle_label = cycle if cycle and cycle.upper() != 'ALL' else 'All cycles'
+    status_label = status if status and status.upper() != 'ALL' else 'All statuses'
+    filters = (
+        f"Period: {date_from.strftime('%d %b %Y')} to {date_to.strftime('%d %b %Y')}  |  "
+        f'Head: {head_label}  |  Cycle: {cycle_label}  |  Status: {status_label}'
+    )
+
+    rows = ['<html><head><meta charset="utf-8" /></head><body>']
+    rows.append('<table border="0" cellspacing="0" cellpadding="0">')
+    rows.append(gap(12))
+    rows.append(
+        f'<tr>{spacer}<td colspan="{ncols}" bgcolor="{BAND_COLOR}" '
+        f'style="background:{BAND_COLOR};color:#FFFFFF;font-size:16pt;font-weight:bold;'
+        'padding:10px 14px">Performance Report</td></tr>'
+    )
+    rows.append(
+        f'<tr>{spacer}<td colspan="{ncols}" style="color:#334155;padding:6px 2px">'
+        f'{escape(filters)}</td></tr>'
+    )
+    rows.append(gap())
+
+    legend_label = {
+        CAT_ON_TIME: 'Green = On Time Complete',
+        CAT_LATE: 'Yellow = Complete After Due Date',
+        CAT_PENDING: 'Red = Pending',
+    }
+    legend_cells = ''.join(
+        f'<td bgcolor="{ROW_STYLES[c]["bg"]}" colspan="{span}" style="background:{ROW_STYLES[c]["bg"]};'
+        f'color:{ROW_STYLES[c]["fg"]};font-weight:bold;text-align:center;{cell_base}">{legend_label[c]}</td>'
+        for c, span in ((CAT_ON_TIME, 3), (CAT_LATE, 3), (CAT_PENDING, 3))
+    )
+    rows.append(f'<tr>{spacer}{legend_cells}</tr>')
+    rows.append(gap())
+
+    staff = data['staffRows']
+
+    # ---- Task performance (per role) ---------------------------------------
+    t_total = sum(r['totalTasks'] for r in staff)
+    t_done = sum(r['completedTasks'] for r in staff)
+    t_on = sum(r['onTimeCompleteTasks'] for r in staff)
+    t_late = sum(r['completedAfterDueTasks'] for r in staff)
+    t_pend = sum(r['pendingTasks'] for r in staff)
+    t_delayed = sum(r['delayedTasks'] for r in staff)
+    t_delay_rate = round((t_delayed / t_total) * 100) if t_total else 0
+    t_score = round(((t_done / t_total) * 100) * (1 - t_delay_rate / 100)) if t_total else 0
+    rows.append(section_title('Task Performance'))
+    rows.extend(table(
+        ['Role', 'Total Tasks', 'On Time Complete', 'Complete After Due Date', 'Pending',
+         'Delayed', 'Delay Rate %', 'Task Performance %'],
+        [
+            [ROLE_LABELS.get(r['role'], r['role']), r['totalTasks'], r['onTimeCompleteTasks'],
+             r['completedAfterDueTasks'], r['pendingTasks'], r['delayedTasks'],
+             f"{r['delayRate']}%", f"{r['performanceScore']}%"]
+            for r in staff
+        ],
+        ['Total', t_total, t_on, t_late, t_pend, t_delayed, f'{t_delay_rate}%', f'{t_score}%'],
+        {2: CAT_ON_TIME, 3: CAT_LATE, 4: CAT_PENDING},
+    ))
+    rows.append(gap())
+
+    # ---- Register performance (per role) -----------------------------------
+    r_total = sum(r['totalRegisters'] for r in staff)
+    r_on = sum(r['onTimeCompleteRegisters'] for r in staff)
+    r_late = sum(r['completedAfterDueRegisters'] for r in staff)
+    r_pend = sum(r['pendingRegisters'] for r in staff)
+    r_due = r_on + r_late + r_pend
+    r_perf = round(((r_on + r_late) / r_due) * 100) if r_due else 0
+    r_overall = _overall_performance(t_score, bool(t_total), r_perf, bool(r_total))
+    rows.append(section_title('Register Performance'))
+    rows.extend(table(
+        ['Role', 'Total Registers', 'Checking Cycle', 'On Time Complete',
+         'Complete After Due Date', 'Pending', 'Total Estimated Check',
+         'Register Performance %', 'Overall Performance %'],
+        [
+            [ROLE_LABELS.get(r['role'], r['role']), r['totalRegisters'],
+             ', '.join(r['checkingCycles']) or 'N/A', r['onTimeCompleteRegisters'],
+             r['completedAfterDueRegisters'], r['pendingRegisters'],
+             r['onTimeCompleteRegisters'] + r['completedAfterDueRegisters'] + r['pendingRegisters'],
+             f"{r['registerPerformance']}%", f"{r['overallPerformance']}%"]
+            for r in staff
+        ],
+        ['Total', r_total, '', r_on, r_late, r_pend, r_due, f'{r_perf}%', f'{r_overall}%'],
+        {3: CAT_ON_TIME, 4: CAT_LATE, 5: CAT_PENDING},
+    ))
+    rows.append(gap())
+
+    # ---- Register activity report (per register) ---------------------------
+    summaries = data['summaries']
+    d_on = sum(s['onTimeComplete'] for s in summaries)
+    d_late = sum(s['completedAfterDue'] for s in summaries)
+    d_pend = sum(s['pending'] for s in summaries)
+    d_total = sum(s['total'] for s in summaries)
+    d_rate = round(((d_on + d_late) / d_total) * 100) if d_total else 0
+    rows.append(section_title('Register Activity Report'))
+    rows.extend(table(
+        ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', 'On Time Complete',
+         'Complete After Due Date', 'Pending', 'Total Checked', 'Completion %'],
+        [
+            [s['register'].name, s['register'].register_no, s['headName'], s['register'].cycle,
+             s['onTimeComplete'], s['completedAfterDue'], s['pending'], s['total'],
+             f"{s['completionRate']}%"]
+            for s in summaries
+        ],
+        ['Total', f'{len(summaries)} registers', '', '', d_on, d_late, d_pend, d_total, f'{d_rate}%'],
+        {4: CAT_ON_TIME, 5: CAT_LATE, 6: CAT_PENDING},
+        left_cols=(0, 1, 2, 3),
+    ))
+    rows.append(gap())
+
+    rows.append(
+        f'<tr>{spacer}<td colspan="{ncols}" style="color:#1E293B;font-weight:bold;padding:4px 2px">'
+        f"Final Performance: {data['finalPerformance']}%</td></tr>"
+    )
+    rows.append(gap(18))  # space after the last row
+    rows.append('</table></body></html>')
+    buffer = io.BytesIO(''.join(rows).encode('utf-8'))
+    buffer.seek(0)
+    return buffer
 
 
 def _csv_cell(value):
@@ -1306,7 +1469,22 @@ def export_performance_filtered():
     if date_from > date_to:
         return error('date_from must be before date_to', 400)
 
+    fmt = (request.args.get('format') or 'csv').lower()
+    if fmt not in ('csv', 'excel'):
+        return error('format must be csv or excel', 400)
+
     data = _performance_export_data(user, date_from.date(), date_to.date(), head, cycle, status)
+
+    if fmt == 'excel':
+        buffer = _performance_excel(data, date_from, date_to, head, cycle, status)
+        return Response(
+            buffer.read(),
+            mimetype='application/vnd.ms-excel',
+            headers={
+                'Content-Disposition': f'attachment; filename=performance_export_{today_iso}.xls'
+            }
+        )
+
     buffer = _performance_export_csv(data, date_from, date_to, head, cycle, status)
 
     return Response(

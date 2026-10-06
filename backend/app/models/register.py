@@ -298,6 +298,9 @@ class Register(db.Model):
                 'status': computed_status,
                 'dot_color': dot_color,
                 'occurrence_id': row.id if row is not None else None,
+                # When the check was recorded (None if unchecked); used to tell
+                # an on-time check from one made after the period's due date.
+                'completed_at': row.completed_at if row is not None else None,
             })
 
         return results

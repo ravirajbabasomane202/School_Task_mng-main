@@ -251,6 +251,7 @@ def calendar_events():
                 'occurrence_date': occ_date.isoformat(),
                 'period_start': occ['period_start'].isoformat(),
                 'period_end': occ['period_end'].isoformat(),
+                'completed_at': occ['completed_at'].isoformat() if occ.get('completed_at') else None,
                 'title': f'{r.name} ({r.register_no})',
                 'date': occ_date.isoformat(),
                 'status': r.status,

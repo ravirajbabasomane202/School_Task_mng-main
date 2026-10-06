@@ -152,12 +152,6 @@ function ChairmanOverview() {
       statusFilter: 'ALL'
     },
     {
-      label: 'Pending',
-      tone: 'text-[#A86A00]',
-      value: dashboardData.taskBreakdown?.pending ?? 0,
-      statusFilter: 'PENDING'
-    },
-    {
       label: 'Completed',
       tone: 'text-green-600',
       value: dashboardData.completedTasks,
@@ -206,7 +200,7 @@ function ChairmanOverview() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {statCards.map((card) => (
           <button
             className="rounded-lg bg-gray-50 p-4 text-left transition hover:bg-gray-100 hover:shadow-sm cursor-pointer"

@@ -11,6 +11,9 @@ from app.models.notification import Announcement
 from app.models.register import Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps
 from app.models.task import Task
 from app.models.user import TASK_ASSIGNABLE_ROLES, User
+from app.utils.completion import (
+    CAT_LATE, CAT_ON_TIME, CAT_PENDING, register_completion_category, task_completion_category
+)
 from app.utils.response import success, error
 
 # Weighting used to combine Task Performance and Register Performance into a
@@ -322,6 +325,13 @@ def _staff_performance_rows(date_from=None, date_to=None):
         task_performance = ((completed / total) * 100) * (1 - delay_rate / 100) if total else 0
         performance_score = round(task_performance) if total else 0
 
+        # Completion-timing buckets: every task lands in exactly one, so
+        # on-time + after-due + pending == total (completed == on-time + after-due).
+        task_categories = [task_completion_category(task) for task in user_tasks]
+        on_time_tasks = task_categories.count(CAT_ON_TIME)
+        late_tasks = task_categories.count(CAT_LATE)
+        pending_tasks = task_categories.count(CAT_PENDING)
+
         user_registers = registers_by_user.get(user.id, [])
         total_registers = len(user_registers)
 
@@ -336,6 +346,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
         )
 
         completed_registers = missed_registers = rejected_registers = 0
+        on_time_registers = late_registers = 0
         for register in user_registers:
             for occ in register.generate_occurrences(
                 range_start, range_end, today, occurrence_map=occurrence_maps[register.id]
@@ -344,12 +355,20 @@ def _staff_performance_rows(date_from=None, date_to=None):
                     continue
                 if occ['status'] == 'COMPLETED':
                     completed_registers += 1
+                    if register_completion_category(
+                        occ['status'], occ['period_end'], occ.get('completed_at')
+                    ) == CAT_LATE:
+                        late_registers += 1
+                    else:
+                        on_time_registers += 1
                 elif occ['status'] == 'FAILED':
                     rejected_registers += 1
                 elif occ['status'] == 'PENDING':
                     missed_registers += 1
 
         registers_due = completed_registers + missed_registers + rejected_registers
+        # Not completed = missed + rejected (the three buckets sum to registers_due).
+        pending_registers = missed_registers + rejected_registers
         register_performance = (
             round((completed_registers / registers_due) * 100) if registers_due else 0
         )
@@ -365,12 +384,18 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 'role': user.role,
                 'totalTasks': total,
                 'completedTasks': completed,
+                'onTimeCompleteTasks': on_time_tasks,
+                'completedAfterDueTasks': late_tasks,
+                'pendingTasks': pending_tasks,
                 'delayedTasks': delayed,
                 'performanceScore': performance_score,
                 'delayRate': delay_rate,
                 'totalRegisters': total_registers,
                 'checkingCycles': checking_cycles,
                 'completedRegisters': completed_registers,
+                'onTimeCompleteRegisters': on_time_registers,
+                'completedAfterDueRegisters': late_registers,
+                'pendingRegisters': pending_registers,
                 'missedRegisters': missed_registers,
                 'rejectedRegisters': rejected_registers,
                 'registerPerformance': register_performance,

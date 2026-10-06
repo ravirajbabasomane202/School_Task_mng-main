@@ -7,12 +7,18 @@ interface PerformanceData {
   role: string;
   totalTasks: number;
   completedTasks: number;
+  onTimeCompleteTasks: number;
+  completedAfterDueTasks: number;
+  pendingTasks: number;
   delayedTasks: number;
   performanceScore: number;
   delayRate: number;
   totalRegisters: number;
   checkingCycles: string[];
   completedRegisters: number;
+  onTimeCompleteRegisters: number;
+  completedAfterDueRegisters: number;
+  pendingRegisters: number;
   missedRegisters: number;
   rejectedRegisters: number;
   registerPerformance: number;

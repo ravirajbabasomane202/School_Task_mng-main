@@ -16,7 +16,6 @@ import type { Task, TaskStatus } from '../../types/task.types';
 import type { User } from '../../types/user.types';
 
 const statCards: Array<{ color: string; key: TaskStatus; label: string }> = [
-  { color: 'bg-[#EAF3FC] text-[#185FA5]', key: 'PENDING', label: 'Pending' },
   { color: 'bg-[#FFF7E1] text-[#A86A00]', key: 'IN_PROGRESS', label: 'In Progress' },
   { color: 'bg-[#EDF9F1] text-[#2E7D4F]', key: 'COMPLETED', label: 'Completed' },
   { color: 'bg-[#FFF1F1] text-[#C13F3A]', key: 'DELAYED', label: 'Delayed' }
@@ -194,7 +193,7 @@ function TaskMonitoring() {
 
   return (
     <section className="space-y-5 p-5">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-3">
         {statCards.map((card) => (
           <article className="rounded-[18px] border border-[#EFF2F6] bg-white p-5" key={card.key}>
             <span

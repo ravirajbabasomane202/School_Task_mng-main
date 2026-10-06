@@ -186,7 +186,7 @@ export interface PerformanceExportFilters {
 /**
  * Backend-driven export for the Performance screen's Registry Performance
  * panel. Sends the SAME filters shown on screen (date range, Head, Cycle,
- * Status); the backend computes the CSV from the same shared functions the
+ * Status); the backend computes the Excel file from the same shared functions the
  * on-screen numbers use, so it can never disagree with what's displayed.
  */
 export const exportPerformanceReportFiltered = async (filters: PerformanceExportFilters) => {
@@ -196,12 +196,13 @@ export const exportPerformanceReportFiltered = async (filters: PerformanceExport
       date_to: filters.dateTo,
       head: filters.head === 'ALL' ? undefined : filters.head,
       cycle: filters.cycle === 'ALL' ? undefined : filters.cycle,
-      status: filters.status === 'ALL' ? undefined : filters.status
+      status: filters.status === 'ALL' ? undefined : filters.status,
+      format: 'excel'
     },
     responseType: 'blob'
   });
 
-  triggerDownload(response.data as Blob, `performance_export_${filters.dateTo}.csv`);
+  triggerDownload(response.data as Blob, `performance_export_${filters.dateTo}.xls`);
 };
 
 export const downloadReport = async (id: number, format: 'pdf' | 'excel') => {
