@@ -7,7 +7,8 @@ import Badge from '../common/Badge';
 import { getRegisterCalendarFor, updateOccurrenceStatus } from '../../services/registerService';
 import type { Register, RegisterComputedStatus, RegisterDotColor, RegisterStatus } from '../../types/register.types';
 import { REGISTER_STATUSES } from '../../types/register.types';
-import { isEditableOccurrenceDate, isRegisterUpdatable } from '../../utils/registerUtils';
+import { formatPeriod, isInCurrentPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
+import { formatDate } from '../../utils/dateUtils';
 
 interface RegisterCalendarPopupProps {
   register: Register | null;
@@ -21,15 +22,16 @@ const DOT_CLASS: Record<RegisterDotColor, string> = {
   gray: 'bg-[#CBD5E1]',
 };
 
+// One dot per checking period, shown on the period's first day.
 const LEGEND: { color: RegisterDotColor; label: string }[] = [
-  { color: 'green', label: 'Completed' },
-  { color: 'yellow', label: 'Pending / Missed' },
+  { color: 'green', label: 'Checked' },
+  { color: 'yellow', label: 'Missed' },
   { color: 'red', label: 'Rejected' },
-  { color: 'gray', label: 'Future' },
+  { color: 'gray', label: 'Open / Future' },
 ];
 
 const COMPUTED_LABEL: Record<RegisterComputedStatus, string> = {
-  COMPLETED: 'Completed',
+  COMPLETED: 'Checked',
   PENDING: 'Missed',
   FAILED: 'Rejected',
   UPCOMING: 'Upcoming',
@@ -68,16 +70,13 @@ function todayKeyStr(): string {
 }
 
 /**
- * Small popup calendar for a single Register. This is now the ONLY calendar
- * in Register Monitoring (the full page-level calendar was removed), so it
- * carries all the same click-to-update behaviour that used to live there —
- * scoped to exactly one occurrence at a time. For DAILY registers that is
- * always today; for WEEKLY/15_DAYS/MONTHLY/QUARTERLY/HALF_YEARLY/YEARLY
- * registers it is today (or the cycle's current due date) but ONLY while
- * that cycle is actually due and not already recorded — see
- * `isEditableOccurrenceDate` / `isRegisterUpdatable`. Every other date
- * (including an already-missed entry, or today when the cycle isn't due
- * or has already been closed) opens a read-only view instead.
+ * Small popup calendar for a single Register. A register is checked ONCE PER
+ * CHECKING PERIOD (a day / Monday–Sunday week / calendar month / ... depending
+ * on its Checking Cycle), so the calendar shows one dot per period (on the
+ * period's first day) and highlights every day of the CURRENT period.
+ * Clicking ANY day of the current period opens the check panel — not just one
+ * scheduled date — until that period has been checked, after which it shows
+ * "Already checked". Other periods are read-only history.
  */
 function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps) {
   const qc = useQueryClient();
@@ -95,10 +94,22 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
     enabled: !!register,
   });
 
+  // `data.register` is re-fetched after every check; the `register` prop is
+  // just the snapshot the popup was opened with, so it goes stale.
+  const liveRegister: Register | null = data?.register ?? register;
+
   const entriesByDate = useMemo(() => {
-    const map = new Map<string, { dot_color: RegisterDotColor; status: RegisterComputedStatus }>();
+    const map = new Map<
+      string,
+      { dot_color: RegisterDotColor; status: RegisterComputedStatus; period_end?: string; is_open?: boolean }
+    >();
     for (const entry of data?.entries ?? []) {
-      map.set(entry.date, { dot_color: entry.dot_color, status: entry.status as RegisterComputedStatus });
+      map.set(entry.date, {
+        dot_color: entry.dot_color,
+        status: entry.status as RegisterComputedStatus,
+        period_end: entry.period_end,
+        is_open: entry.is_open,
+      });
     }
     return map;
   }, [data]);
@@ -115,10 +126,15 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['registers'] });
       qc.invalidateQueries({ queryKey: ['register-calendar'] });
-      toast.success('Status updated');
+      toast.success('Register checked successfully');
       setSelectedDate(null);
     },
-    onError: () => toast.error('Failed to update status'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message ?? 'Failed to check register');
+      qc.invalidateQueries({ queryKey: ['registers'] });
+      qc.invalidateQueries({ queryKey: ['register-calendar'] });
+    },
   });
 
   const days = useMemo(() => {
@@ -129,8 +145,10 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
   const handleAnchorChange = () => setSelectedDate(null);
 
   const selectedEntry = selectedDate ? entriesByDate.get(selectedDate) : undefined;
-  const isSelectedEditable = register && selectedDate ? isEditableOccurrenceDate(register, selectedDate) : false;
-  const registerUpdatability = register ? isRegisterUpdatable(register) : { updatable: false };
+  const registerUpdatability = liveRegister ? isRegisterUpdatable(liveRegister) : { updatable: false };
+  // Any day inside the CURRENT checking period opens the check panel.
+  const isSelectedInCurrentPeriod = liveRegister && selectedDate ? isInCurrentPeriod(liveRegister, selectedDate) : false;
+  const currentPeriodLabel = liveRegister ? formatPeriod(liveRegister) : null;
 
   const currentMonth = anchor.getMonth();
 
@@ -185,29 +203,33 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
               const isCurrentMonth = day.getMonth() === currentMonth;
               const isToday = key === todayKeyStr();
               const isSelected = key === selectedDate;
-              const isEditableDay = register ? isEditableOccurrenceDate(register, key) : false;
+              const inCurrentPeriod = liveRegister ? isInCurrentPeriod(liveRegister, key) : false;
+              const clickable = !!dot || inCurrentPeriod;
               return (
                 <button
                   key={key}
                   type="button"
-                  disabled={!dot}
+                  disabled={!clickable}
                   onClick={() => {
-                    if (!dot) return;
+                    if (!clickable) return;
                     setSelectedDate(key);
                     setPendingStatus('OK');
                   }}
                   className={[
-                    'flex h-11 flex-col items-center bg-white py-1 transition',
-                    isCurrentMonth ? '' : 'bg-[#FAFBFD] text-[#C3CCDA]',
-                    dot ? 'cursor-pointer hover:bg-[#F5F9FD]' : 'cursor-default',
+                    'flex h-11 flex-col items-center py-1 transition',
+                    inCurrentPeriod ? 'bg-[#EEF5FC]' : isCurrentMonth ? 'bg-white' : 'bg-[#FAFBFD]',
+                    isCurrentMonth ? '' : 'text-[#C3CCDA]',
+                    clickable ? 'cursor-pointer hover:bg-[#F5F9FD]' : 'cursor-default',
                     isSelected ? 'ring-2 ring-inset ring-[#185FA5]' : '',
                   ].join(' ')}
                   title={
-                    dot
-                      ? isEditableDay
-                        ? 'Click to update status'
-                        : 'Click to view (read-only)'
-                      : undefined
+                    inCurrentPeriod
+                      ? registerUpdatability.updatable
+                        ? 'Current checking period — click to check this register'
+                        : 'Current checking period — already checked'
+                      : dot
+                        ? 'Click to view (read-only)'
+                        : undefined
                   }
                 >
                   <span
@@ -235,58 +257,89 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
             ))}
           </div>
 
-          {/* Clicking the editable dot (today, or the cycle's current due
-              date — see `isEditableOccurrenceDate`) opens this editable
-              panel — the same "update status" action that used to live in
-              the full page calendar, now folded into this popup. Any other
-              date (including an already-missed entry, or today itself when
-              the cycle isn't due yet or has already been closed) opens a
-              read-only panel instead. */}
-          {selectedDate && selectedEntry ? (
-            <div className="rounded-[12px] border border-[#EFF2F6] bg-[#FAFCFE] p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#1E293B]">{selectedDate}</span>
-                <Badge variant={COMPUTED_BADGE[selectedEntry.status]}>{COMPUTED_LABEL[selectedEntry.status]}</Badge>
-              </div>
+          {currentPeriodLabel ? (
+            <p className="text-center text-xs text-[#5B6E8C]">
+              <span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[#EEF5FC] align-middle ring-1 ring-inset ring-[#CFE0F2]" />
+              Current checking period: <span className="font-semibold text-[#1E293B]">{currentPeriodLabel}</span>
+              {' — '}
+              {registerUpdatability.updatable ? 'not checked yet' : 'already checked'}
+            </p>
+          ) : null}
 
-              {isSelectedEditable ? (
-                <div className="space-y-2">
-                  <label className="flex flex-col gap-1.5">
-                    <span className="text-[11px] font-medium text-[#36506C]">Update status</span>
-                    <select
-                      value={pendingStatus}
-                      onChange={(e) => setPendingStatus(e.target.value as RegisterStatus)}
-                      className="min-h-[34px] rounded-[8px] border-[0.5px] border-solid border-[#DCE2EA] bg-white px-2 text-xs"
-                    >
-                      {REGISTER_STATUSES.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="ghost" size="sm" type="button" onClick={() => setSelectedDate(null)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      type="button"
-                      loading={occurrenceMutation.isPending}
-                      onClick={() =>
-                        occurrenceMutation.mutate({ id: register.id, occurrenceDate: selectedDate, status: pendingStatus })
-                      }
-                    >
-                      Update
-                    </Button>
+          {/* Clicking ANY day of the current checking period opens the check
+              panel (one check per period). Clicking another period's dot opens
+              a read-only view of how that period ended. */}
+          {selectedDate && liveRegister && (isSelectedInCurrentPeriod || selectedEntry) ? (
+            <div className="rounded-[12px] border border-[#EFF2F6] bg-[#FAFCFE] p-3">
+              {isSelectedInCurrentPeriod ? (
+                <>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#1E293B]">{currentPeriodLabel}</span>
+                    <Badge variant={registerUpdatability.updatable ? 'amber' : COMPUTED_BADGE[liveRegister.computed_status]}>
+                      {registerUpdatability.updatable ? 'Not checked yet' : COMPUTED_LABEL[liveRegister.computed_status]}
+                    </Badge>
                   </div>
-                </div>
-              ) : (
-                <p className="text-xs text-[#8A99B0]">
-                  {registerUpdatability.reason ??
-                    "This date is read-only — only the current cycle's due date can be updated."}
-                </p>
-              )}
+                  {registerUpdatability.updatable ? (
+                    <div className="space-y-2">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[11px] font-medium text-[#36506C]">Result of this check</span>
+                        <select
+                          value={pendingStatus}
+                          onChange={(e) => setPendingStatus(e.target.value as RegisterStatus)}
+                          className="min-h-[34px] rounded-[8px] border-[0.5px] border-solid border-[#DCE2EA] bg-white px-2 text-xs"
+                        >
+                          {REGISTER_STATUSES.filter((s) => s.value !== 'IDLE').map((s) => (
+                            <option key={s.value} value={s.value}>
+                              {s.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="flex justify-end gap-2">
+                        <Button variant="ghost" size="sm" type="button" onClick={() => setSelectedDate(null)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          size="sm"
+                          type="button"
+                          loading={occurrenceMutation.isPending}
+                          onClick={() =>
+                            occurrenceMutation.mutate({
+                              id: liveRegister.id,
+                              occurrenceDate: liveRegister.current_period_start ?? selectedDate,
+                              status: pendingStatus,
+                            })
+                          }
+                        >
+                          Check Register
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-[#8A99B0]">
+                      {registerUpdatability.reason ?? 'Already checked for the current period.'}
+                    </p>
+                  )}
+                </>
+              ) : selectedEntry ? (
+                <>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-[#1E293B]">
+                      {selectedEntry.period_end && selectedEntry.period_end !== selectedDate
+                        ? `${formatDate(selectedDate)} – ${formatDate(selectedEntry.period_end)}`
+                        : formatDate(selectedDate)}
+                    </span>
+                    <Badge variant={COMPUTED_BADGE[selectedEntry.status]}>
+                      {selectedEntry.is_open && selectedEntry.status === 'UPCOMING'
+                        ? 'Open'
+                        : COMPUTED_LABEL[selectedEntry.status]}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-[#8A99B0]">
+                    This period is read-only — only the current checking period can be checked.
+                  </p>
+                </>
+              ) : null}
             </div>
           ) : null}
         </div>

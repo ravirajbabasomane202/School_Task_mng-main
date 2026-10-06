@@ -22,6 +22,10 @@ export interface ReportSummary {
   inProgress?: number;
   escalated?: number;
   performanceScore?: number;
+  /** Completion-timing buckets; the three always add up to `total`. */
+  onTimeComplete?: number;
+  completedAfterDue?: number;
+  notCompleted?: number;
 }
 
 export interface ReportDepartmentRow {
@@ -45,6 +49,7 @@ export interface ReportTaskRow {
   dueDate: string | null;
   department: string;
   daysOverdue: number;
+  completionCategory?: 'ON_TIME' | 'LATE' | 'PENDING';
 }
 
 export interface ReportPreview {

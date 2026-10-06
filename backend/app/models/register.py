@@ -1,3 +1,4 @@
+import calendar
 from datetime import datetime, timedelta, timezone
 
 from app.extensions import db
@@ -49,27 +50,153 @@ def calculate_next_due_date(start_date, cycle):
     return _advance(start_date, cycle)
 
 
+# ----------------------------------------------------------------------
+# Checking periods
+#
+# A register is checked ONCE PER CHECKING PERIOD, not on one exact date.
+# Periods are calendar-aligned so everyone shares the same boundaries:
+#
+#   DAILY        the day itself
+#   WEEKLY       Monday -> Sunday
+#   15_DAYS      1st-15th, and 16th -> end of the month
+#   MONTHLY      1st -> last day of the calendar month
+#   QUARTERLY    Jan-Mar, Apr-Jun, Jul-Sep, Oct-Dec
+#   HALF_YEARLY  Jan-Jun, Jul-Dec
+#   YEARLY       1 Jan -> 31 Dec
+#
+# A check is stored as one RegisterOccurrence row whose `occurrence_date` is
+# the period's START date, so the existing (register_id, occurrence_date)
+# unique constraint is also a database-level "one check per period" guard.
+# Rows written before this change sit on their old exact scheduled date;
+# they are mapped to the period that contains that date, so history stays
+# valid and is never rewritten.
+# ----------------------------------------------------------------------
+
+CHECKED_STATUSES = ('OK', 'REJECTED')
+
+_PERIOD_LABEL = {
+    'DAILY': 'day',
+    'WEEKLY': 'week',
+    '15_DAYS': '15-day period',
+    'MONTHLY': 'month',
+    'QUARTERLY': 'quarter',
+    'HALF_YEARLY': 'half-year',
+    'YEARLY': 'year',
+}
+
+
+def period_label(cycle):
+    return _PERIOD_LABEL.get(cycle, 'day')
+
+
+def _month_end(year, month):
+    return calendar.monthrange(year, month)[1]
+
+
+def period_bounds(cycle, d):
+    """(start, end), both inclusive, of the checking period containing `d`."""
+    if cycle == 'WEEKLY':
+        start = d - timedelta(days=d.weekday())  # Monday
+        return start, start + timedelta(days=6)
+    if cycle == '15_DAYS':
+        if d.day <= 15:
+            return d.replace(day=1), d.replace(day=15)
+        return d.replace(day=16), d.replace(day=_month_end(d.year, d.month))
+    if cycle == 'MONTHLY':
+        return d.replace(day=1), d.replace(day=_month_end(d.year, d.month))
+    if cycle == 'QUARTERLY':
+        first_month = 3 * ((d.month - 1) // 3) + 1
+        return (
+            d.replace(month=first_month, day=1),
+            d.replace(month=first_month + 2, day=_month_end(d.year, first_month + 2)),
+        )
+    if cycle == 'HALF_YEARLY':
+        first_month = 1 if d.month <= 6 else 7
+        return (
+            d.replace(month=first_month, day=1),
+            d.replace(month=first_month + 5, day=_month_end(d.year, first_month + 5)),
+        )
+    if cycle == 'YEARLY':
+        return d.replace(month=1, day=1), d.replace(month=12, day=31)
+    # DAILY, and any unknown/legacy value (same fallback as `_advance`).
+    return d, d
+
+
+def next_period_start(cycle, d):
+    """Start date of the period after the one containing `d`."""
+    return period_bounds(cycle, d)[1] + timedelta(days=1)
+
+
+def _best_row(current, candidate):
+    """Of two RegisterOccurrence rows in one period, the one that represents
+    the period: a recorded check beats an IDLE placeholder, then the later one."""
+    if current is None:
+        return candidate
+    cur_checked = current.status in CHECKED_STATUSES
+    cand_checked = candidate.status in CHECKED_STATUSES
+    if cur_checked != cand_checked:
+        return current if cur_checked else candidate
+    cur_key = (current.completed_at or datetime.min, current.occurrence_date)
+    cand_key = (candidate.completed_at or datetime.min, candidate.occurrence_date)
+    return candidate if cand_key > cur_key else current
+
+
+def index_rows_by_period(cycle, rows):
+    """{period_start: RegisterOccurrence} for an iterable of rows."""
+    by_period = {}
+    for row in rows:
+        start = period_bounds(cycle, row.occurrence_date)[0]
+        by_period[start] = _best_row(by_period.get(start), row)
+    return by_period
+
+
+def fetch_occurrence_maps(registers, range_start, range_end):
+    """{register_id: {occurrence_date: row}} for every register in one query.
+
+    A period can start before `range_start` (e.g. a week straddling the
+    range edge), so the lower bound is widened by the longest period
+    (a year) to make sure the row that represents such a period is loaded.
+    """
+    maps = {r.id: {} for r in registers}
+    if not maps:
+        return maps
+    rows = RegisterOccurrence.query.filter(
+        RegisterOccurrence.register_id.in_(list(maps.keys())),
+        RegisterOccurrence.occurrence_date >= range_start - timedelta(days=366),
+        RegisterOccurrence.occurrence_date <= range_end,
+    ).all()
+    for row in rows:
+        maps[row.register_id][row.occurrence_date] = row
+    return maps
+
+
 def fetch_current_cycle_occurrences(registers, today):
-    """Batch-fetch each register's own current-cycle RegisterOccurrence row
-    (one query total) instead of one query per register."""
-    wanted = {}
+    """Batch-fetch each register's row for its CURRENT checking period (one
+    query total) instead of one query per register. A register with no row
+    in its current period is simply absent from the result."""
+    periods = {}
     for r in registers:
-        due = r.current_cycle_occurrence_date(today)
-        if due is not None:
-            wanted[r.id] = due
-    if not wanted:
+        period = r.current_period(today)
+        if period is not None:
+            periods[r.id] = period
+    if not periods:
         return {}
 
     rows = RegisterOccurrence.query.filter(
-        RegisterOccurrence.register_id.in_(wanted.keys())
+        RegisterOccurrence.register_id.in_(periods.keys()),
+        RegisterOccurrence.occurrence_date >= min(p[0] for p in periods.values()),
+        RegisterOccurrence.occurrence_date <= max(p[1] for p in periods.values()),
     ).all()
 
     result = {}
     for row in rows:
-        due = wanted.get(row.register_id)
-        if due is not None and row.occurrence_date == due:
-            result[row.register_id] = row
+        period = periods.get(row.register_id)
+        if period is not None and period[0] <= row.occurrence_date <= period[1]:
+            result[row.register_id] = _best_row(result.get(row.register_id), row)
     return result
+
+
+_UNSET = object()
 
 
 class Register(db.Model):
@@ -95,107 +222,105 @@ class Register(db.Model):
     occurrences = db.relationship('RegisterOccurrence', backref='register', cascade='all, delete-orphan')
 
     # ------------------------------------------------------------------
-    # Cyclic due-date logic
+    # Period-based checking logic (see "Checking periods" above)
     # ------------------------------------------------------------------
 
-    def current_cycle_occurrence_date(self, today):
-        """Return the exact scheduled date for the current cycle.
-
-        DAILY registers are due every day after the start date. For every
-        other cycle, the first due date is ``start_date + cycle`` and each
-        later due date is another cycle step. If an older due date was
-        missed, move the *displayed* due date forward to the first scheduled
-        date on/after today; this prevents the Update Status action from
-        remaining enabled indefinitely after a missed cycle.
-
-        The returned date is therefore either today's date (when the cycle
-        is actually due), a future scheduled date (button disabled), or None
-        before the register starts.
-        """
+    def current_period(self, today):
+        """(start, end) of the checking period containing `today`, or None
+        if the register hasn't started yet (start_date is in the future)."""
         if self.start_date is None or self.start_date > today:
             return None
-        if self.cycle == 'DAILY':
-            return today
+        return period_bounds(self.cycle, today)
 
-        due = self.next_due_date or calculate_next_due_date(self.start_date, self.cycle)
-        if due is None:
-            return None
+    def current_cycle_occurrence_date(self, today):
+        """Key date of the current checking period: its START date (the
+        `occurrence_date` a check made in this period is stored under), or
+        None before the register starts."""
+        period = self.current_period(today)
+        return period[0] if period else None
 
-        # Never let a stale next_due_date make a missed weekly/monthly/etc.
-        # cycle look editable on a random later date. Find the next scheduled
-        # occurrence on or after today.
+    def periods_in_range(self, range_start, range_end):
+        """Every checking period overlapping [range_start, range_end] that
+        isn't entirely before the register's start date, as (start, end)."""
+        if self.start_date is None:
+            return []
+        periods = []
+        start = period_bounds(self.cycle, max(range_start, self.start_date))[0]
         guard = 0
-        while due < today:
-            due = _advance(due, self.cycle)
+        while start <= range_end:
+            end = period_bounds(self.cycle, start)[1]
+            periods.append((start, end))
+            start = end + timedelta(days=1)
             guard += 1
             if guard > 10000:
                 break
-        return due
+        return periods
 
     def generate_occurrences(self, range_start, range_end, today, occurrence_map=None):
-        """Every cyclic occurrence date within [range_start, range_end],
+        """One entry per checking period overlapping [range_start, range_end],
         each with its computed status/dot color.
 
+        `date` is the period's start date (also its storage key). A period
+        is COMPLETED/FAILED once a check is recorded in it; PENDING (i.e.
+        missed) only after the period has ended unchecked; a period that is
+        still open and unchecked, or hasn't begun, is UPCOMING -- it can't
+        be counted as missed yet, because it can still be checked.
+
         occurrence_map, if given, maps occurrence_date -> RegisterOccurrence
-        (a pre-fetched slice for this register) so callers can batch-load
-        records for many registers in one query instead of one query per
-        register here.
+        (see `fetch_occurrence_maps`) so callers can batch-load records for
+        many registers in one query instead of one query per register.
         """
         if self.start_date is None:
             return []
 
         if occurrence_map is None:
-            rows = RegisterOccurrence.query.filter(
-                RegisterOccurrence.register_id == self.id,
-                RegisterOccurrence.occurrence_date >= range_start,
-                RegisterOccurrence.occurrence_date <= range_end,
-            ).all()
-            occurrence_map = {row.occurrence_date: row for row in rows}
+            occurrence_map = fetch_occurrence_maps([self], range_start, range_end)[self.id]
+        by_period = index_rows_by_period(self.cycle, occurrence_map.values())
 
         results = []
-        current = self.start_date
-        # Fast-forward to the first cycle date at/after range_start without
-        # emitting anything before it.
-        guard = 0
-        while current < range_start:
-            current = _advance(current, self.cycle)
-            guard += 1
-            if guard > 10000:
-                break
-
-        while current <= range_end:
-            occ = occurrence_map.get(current)
-            if occ is not None and occ.status == 'OK':
+        for p_start, p_end in self.periods_in_range(range_start, range_end):
+            row = by_period.get(p_start)
+            is_open = p_start <= today <= p_end
+            if row is not None and row.status == 'OK':
                 computed_status, dot_color = 'COMPLETED', 'green'
-            elif occ is not None and occ.status == 'REJECTED':
+            elif row is not None and row.status == 'REJECTED':
                 computed_status, dot_color = 'FAILED', 'red'
-            elif current > today:
-                computed_status, dot_color = 'UPCOMING', 'gray'
-            else:
+            elif p_end < today:
                 computed_status, dot_color = 'PENDING', 'yellow'
+            else:
+                computed_status, dot_color = 'UPCOMING', 'gray'
 
             results.append({
-                'date': current,
+                'date': p_start,
+                'period_start': p_start,
+                'period_end': p_end,
+                'is_open': is_open,
                 'status': computed_status,
                 'dot_color': dot_color,
-                'occurrence_id': occ.id if occ is not None else None,
+                'occurrence_id': row.id if row is not None else None,
             })
-            current = _advance(current, self.cycle)
 
         return results
 
     def effective_today_status(self, today, occurrence=None):
-        """(status, computed_status, dot_color, current_due) as shown to
-        the user for the register's current cycle -- `occurrence`, if
-        given, should be the RegisterOccurrence row at
-        `current_cycle_occurrence_date(today)` (see
-        `fetch_current_cycle_occurrences`)."""
+        """(status, computed_status, dot_color, current_due) for the
+        register's CURRENT checking period -- `occurrence`, if given, should
+        be the row for that period (see `fetch_current_cycle_occurrences`).
+
+        `status` comes only from a check recorded in the current period, so
+        it returns to IDLE by itself when a new period starts. `current_due`
+        is the current period's start date.
+        """
         current_due = self.current_cycle_occurrence_date(today)
 
-        if occurrence is not None and current_due is not None and occurrence.occurrence_date == current_due:
+        if (
+            occurrence is not None
+            and current_due is not None
+            and occurrence.status in CHECKED_STATUSES
+        ):
             status = occurrence.status
         else:
-            status = self.status
+            status = 'IDLE'
 
         if status == 'OK':
             computed_status, dot_color = 'COMPLETED', 'green'
@@ -210,11 +335,27 @@ class Register(db.Model):
 
     # ------------------------------------------------------------------
 
-    def to_dict(self, today=None, occurrence=None):
+    def to_dict(self, today=None, occurrence=_UNSET):
         if today is None:
             today = datetime.now(timezone.utc).date()
 
+        period = self.current_period(today)
+        if occurrence is _UNSET:
+            # Caller didn't pre-fetch this register's current-period row.
+            occurrence = fetch_current_cycle_occurrences([self], today).get(self.id)
+
         status, computed_status, dot_color, current_due = self.effective_today_status(today, occurrence)
+
+        checked = period is not None and status in CHECKED_STATUSES
+        if period is None:
+            can_check = False
+            block_reason = f'Checking starts on {self.start_date.isoformat()}.' if self.start_date else None
+        elif checked:
+            can_check = False
+            block_reason = f'Already checked for this {period_label(self.cycle)}.'
+        else:
+            can_check = True
+            block_reason = None
 
         return {
             'id': self.id,
@@ -231,6 +372,11 @@ class Register(db.Model):
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'next_due_date': self.next_due_date.isoformat() if self.next_due_date else None,
             'current_due_date': current_due.isoformat() if current_due else None,
+            'current_period_start': period[0].isoformat() if period else None,
+            'current_period_end': period[1].isoformat() if period else None,
+            'checked_in_current_period': checked,
+            'can_check': can_check,
+            'check_block_reason': block_reason,
             'last_completed_date': self.last_completed_date.isoformat() if self.last_completed_date else None,
             'created_by': self.created_by,
             'created_by_name': self.creator.name if self.creator else None,

@@ -198,7 +198,10 @@ class TestUpdateStatus:
         assert resp.status_code == 200
         body = resp.get_json()
         assert body['data']['status'] == 'OK'
-        assert body['data']['next_due_date'] != old_due_date
+        # The next check is now due in the NEXT weekly period (next Monday).
+        this_monday = date.today() - timedelta(days=date.today().weekday())
+        assert body['data']['next_due_date'] == (this_monday + timedelta(days=7)).isoformat()
+        assert body['data']['can_check'] is False
 
 
 class TestRegisterHeads:
@@ -254,7 +257,8 @@ class TestRegisterCalendarPopup:
 
 
 class TestUpdateOccurrenceStatus:
-    """Regression tests for the "editing one occurrence updates several" bug."""
+    """Authorization / validation of the check endpoint. The once-per-period
+    behaviour itself is covered by TestPeriodBasedChecking below."""
 
     def test_forbidden_for_non_chairman(self, client, auth_headers):
         created = client.post(
@@ -281,123 +285,360 @@ class TestUpdateOccurrenceStatus:
         )
         assert resp.status_code == 400
 
-    def test_editing_one_occurrence_does_not_change_others(self, client, auth_headers):
-        # A WEEKLY register with several past occurrences already in range.
-        start_date = date.today() - timedelta(days=35)
-        created = client.post(
-            '/api/registers',
-            json=_payload(cycle='WEEKLY', start_date=start_date.isoformat()),
-            headers=auth_headers['chairman'],
-        ).get_json()
-        register_id = created['data']['id']
-
-        range_start = (start_date - timedelta(days=7)).isoformat()
-        range_end = (date.today() + timedelta(days=21)).isoformat()
-
-        before = client.get(
-            f'/api/registers/calendar?start={range_start}&end={range_end}',
-            headers=auth_headers['chairman'],
-        ).get_json()['data']
-        before_by_date = {e['date']: e['dot_color'] for e in before if e['register_id'] == register_id}
-        assert len(before_by_date) >= 3, 'need multiple occurrences in range for this test to be meaningful'
-
-        occurrence_dates = sorted(before_by_date)
-        # Edit ONE occurrence only, and deliberately NOT the register's
-        # current cyclic due date (start_date + 7 days) -- that date drives
-        # the register's own effective `status` (see
-        # `test_editing_the_due_date_occurrence_updates_effective_status`
-        # below), so picking any *other* occurrence here keeps this test
-        # about "editing occurrence X doesn't leak into occurrence Y".
-        due_date = created['data']['next_due_date']
-        target_date = next(d for d in occurrence_dates if d != due_date)
-
-        resp = client.patch(
-            f'/api/registers/{register_id}/occurrences/{target_date}/status',
-            json={'status': 'OK'},
-            headers=auth_headers['chairman'],
-        )
-        assert resp.status_code == 200
-        assert resp.get_json()['data']['occurrence']['occurrence_date'] == target_date
-        assert resp.get_json()['data']['occurrence']['dot_color'] == 'green'
-
-        after = client.get(
-            f'/api/registers/calendar?start={range_start}&end={range_end}',
-            headers=auth_headers['chairman'],
-        ).get_json()['data']
-        after_by_date = {e['date']: e['dot_color'] for e in after if e['register_id'] == register_id}
-
-        changed_dates = [d for d in occurrence_dates if before_by_date[d] != after_by_date[d]]
-
-        # Only the ONE date that was edited should have changed color.
-        assert changed_dates == [target_date]
-        assert after_by_date[target_date] == 'green'
-
-        # The register's own shared status/next_due_date must be untouched --
-        # "Edit This Occurrence" never mutates the series-level row.
-        register_after = client.get(f'/api/registers/{register_id}', headers=auth_headers['chairman']).get_json()['data']
-        assert register_after['status'] == created['data']['status']
-        assert register_after['next_due_date'] == created['data']['next_due_date']
-
-    def test_editing_the_due_date_occurrence_updates_effective_status(self, client, auth_headers):
-        """Regression test for the "Update Status button lands away from the
-        exact cyclic date" bug: a WEEKLY (or other non-DAILY) register's
-        displayed `status` / dot must reflect an occurrence recorded on its
-        exact cyclic `next_due_date`, even when that due date is overdue and
-        today is a different day entirely -- not just an occurrence recorded
-        for literally "today". This is what lets the Register Monitoring
-        Status column and "already recorded" gating (`isRegisterUpdatable`)
-        immediately react to an update made against the real due date.
-        """
-        start_date = date.today() - timedelta(days=35)
-        created = client.post(
-            '/api/registers',
-            json=_payload(cycle='WEEKLY', start_date=start_date.isoformat()),
-            headers=auth_headers['chairman'],
-        ).get_json()
-        register_id = created['data']['id']
-        due_date = created['data']['next_due_date']
-        assert due_date != date.today().isoformat(), 'the due date must be overdue and NOT today for this test'
-        assert created['data']['status'] == 'IDLE'
-
-        resp = client.patch(
-            f'/api/registers/{register_id}/occurrences/{due_date}/status',
-            json={'status': 'OK'},
-            headers=auth_headers['chairman'],
-        )
-        assert resp.status_code == 200
-
-        register_after = client.get(f'/api/registers/{register_id}', headers=auth_headers['chairman']).get_json()['data']
-        # The raw due date itself is untouched (still the series-level date)...
-        assert register_after['next_due_date'] == due_date
-        # ...but the displayed/effective status now reflects the recorded
-        # outcome for that exact due date, not a stale IDLE/PENDING.
-        assert register_after['status'] == 'OK'
-        assert register_after['computed_status'] == 'COMPLETED'
-        assert register_after['dot_color'] == 'green'
-
-        # The list endpoint (Register Monitoring's table) must agree.
-        listed = client.get('/api/registers', headers=auth_headers['chairman']).get_json()['data']
-        listed_register = next(r for r in listed if r['id'] == register_id)
-        assert listed_register['status'] == 'OK'
-
-    def test_editing_occurrence_is_idempotent_and_updates_same_row(self, client, auth_headers):
+    def test_idle_is_not_a_check(self, client, auth_headers):
         created = client.post('/api/registers', json=_payload(cycle='WEEKLY'), headers=auth_headers['chairman']).get_json()
-        register_id = created['data']['id']
-        occ_date = created['data']['start_date']
+        resp = client.patch(
+            f"/api/registers/{created['data']['id']}/occurrences/{date.today().isoformat()}/status",
+            json={'status': 'IDLE'},
+            headers=auth_headers['chairman'],
+        )
+        assert resp.status_code == 400
 
-        first = client.patch(
-            f'/api/registers/{register_id}/occurrences/{occ_date}/status',
+    def test_invalid_date_rejected(self, client, auth_headers):
+        created = client.post('/api/registers', json=_payload(cycle='WEEKLY'), headers=auth_headers['chairman']).get_json()
+        resp = client.patch(
+            f"/api/registers/{created['data']['id']}/occurrences/not-a-date/status",
             json={'status': 'OK'},
             headers=auth_headers['chairman'],
-        ).get_json()['data']['occurrence']
+        )
+        assert resp.status_code == 400
 
-        second = client.patch(
-            f'/api/registers/{register_id}/occurrences/{occ_date}/status',
-            json={'status': 'REJECTED'},
-            headers=auth_headers['chairman'],
-        ).get_json()['data']['occurrence']
 
-        # Same underlying row (upsert), status changed in place.
-        assert first['id'] == second['id']
-        assert second['status'] == 'REJECTED'
-        assert second['dot_color'] == 'red'
+# ---------------------------------------------------------------------------
+# Period-based checking: one check per checking period, not one exact date
+# ---------------------------------------------------------------------------
+
+import pytest  # noqa: E402
+
+from app.models.register import (  # noqa: E402
+    Register,
+    RegisterOccurrence,
+    next_period_start,
+    period_bounds,
+)
+
+D = date  # short alias for the tables below
+
+
+def _pin_today(monkeypatch, day):
+    """Make every register endpoint believe today is `day`."""
+    monkeypatch.setattr('app.routes.registers._today', lambda: day)
+
+
+def _make_register(client, headers, cycle, start=D(2025, 1, 1), **overrides):
+    resp = client.post(
+        '/api/registers',
+        json=_payload(cycle=cycle, start_date=start.isoformat(), **overrides),
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.get_json()
+    return resp.get_json()['data']['id']
+
+
+def _check(client, headers, register_id, day, status='OK'):
+    return client.patch(
+        f'/api/registers/{register_id}/occurrences/{day.isoformat()}/status',
+        json={'status': status},
+        headers=headers,
+    )
+
+
+def _get(client, headers, register_id):
+    return client.get(f'/api/registers/{register_id}', headers=headers).get_json()['data']
+
+
+def _row_count(app, register_id):
+    with app.app_context():
+        return RegisterOccurrence.query.filter_by(register_id=register_id).count()
+
+
+class TestPeriodBounds:
+    @pytest.mark.parametrize('cycle,day,expected', [
+        ('DAILY', D(2026, 10, 6), (D(2026, 10, 6), D(2026, 10, 6))),
+        ('WEEKLY', D(2026, 10, 5), (D(2026, 10, 5), D(2026, 10, 11))),   # Monday
+        ('WEEKLY', D(2026, 10, 8), (D(2026, 10, 5), D(2026, 10, 11))),   # Thursday
+        ('WEEKLY', D(2026, 10, 11), (D(2026, 10, 5), D(2026, 10, 11))),  # Sunday
+        ('WEEKLY', D(2026, 12, 31), (D(2026, 12, 28), D(2027, 1, 3))),   # crosses the year
+        ('15_DAYS', D(2026, 10, 15), (D(2026, 10, 1), D(2026, 10, 15))),
+        ('15_DAYS', D(2026, 10, 16), (D(2026, 10, 16), D(2026, 10, 31))),
+        ('15_DAYS', D(2026, 2, 20), (D(2026, 2, 16), D(2026, 2, 28))),
+        ('MONTHLY', D(2026, 2, 10), (D(2026, 2, 1), D(2026, 2, 28))),
+        ('MONTHLY', D(2028, 2, 10), (D(2028, 2, 1), D(2028, 2, 29))),    # leap year
+        ('QUARTERLY', D(2026, 8, 31), (D(2026, 7, 1), D(2026, 9, 30))),
+        ('HALF_YEARLY', D(2026, 6, 30), (D(2026, 1, 1), D(2026, 6, 30))),
+        ('HALF_YEARLY', D(2026, 7, 1), (D(2026, 7, 1), D(2026, 12, 31))),
+        ('YEARLY', D(2026, 5, 5), (D(2026, 1, 1), D(2026, 12, 31))),
+    ])
+    def test_bounds(self, cycle, day, expected):
+        assert period_bounds(cycle, day) == expected
+
+    def test_next_period_start(self):
+        assert next_period_start('WEEKLY', D(2026, 10, 8)) == D(2026, 10, 12)
+        assert next_period_start('MONTHLY', D(2026, 12, 15)) == D(2027, 1, 1)
+        assert next_period_start('DAILY', D(2026, 10, 6)) == D(2026, 10, 7)
+
+
+class TestPeriodBasedChecking:
+    def test_daily(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'DAILY')
+
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, D(2026, 10, 6)).status_code == 200      # check today -> allowed
+        assert _check(client, h, reg, D(2026, 10, 6)).status_code == 409      # again today -> blocked
+        state = _get(client, h, reg)
+        assert state['can_check'] is False and state['checked_in_current_period'] is True
+        assert state['status'] == 'OK'
+
+        _pin_today(monkeypatch, D(2026, 10, 7))                               # tomorrow
+        state = _get(client, h, reg)
+        assert state['can_check'] is True and state['status'] == 'IDLE'       # re-enabled automatically
+        assert _check(client, h, reg, D(2026, 10, 7)).status_code == 200
+        assert _row_count(app, reg) == 2
+
+    def test_weekly_any_day_of_the_week_but_only_once(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+
+        # Monday 5 Oct 2026 - Sunday 11 Oct 2026. Unchecked all week -> enabled every day.
+        for day in range(5, 12):
+            _pin_today(monkeypatch, D(2026, 10, day))
+            assert _get(client, h, reg)['can_check'] is True, f'day {day}'
+
+        _pin_today(monkeypatch, D(2026, 10, 5))                               # Monday
+        assert _check(client, h, reg, D(2026, 10, 5)).status_code == 200
+
+        for day in (6, 7, 8, 9, 10, 11):                                      # Tue..Sun -> blocked
+            _pin_today(monkeypatch, D(2026, 10, day))
+            state = _get(client, h, reg)
+            assert state['can_check'] is False, f'day {day}'
+            assert _check(client, h, reg, D(2026, 10, day)).status_code == 409, f'day {day}'
+
+        _pin_today(monkeypatch, D(2026, 10, 12))                              # next Monday
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, D(2026, 10, 12)).status_code == 200
+        assert _row_count(app, reg) == 2
+
+    def test_weekly_can_be_checked_late_in_the_week(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 9))                               # Friday
+        resp = _check(client, h, reg, D(2026, 10, 9))
+        assert resp.status_code == 200
+        # Stored once against the period (its Monday), with the real check time kept.
+        occ = resp.get_json()['data']['occurrence']
+        assert occ['occurrence_date'] == '2026-10-05'
+        assert occ['completed_at'] is not None
+
+    def test_monthly(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'MONTHLY')
+
+        _pin_today(monkeypatch, D(2026, 10, 5))
+        assert _check(client, h, reg, D(2026, 10, 5)).status_code == 200      # 5th -> allowed
+        _pin_today(monkeypatch, D(2026, 10, 20))
+        assert _check(client, h, reg, D(2026, 10, 20)).status_code == 409     # 20th -> blocked
+        assert _get(client, h, reg)['can_check'] is False
+        _pin_today(monkeypatch, D(2026, 11, 2))                               # next month
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, D(2026, 11, 2)).status_code == 200
+
+    @pytest.mark.parametrize('cycle,first,later_same_period,next_period', [
+        ('DAILY',       D(2026, 10, 6), D(2026, 10, 6),  D(2026, 10, 7)),
+        ('WEEKLY',      D(2026, 10, 6), D(2026, 10, 11), D(2026, 10, 12)),
+        ('15_DAYS',     D(2026, 10, 3), D(2026, 10, 15), D(2026, 10, 16)),
+        ('MONTHLY',     D(2026, 10, 5), D(2026, 10, 31), D(2026, 11, 1)),
+        ('QUARTERLY',   D(2026, 8, 10), D(2026, 9, 30),  D(2026, 10, 1)),
+        ('HALF_YEARLY', D(2026, 2, 10), D(2026, 6, 30),  D(2026, 7, 1)),
+        ('YEARLY',      D(2026, 3, 10), D(2026, 12, 31), D(2027, 1, 1)),
+    ])
+    def test_every_cycle_allows_one_check_per_period(
+        self, app, client, auth_headers, monkeypatch, cycle, first, later_same_period, next_period
+    ):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, cycle)
+
+        _pin_today(monkeypatch, first)
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, first).status_code == 200
+
+        _pin_today(monkeypatch, later_same_period)                            # last day of the same period
+        assert _get(client, h, reg)['can_check'] is False
+        assert _check(client, h, reg, later_same_period).status_code == 409
+
+        _pin_today(monkeypatch, next_period)                                  # first day of the next one
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, next_period).status_code == 200
+        assert _row_count(app, reg) == 2
+
+    def test_rejected_check_also_uses_up_the_period(self, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert _check(client, h, reg, D(2026, 10, 6), 'REJECTED').status_code == 200
+        assert _check(client, h, reg, D(2026, 10, 7), 'OK').status_code == 409
+        state = _get(client, h, reg)
+        assert state['status'] == 'REJECTED' and state['can_check'] is False
+
+    def test_duplicate_blocked_whatever_date_inside_the_period_is_sent(self, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 7))
+        assert _check(client, h, reg, D(2026, 10, 7)).status_code == 200
+        for day in (5, 6, 7, 8, 9, 10, 11):                                   # incl. the period start key
+            assert _check(client, h, reg, D(2026, 10, day)).status_code == 409
+
+    def test_series_status_endpoint_cannot_bypass_the_rule(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert client.patch(f'/api/registers/{reg}/status', json={'status': 'OK'}, headers=h).status_code == 200
+        assert client.patch(f'/api/registers/{reg}/status', json={'status': 'OK'}, headers=h).status_code == 409
+        assert _check(client, h, reg, D(2026, 10, 7)).status_code == 409
+        assert _row_count(app, reg) == 1
+
+    def test_only_the_current_period_can_be_checked(self, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert _check(client, h, reg, D(2026, 10, 4)).status_code == 400      # last week: closed
+        assert _check(client, h, reg, D(2026, 10, 12)).status_code == 400     # next week: not started
+        assert _get(client, h, reg)['can_check'] is True                      # nothing was recorded
+
+    def test_register_that_has_not_started_cannot_be_checked(self, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY', start=D(2026, 11, 1))
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        state = _get(client, h, reg)
+        assert state['can_check'] is False and state['current_period_start'] is None
+        assert _check(client, h, reg, D(2026, 10, 6)).status_code == 400
+
+    def test_legacy_row_on_an_old_exact_date_counts_for_its_period(self, app, client, auth_headers, monkeypatch):
+        """Rows written before this change sit on the old scheduled date
+        (mid-period). They must still block a second check in that period."""
+        from app.extensions import db
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        with app.app_context():
+            db.session.add(RegisterOccurrence(register_id=reg, occurrence_date=D(2026, 10, 7), status='OK'))
+            db.session.commit()
+
+        _pin_today(monkeypatch, D(2026, 10, 9))
+        state = _get(client, h, reg)
+        assert state['can_check'] is False and state['status'] == 'OK'
+        assert _check(client, h, reg, D(2026, 10, 9)).status_code == 409
+        _pin_today(monkeypatch, D(2026, 10, 12))
+        assert _get(client, h, reg)['can_check'] is True
+
+    def test_unchecked_placeholder_row_does_not_block(self, app, client, auth_headers, monkeypatch):
+        from app.extensions import db
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        with app.app_context():
+            db.session.add(RegisterOccurrence(register_id=reg, occurrence_date=D(2026, 10, 5), status='IDLE'))
+            db.session.commit()
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert _get(client, h, reg)['can_check'] is True
+        assert _check(client, h, reg, D(2026, 10, 6)).status_code == 200
+        assert _row_count(app, reg) == 1                                       # reused, not duplicated
+
+    def test_refreshing_or_listing_never_creates_records(self, app, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 6))
+        assert _check(client, h, reg, D(2026, 10, 6)).status_code == 200
+        for _ in range(3):
+            _get(client, h, reg)
+            client.get('/api/registers', headers=h)
+            client.get(f'/api/registers/{reg}/calendar?month=2026-10', headers=h)
+            client.get('/api/registers/calendar?start=2026-09-01&end=2026-10-31', headers=h)
+        assert _row_count(app, reg) == 1
+
+    def test_list_exposes_period_fields(self, client, auth_headers, monkeypatch):
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY')
+        _pin_today(monkeypatch, D(2026, 10, 7))
+        row = next(r for r in client.get('/api/registers', headers=h).get_json()['data'] if r['id'] == reg)
+        assert row['current_period_start'] == '2026-10-05'
+        assert row['current_period_end'] == '2026-10-11'
+        assert row['can_check'] is True and row['checked_in_current_period'] is False
+        _check(client, h, reg, D(2026, 10, 7))
+        row = next(r for r in client.get('/api/registers', headers=h).get_json()['data'] if r['id'] == reg)
+        assert row['can_check'] is False and row['status'] == 'OK'
+
+    def test_history_is_kept_per_period(self, app, client, auth_headers, monkeypatch):
+        """Week 1 checked, week 2 checked, week 3 missed, week 4 checked."""
+        h = auth_headers['chairman']
+        reg = _make_register(client, h, 'WEEKLY', start=D(2026, 9, 7))
+        ids = {}
+        for week_start, check_day in ((D(2026, 9, 7), D(2026, 9, 8)),
+                                      (D(2026, 9, 14), D(2026, 9, 17)),
+                                      (D(2026, 9, 28), D(2026, 9, 30))):    # week of 21 Sep skipped
+            _pin_today(monkeypatch, check_day)
+            resp = _check(client, h, reg, check_day)
+            assert resp.status_code == 200
+            ids[week_start] = resp.get_json()['data']['occurrence']['id']
+
+        _pin_today(monkeypatch, D(2026, 10, 7))                               # a later week
+        entries = client.get(f'/api/registers/{reg}/calendar?month=2026-09', headers=h).get_json()['data']['entries']
+        by_start = {e['period_start']: e for e in entries}
+        assert by_start['2026-09-07']['status'] == 'COMPLETED'
+        assert by_start['2026-09-14']['status'] == 'COMPLETED'
+        assert by_start['2026-09-21']['status'] == 'PENDING'                  # missed
+        assert by_start['2026-09-28']['status'] == 'COMPLETED'
+        assert by_start['2026-09-07']['occurrence_id'] == ids[D(2026, 9, 7)]  # untouched, not overwritten
+        assert _row_count(app, reg) == 3
+
+
+class TestMissedPeriodsAndCounts:
+    """Pure model tests (no HTTP): how periods turn into Completed / Missed /
+    Rejected, which feeds the Register Report, dashboard and performance."""
+
+    @staticmethod
+    def _register(cycle='WEEKLY', start=D(2026, 9, 7)):
+        return Register(id=1, name='R', register_no='R-1', head_name='H', cycle=cycle,
+                        priority='LOW', start_date=start, next_due_date=start)
+
+    @staticmethod
+    def _tally(register, rows, today, range_start, range_end):
+        occ_map = {row.occurrence_date: row for row in rows}
+        counts = {'COMPLETED': 0, 'PENDING': 0, 'FAILED': 0, 'UPCOMING': 0}
+        for occ in register.generate_occurrences(range_start, range_end, today, occurrence_map=occ_map):
+            counts[occ['status']] += 1
+        return counts
+
+    def test_missed_only_counts_after_the_period_has_ended(self):
+        reg = self._register()
+        rows = [
+            RegisterOccurrence(register_id=1, occurrence_date=D(2026, 9, 7), status='OK'),
+            RegisterOccurrence(register_id=1, occurrence_date=D(2026, 9, 16), status='OK'),       # legacy mid-week row
+            RegisterOccurrence(register_id=1, occurrence_date=D(2026, 9, 28), status='REJECTED'),
+        ]
+        # Today is Tue 6 Oct: weeks of 7, 14, 21, 28 Sep are closed; week of 5 Oct is open.
+        counts = self._tally(reg, rows, D(2026, 10, 6), D(2026, 9, 1), D(2026, 10, 6))
+        assert counts == {'COMPLETED': 2, 'PENDING': 1, 'FAILED': 1, 'UPCOMING': 1}
+        # Unchecked-but-still-open week is not "missed" yet; checking it completes it.
+        rows.append(RegisterOccurrence(register_id=1, occurrence_date=D(2026, 10, 5), status='OK'))
+        counts = self._tally(reg, rows, D(2026, 10, 6), D(2026, 9, 1), D(2026, 10, 6))
+        assert counts == {'COMPLETED': 3, 'PENDING': 1, 'FAILED': 1, 'UPCOMING': 0}
+
+    def test_open_period_is_flagged_and_status_resets_each_period(self):
+        reg = self._register()
+        checked = RegisterOccurrence(register_id=1, occurrence_date=D(2026, 10, 5), status='OK')
+        assert reg.effective_today_status(D(2026, 10, 9), checked)[0] == 'OK'
+        # The next week the same (now stale) row is not passed in -> IDLE again.
+        assert reg.effective_today_status(D(2026, 10, 12), None)[0] == 'IDLE'
+
+    def test_period_straddling_the_range_start_is_still_counted(self):
+        reg = self._register()
+        rows = [RegisterOccurrence(register_id=1, occurrence_date=D(2026, 9, 28), status='OK')]
+        # Range starts mid-week (Wed 30 Sep); that week overlaps the range.
+        counts = self._tally(reg, rows, D(2026, 10, 6), D(2026, 9, 30), D(2026, 10, 6))
+        assert counts['COMPLETED'] == 1
+
+    def test_first_period_includes_the_start_date(self):
+        reg = self._register(cycle='MONTHLY', start=D(2026, 9, 20))
+        periods = reg.periods_in_range(D(2026, 1, 1), D(2026, 10, 31))
+        assert periods[0] == (D(2026, 9, 1), D(2026, 9, 30))
+        assert periods[-1] == (D(2026, 10, 1), D(2026, 10, 31))

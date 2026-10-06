@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta, timezone
 
 from flask import Blueprint, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from sqlalchemy.exc import IntegrityError
 
 from app.extensions import db
 from app.models.register import (
@@ -10,8 +11,13 @@ from app.models.register import (
     CYCLES,
     PRIORITIES,
     STATUSES,
+    CHECKED_STATUSES,
     calculate_next_due_date,
     fetch_current_cycle_occurrences,
+    fetch_occurrence_maps,
+    next_period_start,
+    period_bounds,
+    period_label,
     _add_months,
 )
 from app.models.user import User, DEPARTMENT_HEAD_ROLES
@@ -19,6 +25,12 @@ from app.utils.response import success, error
 from app.utils.decorators import roles_required
 
 registers_bp = Blueprint('registers', __name__)
+
+
+def _today():
+    """The date used to decide which checking period is current. One place,
+    so every register endpoint agrees (and tests can pin it)."""
+    return date.today()
 
 REGISTER_MANAGER_ROLES = ('CHAIRMAN',)
 # Roles that can VIEW every register (school-wide), even though they cannot
@@ -152,7 +164,7 @@ def list_registers():
     # -- the only date "Update Status" is now restricted to), not the
     # register's own stale `status` field. Batch-fetch those rows (one
     # query, even though the relevant date differs per register).
-    today = date.today()
+    today = _today()
     current_occurrences = fetch_current_cycle_occurrences(registers, today)
 
     # The status filter must match the SAME effective status shown to the
@@ -185,7 +197,7 @@ def calendar_events():
     if not user:
         return error('User not found', 401)
 
-    today = date.today()
+    today = _today()
     start = _parse_date(request.args.get('start')) or (today - timedelta(days=90))
     end = _parse_date(request.args.get('end')) or (today + timedelta(days=365))
 
@@ -206,16 +218,7 @@ def calendar_events():
     # Batch-fetch every persisted occurrence record for every register in this
     # range in one query (instead of one query per register per occurrence),
     # then hand each register its own slice via `occurrence_map`.
-    register_ids = [r.id for r in registers]
-    occurrence_maps = {r.id: {} for r in registers}
-    if register_ids:
-        all_occurrences = RegisterOccurrence.query.filter(
-            RegisterOccurrence.register_id.in_(register_ids),
-            RegisterOccurrence.occurrence_date >= start,
-            RegisterOccurrence.occurrence_date <= end,
-        ).all()
-        for occ in all_occurrences:
-            occurrence_maps[occ.register_id][occ.occurrence_date] = occ
+    occurrence_maps = fetch_occurrence_maps(registers, start, end)
 
     # Each register's embedded `register` dict (used by the frontend for
     # Status badges / `isRegisterUpdatable`) must reflect ITS OWN
@@ -246,13 +249,15 @@ def calendar_events():
                 'register_id': r.id,
                 'occurrence_id': occ['occurrence_id'],
                 'occurrence_date': occ_date.isoformat(),
+                'period_start': occ['period_start'].isoformat(),
+                'period_end': occ['period_end'].isoformat(),
                 'title': f'{r.name} ({r.register_no})',
                 'date': occ_date.isoformat(),
                 'status': r.status,
                 'computed_status': computed_status,
                 'color': color,
                 'dot_color': dot_color,
-                'is_future_or_pending': occ_date >= today,
+                'is_future_or_pending': occ['period_end'] >= today,
                 'register': register_dict,
             })
 
@@ -273,12 +278,8 @@ def get_register(register_id: int):
     if user.role not in REGISTER_VIEW_ALL_ROLES and register.head_id != user.id:
         return error('You do not have access to this register', 403)
 
-    today = date.today()
-    current_occurrence = RegisterOccurrence.query.filter_by(
-        register_id=register_id,
-        occurrence_date=register.current_cycle_occurrence_date(today),
-    ).first()
-    return success(register.to_dict(today=today, occurrence=current_occurrence))
+    today = _today()
+    return success(register.to_dict(today=today))
 
 
 @registers_bp.route('', methods=['POST'])
@@ -390,10 +391,93 @@ def delete_register(register_id: int):
     return success(None, 'Register deleted successfully')
 
 
+class _CheckRejected(Exception):
+    """A register check that must be refused (carries the HTTP status)."""
+
+    def __init__(self, message, status_code):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def _record_period_check(register, new_status, user_id, today, requested_date=None):
+    """Record the ONE check a register gets per checking period.
+
+    This is the single place a check is written, shared by every endpoint
+    that can record one, so the rule cannot be bypassed:
+
+      * the register must have started;
+      * the check always lands in the CURRENT period (`requested_date`, if
+        given, must fall inside it -- past/future periods are refused, so
+        history is never rewritten);
+      * if ANY check already exists inside that period -- including legacy
+        rows stored on an old exact scheduled date -- it is refused (409);
+      * the row is stored under the period's start date, so the database's
+        unique (register_id, occurrence_date) constraint also stops two
+        simultaneous requests from both succeeding.
+
+    Raises _CheckRejected; the caller is responsible for translating it.
+    """
+    label = period_label(register.cycle)
+    period = register.current_period(today)
+    if period is None:
+        raise _CheckRejected(
+            f"This register can't be checked until its start date "
+            f"({register.start_date.isoformat() if register.start_date else 'not set'}).",
+            400,
+        )
+    p_start, p_end = period
+    span = f'{p_start.isoformat()} to {p_end.isoformat()}'
+
+    if requested_date is not None and period_bounds(register.cycle, requested_date)[0] != p_start:
+        raise _CheckRejected(
+            f'Only the current {label} ({span}) can be checked. '
+            f'Earlier periods are closed and later ones have not started.',
+            400,
+        )
+
+    already = f'This register has already been checked for the current {label} ({span}).'
+
+    in_period = RegisterOccurrence.query.filter(
+        RegisterOccurrence.register_id == register.id,
+        RegisterOccurrence.occurrence_date >= p_start,
+        RegisterOccurrence.occurrence_date <= p_end,
+    ).all()
+    if any(row.status in CHECKED_STATUSES for row in in_period):
+        raise _CheckRejected(already, 409)
+
+    # An unchecked (IDLE) placeholder already sitting on the period key is
+    # reused instead of colliding with the unique constraint.
+    occurrence = next((row for row in in_period if row.occurrence_date == p_start), None)
+    if occurrence is None:
+        occurrence = RegisterOccurrence(register_id=register.id, occurrence_date=p_start)
+        db.session.add(occurrence)
+
+    occurrence.status = new_status
+    occurrence.completed_by = user_id
+    occurrence.completed_at = datetime.now(timezone.utc)
+
+    # Keep the register's own due-date bookkeeping in step: the next check
+    # is due in the next period.
+    register.next_due_date = next_period_start(register.cycle, today)
+    if new_status == 'OK':
+        register.last_completed_date = today
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        # Lost a race with a concurrent request that checked the same period.
+        db.session.rollback()
+        raise _CheckRejected(already, 409)
+    return occurrence
+
+
 @registers_bp.route('/<int:register_id>/status', methods=['PATCH'])
 @roles_required(*REGISTER_MANAGER_ROLES)
 def update_status(register_id: int):
-    register = db.session.get(Register, register_id)
+    """Series-level status update. Recording OK/REJECTED here is a check like
+    any other, so it goes through the same once-per-period rule."""
+    register = db.session.get(Register, register_id, with_for_update=True)
     if not register:
         return error('Register not found', 404)
 
@@ -405,41 +489,32 @@ def update_status(register_id: int):
     if new_status not in STATUSES:
         return error(f"status must be one of {', '.join(STATUSES)}", 400)
 
+    today = _today()
+    if new_status in CHECKED_STATUSES:
+        try:
+            _record_period_check(register, new_status, get_jwt_identity(), today)
+        except _CheckRejected as exc:
+            return error(exc.message, exc.status_code)
+
     register.status = new_status
-
-    # Automatically calculate the next due date based on the cycle after
-    # each completed update (i.e. whenever the status moves out of IDLE).
-    if new_status in ('OK', 'REJECTED'):
-        # Anchor to TODAY (not a stale stored due date) so a register
-        # that's missed several cycles catches up to a real future date
-        # in one step -- see the matching fix in update_occurrence_status.
-        base_date = max(register.next_due_date or register.start_date or date.today(), date.today())
-        if new_status == 'OK':
-            register.last_completed_date = base_date
-        register.next_due_date = calculate_next_due_date(base_date, register.cycle)
-
     db.session.commit()
-    return success(register.to_dict(), 'Register status updated')
+    return success(register.to_dict(today=today), 'Register status updated')
 
 
 @registers_bp.route('/<int:register_id>/occurrences/<occurrence_date>/status', methods=['PATCH'])
 @roles_required(*REGISTER_MANAGER_ROLES)
 def update_occurrence_status(register_id: int, occurrence_date: str):
-    """Edit THIS occurrence only.
+    """Check a register for its current checking period ("Check Register").
 
-    This is the fix for the "editing one occurrence updates several" bug:
-    the update targets a single `RegisterOccurrence` row, upserted on the
-    unique (register_id, occurrence_date) pair, and the SQL/ORM write below
-    only ever touches that one row --
-
-        RegisterOccurrence.query.filter_by(register_id=..., occurrence_date=...)
-
-    NOT `WHERE register_id = ?` alone and NOT the parent `Register` row, so
-    no other date's occurrence is ever affected. Contrast with
-    `update_status` below, which intentionally updates the shared `Register`
-    row and represents "Edit Entire Series".
+    `occurrence_date` may be ANY date inside the current period (the whole
+    Monday-Sunday week for a weekly register, the whole month for a monthly
+    one, ...); it is resolved to that period, and the check is stored once
+    against it. A second check in the same period is refused with 409, and
+    a date outside the current period is refused with 400 -- see
+    `_record_period_check`. This is enforced here, not just by disabling the
+    button, so API calls, second tabs and stale pages can't duplicate a check.
     """
-    register = db.session.get(Register, register_id)
+    register = db.session.get(Register, register_id, with_for_update=True)
     if not register:
         return error('Register not found', 404)
 
@@ -451,65 +526,21 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
     new_status = (data.get('status') or '').upper()
     if not new_status:
         return error('status is required', 400)
-    if new_status not in STATUSES:
-        return error(f"status must be one of {', '.join(STATUSES)}", 400)
+    if new_status not in CHECKED_STATUSES:
+        return error(f"status must be one of {', '.join(CHECKED_STATUSES)}", 400)
 
-    user_id = get_jwt_identity()
-
-    # Upsert scoped to (register_id, occurrence_date) -- this is the ONE
-    # occurrence being edited, and no other row is read or written.
-    occurrence = RegisterOccurrence.query.filter_by(
-        register_id=register_id,
-        occurrence_date=parsed_date,
-    ).first()
-    if occurrence is None:
-        occurrence = RegisterOccurrence(register_id=register_id, occurrence_date=parsed_date)
-        db.session.add(occurrence)
-
-    occurrence.status = new_status
-    occurrence.completed_by = user_id
-    occurrence.completed_at = datetime.now(timezone.utc)
-
-    # The monitoring-page quick action is allowed only on the exact scheduled
-    # date. Once that scheduled occurrence is recorded, move the cycle to its
-    # next scheduled date. Historical/calendar edits remain occurrence-only.
-    #
-    # Use calculate_next_due_date (already imported) — not the private
-    # `_advance` helper — so this path cannot raise NameError.
-    today = date.today()
-    if new_status in ('OK', 'REJECTED'):
-        if register.cycle == 'DAILY' and parsed_date == today:
-            register.next_due_date = calculate_next_due_date(parsed_date, register.cycle)
-            if new_status == 'OK':
-                register.last_completed_date = parsed_date
-        elif (
-            register.cycle != 'DAILY'
-            and parsed_date == today
-            and parsed_date == register.current_cycle_occurrence_date(today)
-        ):
-            # Advance from the cycle's *current* due (not a possibly stale
-            # stored next_due_date), only when that due is today.
-            register.next_due_date = calculate_next_due_date(parsed_date, register.cycle)
-            if new_status == 'OK':
-                register.last_completed_date = parsed_date
-
-    db.session.commit()
-
-    # Re-resolve the current-cycle occurrence for the response so the list/
-    # calendar immediately reflect OK/REJECTED for DAILY (current due = today)
-    # and for other cycles when the closed date is still the current due.
-    response_occurrence = occurrence
-    current_due = register.current_cycle_occurrence_date(today)
-    if current_due is not None and occurrence.occurrence_date != current_due:
-        response_occurrence = RegisterOccurrence.query.filter_by(
-            register_id=register_id,
-            occurrence_date=current_due,
-        ).first()
+    today = _today()
+    try:
+        occurrence = _record_period_check(
+            register, new_status, get_jwt_identity(), today, requested_date=parsed_date
+        )
+    except _CheckRejected as exc:
+        return error(exc.message, exc.status_code)
 
     return success({
         'occurrence': occurrence.to_dict(),
-        'register': register.to_dict(today=today, occurrence=response_occurrence),
-    }, 'Occurrence updated successfully')
+        'register': register.to_dict(today=today, occurrence=occurrence),
+    }, 'Register checked successfully')
 
 
 @registers_bp.route('/heads', methods=['GET'])
@@ -555,8 +586,8 @@ def register_calendar(register_id: int):
     if user.role not in REGISTER_VIEW_ALL_ROLES and register.head_id != user.id:
         return error('You do not have access to this register', 403)
 
-    today = date.today()
-    month_str = request.args.get('month')  # 'YYYY-MM', defaults to the current due date's month
+    today = _today()
+    month_str = request.args.get('month')  # 'YYYY-MM', defaults to the current month
     if month_str:
         try:
             year, month = (int(part) for part in month_str.split('-'))
@@ -564,12 +595,11 @@ def register_calendar(register_id: int):
         except (ValueError, TypeError):
             return error('month must be in YYYY-MM format', 400)
     else:
-        # Open on the month of the register's CURRENT cyclic occurrence
-        # (walked from `start_date`, not the stale `next_due_date` -- see
-        # `current_cycle_occurrence_date`), so a long-running WEEKLY/
-        # MONTHLY/etc register opens showing today's actual due cell instead
-        # of always jumping back to its very first due month.
-        default_anchor_date = register.current_cycle_occurrence_date(today) or register.next_due_date or today
+        # Open on today's month (or the start month if the register hasn't
+        # started yet).
+        default_anchor_date = today
+        if register.start_date and register.start_date > today:
+            default_anchor_date = register.start_date
         anchor = default_anchor_date.replace(day=1)
 
     range_start = anchor
@@ -581,17 +611,15 @@ def register_calendar(register_id: int):
             'status': occ['status'],
             'dot_color': occ['dot_color'],
             'occurrence_id': occ['occurrence_id'],
+            'period_start': occ['period_start'].isoformat(),
+            'period_end': occ['period_end'].isoformat(),
+            'is_open': occ['is_open'],
         }
         for occ in register.generate_occurrences(range_start, range_end, today)
     ]
 
-    current_occurrence = RegisterOccurrence.query.filter_by(
-        register_id=register_id,
-        occurrence_date=register.current_cycle_occurrence_date(today),
-    ).first()
-
     return success({
-        'register': register.to_dict(today=today, occurrence=current_occurrence),
+        'register': register.to_dict(today=today),
         'month': anchor.strftime('%Y-%m'),
         'entries': entries,
     })

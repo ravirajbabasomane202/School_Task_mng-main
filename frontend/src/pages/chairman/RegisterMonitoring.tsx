@@ -10,7 +10,7 @@ import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPo
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
 import { downloadCsv } from '../../utils/fileDownload';
-import { currentCycleOccurrenceDate, isRegisterUpdatable } from '../../utils/registerUtils';
+import { currentCycleOccurrenceDate, formatPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
 import {
   deleteRegister,
   getRegisterHeads,
@@ -148,18 +148,27 @@ function RegisterMonitoring() {
     },
   });
 
-  // Update Status: keyed by (register id, occurrence date) — the
-  // request can only ever resolve to one RegisterOccurrence row server-side.
+  // Check Register: records the register's ONE check for its current
+  // checking period. The backend refuses a second check in the same period
+  // (HTTP 409), so a stale page / second tab can't duplicate it.
   const occurrenceMutation = useMutation({
     mutationFn: ({ id, occurrenceDate, status }: { id: number; occurrenceDate: string; status: RegisterStatus }) =>
       updateOccurrenceStatus(id, occurrenceDate, status),
     onSuccess: (_updated, variables) => {
       qc.invalidateQueries({ queryKey: ['registers'] });
       qc.invalidateQueries({ queryKey: ['register-calendar'] });
-      toast.success('Occurrence updated successfully');
+      toast.success('Register checked successfully');
       setOccurrenceTarget(null);
     },
-    onError: () => toast.error('Failed to update occurrence'),
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      toast.error(message ?? 'Failed to check register');
+      // The period may already have been checked elsewhere — refresh so the
+      // button reflects the real state.
+      qc.invalidateQueries({ queryKey: ['registers'] });
+      qc.invalidateQueries({ queryKey: ['register-calendar'] });
+      setOccurrenceTarget(null);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -195,21 +204,17 @@ function RegisterMonitoring() {
     updateMutation.mutate({ id: editingRegister.id, data: editForm });
   };
 
-  // "Update Status" always resolves to exactly ONE occurrence: the
-  // register's exact current cyclic due date — today for DAILY registers,
-  // but the cycle's actual `next_due_date` for everything else (see
-  // `currentCycleOccurrenceDate`). Registers are cyclic, so there is
-  // nothing meaningful about updating "the whole series" — only that one
-  // due entry ever needs a status. Previously this always used "today",
-  // which for an overdue WEEKLY/MONTHLY/etc register recorded the status
-  // days or weeks away from the exact date the calendar shows as due —
-  // this is gated on the register's current cycle actually being due (see
-  // `isRegisterUpdatable`) — the Actions button is disabled in that case,
-  // but this guard is kept too in case the handler is ever reached another way.
+  // "Check Register" records exactly ONE check for the register's CURRENT
+  // checking period (the day for Daily, Monday–Sunday for Weekly, the
+  // calendar month for Monthly, ...). It can be done on any day of that
+  // period; once it is done the button stays disabled until the next period
+  // starts (see `isRegisterUpdatable`). The button is disabled in that case,
+  // but this guard is kept too in case the handler is ever reached another
+  // way — and the backend enforces the same rule regardless.
   const openTodayStatusModal = (register: Register) => {
     const updatability = isRegisterUpdatable(register);
     if (!updatability.updatable) {
-      toast.error(updatability.reason ?? 'Status can only be updated for the current cycle.');
+      toast.error(updatability.reason ?? 'This register has already been checked for the current period.');
       return;
     }
     const dueDate = currentCycleOccurrenceDate(register);
@@ -227,7 +232,7 @@ function RegisterMonitoring() {
       is_future_or_pending: true,
       register,
     });
-    setPendingOccurrenceStatus(register.status === 'IDLE' ? 'OK' : register.status);
+    setPendingOccurrenceStatus('OK');
   };
 
   const emptyState = useMemo(() => !isLoading && registers.length === 0, [isLoading, registers]);
@@ -410,11 +415,13 @@ function RegisterMonitoring() {
                             type="button"
                             title={
                               updatability.updatable
-                                ? "Updates only the exact scheduled entry for this cyclic register"
+                                ? `Check this register once for the current period${
+                                    formatPeriod(r) ? ` (${formatPeriod(r)})` : ''
+                                  }`
                                 : updatability.reason
                             }
                           >
-                            Update Status
+                            {r.checked_in_current_period ? 'Already Checked' : 'Check Register'}
                           </button>
                         );
                       })()}
@@ -530,18 +537,23 @@ function RegisterMonitoring() {
         ) : null}
       </Modal>
 
-      {/* Update Status modal — scoped to exactly one date (today, unless opened
-          from the calendar popup). Registers are cyclic, so this is the ONLY
-          status-update action in the whole page: it never touches any other
-          date's occurrence and there is no separate "whole series" update. */}
-      <Modal isOpen={!!occurrenceTarget} onClose={() => setOccurrenceTarget(null)} title="Update Status">
+      {/* Check Register modal — records the ONE check this register gets for
+          its current checking period. It never touches any earlier period's
+          record, and a second check in the same period is refused. */}
+      <Modal isOpen={!!occurrenceTarget} onClose={() => setOccurrenceTarget(null)} title="Check Register">
         {occurrenceTarget ? (
           <div className="space-y-4">
             <p className="text-sm text-[#5B6E8C]">
-              Updating only the <span className="font-semibold text-[#1E293B]">{formatDate(occurrenceTarget.date)}</span>{' '}
-              {occurrenceTarget.date === todayISO() ? '(today’s) ' : ''}entry
-              of <span className="font-semibold text-[#1E293B]">{occurrenceTarget.register.name}</span> (
-              {occurrenceTarget.register.register_no}). Other dates of this recurring register are not affected.
+              Checking{' '}
+              <span className="font-semibold text-[#1E293B]">{occurrenceTarget.register.name}</span> (
+              {occurrenceTarget.register.register_no}) for the current period
+              {formatPeriod(occurrenceTarget.register) ? (
+                <>
+                  {' '}
+                  (<span className="font-semibold text-[#1E293B]">{formatPeriod(occurrenceTarget.register)}</span>)
+                </>
+              ) : null}
+              . It can only be checked once in this period; earlier and later periods are not affected.
             </p>
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-medium text-[#36506C]">Status</span>
@@ -550,7 +562,7 @@ function RegisterMonitoring() {
                 onChange={(e) => setPendingOccurrenceStatus(e.target.value as RegisterStatus)}
                 className="min-h-[38px] rounded-[10px] border-[0.5px] border-solid border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm"
               >
-                {REGISTER_STATUSES.map((s) => (
+                {REGISTER_STATUSES.filter((s) => s.value !== 'IDLE').map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
                   </option>
@@ -572,7 +584,7 @@ function RegisterMonitoring() {
                   })
                 }
               >
-                Update This Occurrence
+                Check Register
               </Button>
             </div>
           </div>

@@ -43,13 +43,13 @@ function formatCheckingCycles(cycles: string[]): string {
 type StaffColumnColor = 'blue' | 'green' | 'red' | 'cyan' | 'purple' | 'indigo' | 'teal';
 
 const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: string }> = {
-  blue: { header: 'bg-blue-50 text-blue-700', text: 'text-blue-700' },
-  green: { header: 'bg-emerald-50 text-emerald-700', text: 'text-emerald-700' },
-  red: { header: 'bg-red-50 text-red-700', text: 'text-red-700' },
-  cyan: { header: 'bg-cyan-50 text-cyan-700', text: 'text-cyan-700' },
-  purple: { header: 'bg-purple-50 text-purple-700', text: 'text-purple-700' },
-  indigo: { header: 'bg-indigo-50 text-indigo-700', text: 'text-indigo-700' },
-  teal: { header: 'bg-teal-50 text-teal-700', text: 'text-teal-700' }
+  blue: { header: 'bg-[#2E75B6] text-white', text: 'text-blue-700' },
+  green: { header: 'bg-[#2E75B6] text-white', text: 'text-emerald-700' },
+  red: { header: 'bg-[#2E75B6] text-white', text: 'text-red-700' },
+  cyan: { header: 'bg-[#2E75B6] text-white', text: 'text-cyan-700' },
+  purple: { header: 'bg-[#2E75B6] text-white', text: 'text-purple-700' },
+  indigo: { header: 'bg-[#2E75B6] text-white', text: 'text-indigo-700' },
+  teal: { header: 'bg-[#2E75B6] text-white', text: 'text-teal-700' }
 };
 
 function PerformanceAnalytics() {
@@ -110,20 +110,20 @@ function PerformanceAnalytics() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#EFF2F6]">
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Role</th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.blue.header}`}>
+                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">Role</th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.blue.header}`}>
                   Total tasks
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
                   Completed
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   Delayed
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   Delay rate
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.purple.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.purple.header}`}>
                   Task performance
                 </th>
               </tr>
@@ -131,12 +131,12 @@ function PerformanceAnalytics() {
             <tbody>
               {staffRows.map((user) => (
                 <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
                 </tr>
               ))}
             </tbody>
@@ -156,29 +156,29 @@ function PerformanceAnalytics() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#EFF2F6]">
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Role</th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
+                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">Role</th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   Total registers
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.blue.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.blue.header}`}>
                   checking cycle
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.green.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
                   Completed
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   Missed
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.red.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   Rejected
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.cyan.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   Total Estimated check
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.indigo.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.indigo.header}`}>
                   Register performance
                 </th>
-                <th className={`px-4 py-3 text-left font-medium ${STAFF_COLUMN_COLOR.teal.header}`}>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.teal.header}`}>
                   Overall performance
                 </th>
               </tr>
@@ -186,18 +186,18 @@ function PerformanceAnalytics() {
             <tbody>
               {staffRows.map((user) => (
                 <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="px-4 py-3 text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.blue.text}`}>
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>
                     {formatCheckingCycles(user.checkingCycles)}
                   </td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.missedRegisters}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.red.text}`}>{user.rejectedRegisters}</td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.cyan.text}`}>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.green.text}`}>{user.completedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.missedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.rejectedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>
                     {user.completedRegisters + user.missedRegisters + user.rejectedRegisters}
                   </td>
-                  <td className={`px-4 py-3 ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <div className="h-2 w-16 rounded-full bg-gray-200">

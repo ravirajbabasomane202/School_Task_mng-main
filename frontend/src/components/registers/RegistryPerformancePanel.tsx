@@ -175,8 +175,10 @@ function RegistryPerformancePanel() {
     }
 
     for (const event of events) {
-      // Only past + today occurrences count as "activity" — a future/UPCOMING
-      // date hasn't happened yet, so it can't be counted as completed or missed.
+      // Only periods that have started count as "activity" — a future/UPCOMING
+      // period hasn't happened yet, so it can't be counted as completed or
+      // missed. (An open, not-yet-checked period is UPCOMING too: it can still
+      // be checked, so it isn't "missed" until the period ends.)
       if (event.date > today) continue;
       const summary = byRegister.get(event.register_id);
       if (!summary) continue;
@@ -315,13 +317,13 @@ function RegistryPerformancePanel() {
       [`${finalPerformance}%`],
       [],
       ['Detailed Register Records'],
-      ['Register', 'Register No', 'Head', 'Cycle', 'Status', 'Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due', 'Completion %'],
+      // Same columns, in the same order, as the backend export (`reports.py`).
+      ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', 'On time Checked', 'Missed Checking', 'Total Delayed', 'Total Checked', 'Completion%'],
       ...filteredSummaries.map((s) => [
         s.register.name,
         s.register.register_no,
         s.register.head_name,
         CYCLE_LABEL[s.register.checking_cycle],
-        s.register.status,
         s.completed,
         s.missed,
         s.rejected,
@@ -508,28 +510,31 @@ function RegistryPerformancePanel() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[#EFF2F6]">
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Register</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Head</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Cycle</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Recent activity</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completed</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Missed</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Rejected</th>
-                <th className="px-4 py-3 text-left font-medium text-[#5B6E8C]">Completion</th>
+              <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
+                <th className="pl-6 pr-4 py-3 text-left font-semibold">Register Name</th>
+                <th className="px-4 py-3 text-left font-semibold">Register No</th>
+                <th className="px-4 py-3 text-left font-semibold">Head Name</th>
+                <th className="px-4 py-3 text-left font-semibold">Checking Cycle</th>
+                <th className="px-4 py-3 text-left font-semibold">Recent activity</th>
+                <th className="px-4 py-3 text-center font-semibold">On time Checked</th>
+                <th className="px-4 py-3 text-center font-semibold">Missed Checking</th>
+                <th className="px-4 py-3 text-center font-semibold">Total Delayed</th>
+                <th className="px-4 py-3 text-center font-semibold">Total Checked</th>
+                <th className="px-4 py-3 text-center font-semibold">Completion%</th>
               </tr>
             </thead>
             <tbody>
               {filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
+                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
                     No registers match the selected filters.
                   </td>
                 </tr>
               ) : (
                 filteredSummaries.map((s) => (
                   <tr key={s.register.id} className="border-b border-[#EFF2F6]">
-                    <td className="px-4 py-3 font-medium text-[#1E293B]">{s.register.name}</td>
+                    <td className="pl-6 pr-4 py-3 font-medium text-[#1E293B]">{s.register.name}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{s.register.register_no}</td>
                     <td className="px-4 py-3 text-[#5B6E8C]">{s.register.head_name}</td>
                     <td className="px-4 py-3">
                       <Badge variant="blue">{CYCLE_LABEL[s.register.checking_cycle]}</Badge>
@@ -549,11 +554,12 @@ function RegistryPerformancePanel() {
                         <span className="text-xs text-[#C3CCDA]">No activity yet</span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-[#1E293B]">{s.completed}</td>
-                    <td className="px-4 py-3 text-[#1E293B]">{s.missed}</td>
-                    <td className="px-4 py-3 text-[#1E293B]">{s.rejected}</td>
+                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.completed}</td>
+                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.missed}</td>
+                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.rejected}</td>
+                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-center gap-2">
                         <div className="h-2 w-16 rounded-full bg-gray-200">
                           <div
                             className={[

@@ -65,6 +65,23 @@ export interface Register {
    * hasn't started yet (`start_date` is in the future).
    */
   current_due_date: string | null;
+  /**
+   * The register's CURRENT checking period (inclusive, YYYY-MM-DD): the day
+   * for DAILY, Monday–Sunday for WEEKLY, the calendar month for MONTHLY, and
+   * so on for every cycle. `null` until the register's start date arrives.
+   */
+  current_period_start: string | null;
+  current_period_end: string | null;
+  /** A check has already been recorded in the current period. */
+  checked_in_current_period: boolean;
+  /**
+   * Whether "Check Register" is available right now. Decided by the backend
+   * (one check per period), so the button state can't drift from the rule
+   * the API itself enforces.
+   */
+  can_check: boolean;
+  /** Why `can_check` is false (already checked / not started yet). */
+  check_block_reason: string | null;
   last_completed_date?: string | null;
   created_by?: number | null;
   created_by_name?: string | null;
@@ -117,6 +134,9 @@ export interface RegisterCalendarEvent {
   occurrence_id: number | null;
   /** The exact calendar date this occurrence falls on (YYYY-MM-DD). Required, alongside register_id, to update only this one occurrence. */
   occurrence_date: string;
+  /** The checking period this entry represents (inclusive). `date` is its start. */
+  period_start?: string;
+  period_end?: string;
   title: string;
   date: string;
   status: RegisterStatus;
@@ -128,10 +148,15 @@ export interface RegisterCalendarEvent {
 }
 
 export interface RegisterCalendarEntry {
+  /** Start date of the checking period this entry represents. */
   date: string;
   status: RegisterComputedStatus;
   dot_color: RegisterDotColor;
   occurrence_id: number | null;
+  period_start?: string;
+  period_end?: string;
+  /** The period is still running (today falls inside it). */
+  is_open?: boolean;
 }
 
 export interface RegisterCalendarResponse {

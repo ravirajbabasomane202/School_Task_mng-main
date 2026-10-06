@@ -9,7 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.department import Department
-from app.models.register import Register, RegisterOccurrence, fetch_current_cycle_occurrences
+from app.models.register import Register, RegisterOccurrence, fetch_current_cycle_occurrences, fetch_occurrence_maps
 from app.models.report import ReportHistory
 from app.models.task import Task
 from app.models.user import User
@@ -146,6 +146,74 @@ def _get_tasks(
     return query.order_by(Task.due_date.asc(), Task.created_at.desc()).all()
 
 
+CAT_ON_TIME = 'ON_TIME'
+CAT_LATE = 'LATE'
+CAT_PENDING = 'PENDING'
+
+
+def _as_utc_date(value):
+    """Date part of a (naive or aware) datetime, normalised to UTC so that
+    SQLite (naive) and PostgreSQL (aware) values compare the same way."""
+    if value is None:
+        return None
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc)
+    return value.date()
+
+
+def _completion_category(task):
+    """Classify a task into exactly one of: on-time complete, completed after
+    the due date, or pending (not completed).
+
+    - Not COMPLETED                       -> PENDING
+    - COMPLETED, no due date              -> ON_TIME
+    - COMPLETED, completed_at <= due date -> ON_TIME
+    - COMPLETED, completed_at >  due date -> LATE
+    Comparison is by calendar day (due dates are day-level deadlines). A
+    completed task with no completed_at falls back to updated_at, and to
+    ON_TIME if neither is available, so this never raises.
+    """
+    if task.status != 'COMPLETED':
+        return CAT_PENDING
+
+    due = _as_utc_date(task.due_date)
+    if due is None:
+        return CAT_ON_TIME
+
+    done = _as_utc_date(task.completed_at) or _as_utc_date(task.updated_at)
+    if done is None:
+        return CAT_ON_TIME
+
+    return CAT_ON_TIME if done <= due else CAT_LATE
+
+
+def _report_title(assigned_to=None):
+    """Title for the Task Monitor export, driven by the selected Head."""
+    if assigned_to not in (None, '', 'all'):
+        try:
+            head = db.session.get(User, int(assigned_to))
+        except (TypeError, ValueError):
+            head = None
+        if head:
+            label = ROLE_LABELS.get(head.role) or str(head.role or '').replace('_', ' ').title()
+            if label:
+                return f'{label} Task Report'
+    return 'All Heads Task Report'
+
+
+def _period_text(date_from, date_to):
+    def fmt(value):
+        return value.strftime('%d %b %Y')
+
+    if date_from and date_to:
+        return f'Period: {fmt(date_from)} to {fmt(date_to)}'
+    if date_from:
+        return f'Period: from {fmt(date_from)}'
+    if date_to:
+        return f'Period: up to {fmt(date_to)}'
+    return None
+
+
 def _summary(tasks, include_performance=False):
     total = len(tasks)
     completed = sum(1 for task in tasks if task.status == 'COMPLETED')
@@ -154,13 +222,20 @@ def _summary(tasks, include_performance=False):
     in_progress = sum(1 for task in tasks if task.status == 'IN_PROGRESS')
     escalated = sum(1 for task in tasks if task.status == 'ESCALATED')
 
+    categories = [_completion_category(task) for task in tasks]
+
     summary = {
         'total': total,
         'completed': completed,
         'delayed': delayed,
         'pending': pending,
         'inProgress': in_progress,
-        'escalated': escalated
+        'escalated': escalated,
+        # Completion-timing buckets: every task falls in exactly one, so
+        # onTimeComplete + completedAfterDue + notCompleted == total.
+        'onTimeComplete': categories.count(CAT_ON_TIME),
+        'completedAfterDue': categories.count(CAT_LATE),
+        'notCompleted': categories.count(CAT_PENDING)
     }
 
     if include_performance:
@@ -235,7 +310,8 @@ def _task_rows(tasks):
                 'status': task.status,
                 'dueDate': task.due_date.isoformat() if task.due_date else None,
                 'department': task.department.name if task.department else '',
-                'daysOverdue': days_overdue
+                'daysOverdue': days_overdue,
+                'completionCategory': _completion_category(task)
             }
         )
 
@@ -311,16 +387,110 @@ def _performance_report_rows():
     return rows
 
 
-def _generate_performance_pdf(rows):
+# ---------------------------------------------------------------------------
+# Shared report styling (Task Monitor report + Performance report)
+# ---------------------------------------------------------------------------
+BAND_COLOR = '#1E3A5F'      # main heading band
+HEADER_COLOR = '#2E75B6'    # table header row
+ROW_STYLES = {
+    # soft background tint, dark readable text
+    CAT_ON_TIME: {'bg': '#E3F6E8', 'fg': '#14532D', 'label': 'On Time Complete'},
+    CAT_LATE: {'bg': '#FEF3C7', 'fg': '#78350F', 'label': 'Complete After Due Date'},
+    CAT_PENDING: {'bg': '#FDE2E2', 'fg': '#7F1D1D', 'label': 'Pending'},
+}
+TASK_COLUMNS = [
+    'Task', 'Assigned To', 'Priority', 'Status', 'Due Date', 'Department',
+    'On Time Complete', 'Complete After Due Date', 'Pending'
+]
+CATEGORY_COLUMN = {CAT_ON_TIME: 6, CAT_LATE: 7, CAT_PENDING: 8}
+
+# Page margins (points) applied identically on every page of the PDFs.
+PDF_MARGIN_LEFT = 40
+PDF_MARGIN_RIGHT = 40
+PDF_MARGIN_TOP = 36
+PDF_MARGIN_BOTTOM = 54
+
+
+def _draw_page_footer(canvas, doc):
+    canvas.saveState()
+    canvas.setFont('Helvetica', 8)
+    canvas.setFillColor(_hex('#64748B'))
+    canvas.drawRightString(doc.pagesize[0] - PDF_MARGIN_RIGHT, 28, f'Page {doc.page}')
+    canvas.restoreState()
+
+
+def _hex(value):
     from reportlab.lib import colors
+    return colors.HexColor(value)
+
+
+_TICK_FONT_CANDIDATES = [
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/TTF/DejaVuSans-Bold.ttf',
+    'C:/Windows/Fonts/seguisym.ttf',
+    'C:/Windows/Fonts/arialuni.ttf',
+    '/Library/Fonts/Arial Unicode.ttf',
+    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+]
+_tick_markup = None
+
+
+def _pdf_tick_markup():
+    """Markup for the indicator mark in the PDF. Uses a check mark (✔) when a
+    Unicode TrueType font is available on the machine; otherwise falls back to
+    a bold "1" so the PDF never shows a missing-glyph box."""
+    global _tick_markup
+    if _tick_markup is None:
+        _tick_markup = '<b>1</b>'
+        try:
+            from reportlab.pdfbase import pdfmetrics
+            from reportlab.pdfbase.ttfonts import TTFont
+
+            for path in _TICK_FONT_CANDIDATES:
+                if os.path.exists(path):
+                    pdfmetrics.registerFont(TTFont('ReportTick', path))
+                    _tick_markup = '<font name="ReportTick">&#10004;</font>'
+                    break
+        except Exception:  # pragma: no cover - font problems must never break exports
+            _tick_markup = '<b>1</b>'
+    return _tick_markup
+
+
+def _pdf_band(title, width, style_cls):
+    from reportlab.platypus import Paragraph, Table, TableStyle
+    from reportlab.lib.styles import ParagraphStyle
+    from xml.sax.saxutils import escape as xml_escape
+
+    style = ParagraphStyle(
+        'ReportBand', parent=style_cls['Title'], fontName='Helvetica-Bold', fontSize=17,
+        leading=21, textColor=_hex('#FFFFFF'), alignment=0, spaceAfter=0
+    )
+    band = Table([[Paragraph(xml_escape(title), style)]], colWidths=[width], hAlign='LEFT')
+    band.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, -1), _hex(BAND_COLOR)),
+        ('LEFTPADDING', (0, 0), (-1, -1), 14),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 14),
+        ('TOPPADDING', (0, 0), (-1, -1), 11),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 11),
+    ]))
+    return band
+
+
+def _generate_performance_pdf(rows):
     from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=A4,
+        leftMargin=PDF_MARGIN_LEFT, rightMargin=PDF_MARGIN_RIGHT,
+        topMargin=PDF_MARGIN_TOP, bottomMargin=PDF_MARGIN_BOTTOM
+    )
+    usable = A4[0] - PDF_MARGIN_LEFT - PDF_MARGIN_RIGHT - 12  # minus the frame's 6pt padding each side
     styles = getSampleStyleSheet()
-    elements = [Paragraph('Performance Report', styles['Title']), Spacer(1, 12)]
+    elements = [_pdf_band('Performance Report', usable, styles), Spacer(1, 14)]
 
     table_rows = [['Department', 'Date', 'Task Performance', 'Registry Performance', 'Final Performance']]
     for row in rows:
@@ -334,26 +504,33 @@ def _generate_performance_pdf(rows):
             ]
         )
 
-    table = Table(table_rows, hAlign='LEFT', repeatRows=1)
+    col_widths = [usable * 0.24, usable * 0.14, usable * 0.19, usable * 0.23, usable * 0.20]
+    table = Table(table_rows, colWidths=col_widths, hAlign='LEFT', repeatRows=1)
     table.setStyle(
         TableStyle(
             [
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A5F')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                (
-                    'ROWBACKGROUNDS',
-                    (0, 1),
-                    (-1, -1),
-                    [colors.white, colors.HexColor('#F0F4F8')]
-                )
+                ('BACKGROUND', (0, 0), (-1, 0), _hex(HEADER_COLOR)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), _hex('#FFFFFF')),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 8.5),
+                ('FONTSIZE', (0, 1), (-1, -1), 9),
+                ('TEXTCOLOR', (0, 1), (-1, -1), _hex('#1E293B')),
+                ('GRID', (0, 0), (-1, -1), 0.5, _hex('#CBD5E1')),
+                ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+                ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_hex('#FFFFFF'), _hex('#F0F4F8')])
             ]
         )
     )
     elements.append(table)
+    elements.append(Spacer(1, 24))
 
-    doc.build(elements)
+    doc.build(elements, onFirstPage=_draw_page_footer, onLaterPages=_draw_page_footer)
     buffer.seek(0)
     return buffer
 
@@ -367,106 +544,200 @@ def _generate_performance_excel(rows):
             .replace('>', '&gt;')
         )
 
+    th = (
+        f'style="background:{HEADER_COLOR};color:#FFFFFF;font-weight:bold;'
+        'text-align:center;padding:6px 10px;border:1px solid #CBD5E1"'
+    )
+    td_left = 'style="text-align:left;padding:6px 10px;border:1px solid #CBD5E1;color:#1E293B"'
+    td_center = 'style="text-align:center;padding:6px 10px;border:1px solid #CBD5E1;color:#1E293B"'
+    spacer = '<td style="width:24px"></td>'
+
     html_rows = ['<html><head><meta charset="utf-8" /></head><body>']
-    html_rows.append('<h2>Performance Report</h2>')
-    html_rows.append('<table border="1">')
+    html_rows.append('<table border="0" cellspacing="0" cellpadding="0">')
+    html_rows.append(f'<tr>{spacer}<td colspan="5" style="height:12px"></td></tr>')
     html_rows.append(
-        '<tr>'
-        '<th>Department</th><th>Date</th><th>Task Performance</th>'
-        '<th>Registry Performance</th><th>Final Performance</th>'
+        f'<tr>{spacer}<td colspan="5" bgcolor="{BAND_COLOR}" '
+        f'style="background:{BAND_COLOR};color:#FFFFFF;font-size:16pt;font-weight:bold;'
+        'padding:10px 14px">Performance Report</td></tr>'
+    )
+    html_rows.append(f'<tr>{spacer}<td colspan="5" style="height:10px"></td></tr>')
+    html_rows.append(
+        f'<tr>{spacer}'
+        f'<th bgcolor="{HEADER_COLOR}" {th}>Department</th>'
+        f'<th bgcolor="{HEADER_COLOR}" {th}>Date</th>'
+        f'<th bgcolor="{HEADER_COLOR}" {th}>Task Performance</th>'
+        f'<th bgcolor="{HEADER_COLOR}" {th}>Registry Performance</th>'
+        f'<th bgcolor="{HEADER_COLOR}" {th}>Final Performance</th>'
         '</tr>'
     )
 
-    for row in rows:
+    for index, row in enumerate(rows):
+        tint = '#FFFFFF' if index % 2 == 0 else '#F0F4F8'
+        bg = f'bgcolor="{tint}"'
         html_rows.append(
-            '<tr>'
-            f'<td>{escape(row["department"])}</td>'
-            f'<td>{escape(row["date"])}</td>'
-            f'<td>{row["taskPerformance"]}%</td>'
-            f'<td>{row["registryPerformance"]}%</td>'
-            f'<td>{row["finalPerformance"]}%</td>'
+            f'<tr>{spacer}'
+            f'<td {bg} {td_left}>{escape(row["department"])}</td>'
+            f'<td {bg} {td_center}>{escape(row["date"])}</td>'
+            f'<td {bg} {td_center}>{row["taskPerformance"]}%</td>'
+            f'<td {bg} {td_center}>{row["registryPerformance"]}%</td>'
+            f'<td {bg} {td_center}>{row["finalPerformance"]}%</td>'
             '</tr>'
         )
 
+    html_rows.append(f'<tr>{spacer}<td colspan="5" style="height:18px"></td></tr>')
     html_rows.append('</table></body></html>')
     buffer = io.BytesIO(''.join(html_rows).encode('utf-8'))
     buffer.seek(0)
     return buffer
 
 
-def _generate_pdf(title, tasks, summary=None):
-    from reportlab.lib import colors
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.styles import getSampleStyleSheet
+def _generate_pdf(title, tasks, summary=None, period=None):
+    from reportlab.lib.pagesizes import A4, landscape
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
     from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from xml.sax.saxutils import escape as xml_escape
 
+    page = landscape(A4)
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4)
+    doc = SimpleDocTemplate(
+        buffer, pagesize=page,
+        leftMargin=PDF_MARGIN_LEFT, rightMargin=PDF_MARGIN_RIGHT,
+        topMargin=PDF_MARGIN_TOP, bottomMargin=PDF_MARGIN_BOTTOM
+    )
+    usable = page[0] - PDF_MARGIN_LEFT - PDF_MARGIN_RIGHT - 12  # minus the frame's 6pt padding each side
     styles = getSampleStyleSheet()
-    elements = [Paragraph(title, styles['Title']), Spacer(1, 12)]
 
+    elements = [_pdf_band(title, usable, styles)]
+    if period:
+        period_style = ParagraphStyle(
+            'ReportPeriod', parent=styles['Normal'], fontSize=10, leading=13,
+            textColor=_hex('#334155'), leftIndent=2
+        )
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph(xml_escape(period), period_style))
+    elements.append(Spacer(1, 10))
+
+    # Category counts: take them from the summary when provided, otherwise
+    # derive them from the rows, so the totals always match the rows.
+    categories = [_completion_category(task) for task in tasks]
+    counts = {
+        CAT_ON_TIME: categories.count(CAT_ON_TIME),
+        CAT_LATE: categories.count(CAT_LATE),
+        CAT_PENDING: categories.count(CAT_PENDING),
+    }
+
+    cell_style = ParagraphStyle('Cell', parent=styles['Normal'], fontName='Helvetica', fontSize=8, leading=10)
+    head_style = ParagraphStyle(
+        'CellHead', parent=cell_style, fontName='Helvetica-Bold', textColor=_hex('#FFFFFF'), alignment=1
+    )
+
+    # ---- legend -----------------------------------------------------------
+    legend_style = ParagraphStyle('Legend', parent=cell_style, fontSize=8.5, alignment=1)
+    legend_cells = []
+    legend_cmds = [
+        ('GRID', (0, 0), (-1, -1), 0.5, _hex('#CBD5E1')),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+    ]
+    for idx, cat in enumerate((CAT_ON_TIME, CAT_LATE, CAT_PENDING)):
+        meta = ROW_STYLES[cat]
+        cell = ParagraphStyle(f'Legend{idx}', parent=legend_style, textColor=_hex(meta['fg']))
+        label = {
+            CAT_ON_TIME: 'Green = On Time Complete',
+            CAT_LATE: 'Yellow = Complete After Due Date',
+            CAT_PENDING: 'Red = Pending',
+        }[cat]
+        legend_cells.append(Paragraph(f'<b>{label}</b>', cell))
+        legend_cmds.append(('BACKGROUND', (idx, 0), (idx, 0), _hex(meta['bg'])))
+    legend = Table([legend_cells], colWidths=[usable / 3.0] * 3, hAlign='LEFT')
+    legend.setStyle(TableStyle(legend_cmds))
+
+    # ---- summary ----------------------------------------------------------
     if summary:
-        summary_rows = [
-            ['Total', 'Completed', 'Delayed', 'Pending'],
-            [
-                str(summary['total']),
-                str(summary['completed']),
-                str(summary['delayed']),
-                str(summary['pending'])
-            ]
+        summary_header = [
+            'Total', 'Completed', 'Delayed', 'Pending',
+            'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
         ]
-        table = Table(summary_rows, hAlign='LEFT')
-        table.setStyle(
-            TableStyle(
-                [
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E3A5F')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey)
-                ]
-            )
+        summary_values = [
+            str(summary['total']), str(summary['completed']),
+            str(summary['delayed']), str(summary['pending']),
+            str(counts[CAT_ON_TIME]), str(counts[CAT_LATE]), str(counts[CAT_PENDING])
+        ]
+        summary_table = Table(
+            [[Paragraph(h, head_style) for h in summary_header],
+             [Paragraph(f'<b>{v}</b>', ParagraphStyle('SumVal', parent=cell_style, alignment=1, fontSize=10))
+              for v in summary_values]],
+            colWidths=[usable / len(summary_header)] * len(summary_header),
+            hAlign='LEFT'
         )
-        elements.append(table)
-        elements.append(Spacer(1, 12))
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _hex(HEADER_COLOR)),
+            ('BACKGROUND', (4, 1), (4, 1), _hex(ROW_STYLES[CAT_ON_TIME]['bg'])),
+            ('BACKGROUND', (5, 1), (5, 1), _hex(ROW_STYLES[CAT_LATE]['bg'])),
+            ('BACKGROUND', (6, 1), (6, 1), _hex(ROW_STYLES[CAT_PENDING]['bg'])),
+            ('GRID', (0, 0), (-1, -1), 0.5, _hex('#CBD5E1')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        elements.append(summary_table)
+        elements.append(Spacer(1, 10))
 
+    elements.append(legend)
+    elements.append(Spacer(1, 12))
+
+    # ---- task table -------------------------------------------------------
     if tasks:
-        task_rows = [['Task', 'Assigned To', 'Priority', 'Status', 'Due Date', 'Department']]
-        for task in tasks[:100]:
-            task_rows.append(
-                [
-                    task.title[:40],
-                    task.assignee.name if task.assignee else '',
-                    task.priority,
-                    task.status,
-                    task.due_date.strftime('%Y-%m-%d') if task.due_date else '',
-                    task.department.name if task.department else ''
-                ]
-            )
+        left = ParagraphStyle('CellLeft', parent=cell_style, alignment=0)
+        center = ParagraphStyle('CellCenter', parent=cell_style, alignment=1)
+        tick = _pdf_tick_markup()
 
-        table = Table(task_rows, hAlign='LEFT', repeatRows=1)
-        table.setStyle(
-            TableStyle(
-                [
-                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2E75B6')),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-                    ('FONTSIZE', (0, 0), (-1, -1), 8),
-                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                    (
-                        'ROWBACKGROUNDS',
-                        (0, 1),
-                        (-1, -1),
-                        [colors.white, colors.HexColor('#F0F4F8')]
-                    )
-                ]
-            )
-        )
+        data = [[Paragraph(h, head_style) for h in TASK_COLUMNS]]
+        style_cmds = [
+            ('BACKGROUND', (0, 0), (-1, 0), _hex(HEADER_COLOR)),
+            ('GRID', (0, 0), (-1, -1), 0.5, _hex('#CBD5E1')),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]
+
+        for row_index, (task, cat) in enumerate(zip(tasks, categories), start=1):
+            meta = ROW_STYLES[cat]
+            fg = _hex(meta['fg'])
+            l_style = ParagraphStyle(f'L{row_index}', parent=left, textColor=fg)
+            c_style = ParagraphStyle(f'C{row_index}', parent=center, textColor=fg)
+            marks = ['', '', '']
+            marks[CATEGORY_COLUMN[cat] - 6] = tick
+            data.append([
+                Paragraph(xml_escape(task.title or ''), l_style),
+                Paragraph(xml_escape(task.assignee.name if task.assignee else ''), l_style),
+                Paragraph(xml_escape(task.priority or ''), c_style),
+                Paragraph(xml_escape(task.status or ''), c_style),
+                Paragraph(task.due_date.strftime('%Y-%m-%d') if task.due_date else '', c_style),
+                Paragraph(xml_escape(task.department.name if task.department else ''), l_style),
+                Paragraph(marks[0], c_style),
+                Paragraph(marks[1], c_style),
+                Paragraph(marks[2], c_style),
+            ])
+            style_cmds.append(('BACKGROUND', (0, row_index), (-1, row_index), _hex(meta['bg'])))
+
+        widths = [0.22, 0.13, 0.07, 0.10, 0.09, 0.12, 0.09, 0.11, 0.07]
+        table = Table(data, colWidths=[usable * w for w in widths], hAlign='LEFT', repeatRows=1)
+        table.setStyle(TableStyle(style_cmds))
         elements.append(table)
 
-    doc.build(elements)
+    # Empty space after the last row so content never touches the page end.
+    elements.append(Spacer(1, 28))
+
+    doc.build(elements, onFirstPage=_draw_page_footer, onLaterPages=_draw_page_footer)
     buffer.seek(0)
     return buffer
 
 
-def _generate_excel(title, tasks, summary=None):
+def _generate_excel(title, tasks, summary=None, period=None):
     def escape(value):
         return (
             str(value)
@@ -475,42 +746,101 @@ def _generate_excel(title, tasks, summary=None):
             .replace('>', '&gt;')
         )
 
-    rows = ['<html><head><meta charset="utf-8" /></head><body>']
-    rows.append(f'<h2>{escape(title)}</h2>')
-
-    if summary:
-        rows.append('<table border="1">')
-        rows.append('<tr><th>Total</th><th>Completed</th><th>Delayed</th><th>Pending</th></tr>')
-        rows.append(
-            '<tr>'
-            f'<td>{summary["total"]}</td>'
-            f'<td>{summary["completed"]}</td>'
-            f'<td>{summary["delayed"]}</td>'
-            f'<td>{summary["pending"]}</td>'
-            '</tr>'
-        )
-        rows.append('</table><br />')
-
-    rows.append('<table border="1">')
-    rows.append(
-        '<tr>'
-        '<th>Task</th><th>Assigned To</th><th>Priority</th><th>Status</th>'
-        '<th>Due Date</th><th>Department</th>'
-        '</tr>'
+    categories = [_completion_category(task) for task in tasks]
+    counts = {
+        CAT_ON_TIME: categories.count(CAT_ON_TIME),
+        CAT_LATE: categories.count(CAT_LATE),
+        CAT_PENDING: categories.count(CAT_PENDING),
+    }
+    ncols = len(TASK_COLUMNS)
+    spacer = '<td style="width:24px"></td>'
+    cell_base = 'padding:6px 10px;border:1px solid #CBD5E1'
+    th_style = (
+        f'background:{HEADER_COLOR};color:#FFFFFF;font-weight:bold;text-align:center;{cell_base}'
     )
 
-    for task in tasks:
+    def th(label):
+        return f'<th bgcolor="{HEADER_COLOR}" style="{th_style}">{escape(label)}</th>'
+
+    def gap(height=10):
+        return f'<tr>{spacer}<td colspan="{ncols}" style="height:{height}px"></td></tr>'
+
+    rows = ['<html><head><meta charset="utf-8" /></head><body>']
+    rows.append('<table border="0" cellspacing="0" cellpadding="0">')
+    rows.append(gap(12))  # top margin
+    rows.append(
+        f'<tr>{spacer}<td colspan="{ncols}" bgcolor="{BAND_COLOR}" '
+        f'style="background:{BAND_COLOR};color:#FFFFFF;font-size:16pt;font-weight:bold;'
+        f'padding:10px 14px">{escape(title)}</td></tr>'
+    )
+    if period:
         rows.append(
-            '<tr>'
-            f'<td>{escape(task.title)}</td>'
-            f'<td>{escape(task.assignee.name if task.assignee else "")}</td>'
-            f'<td>{escape(task.priority)}</td>'
-            f'<td>{escape(task.status)}</td>'
-            f'<td>{escape(task.due_date.strftime("%Y-%m-%d") if task.due_date else "")}</td>'
-            f'<td>{escape(task.department.name if task.department else "")}</td>'
+            f'<tr>{spacer}<td colspan="{ncols}" style="color:#334155;padding:6px 2px">'
+            f'{escape(period)}</td></tr>'
+        )
+    rows.append(gap())
+
+    # legend
+    legend_label = {
+        CAT_ON_TIME: 'Green = On Time Complete',
+        CAT_LATE: 'Yellow = Complete After Due Date',
+        CAT_PENDING: 'Red = Pending',
+    }
+    legend_cells = ''.join(
+        f'<td bgcolor="{ROW_STYLES[c]["bg"]}" colspan="{span}" style="background:{ROW_STYLES[c]["bg"]};'
+        f'color:{ROW_STYLES[c]["fg"]};font-weight:bold;text-align:center;{cell_base}">{legend_label[c]}</td>'
+        for c, span in ((CAT_ON_TIME, 2), (CAT_LATE, 3), (CAT_PENDING, 2))
+    )
+    rows.append(f'<tr>{spacer}{legend_cells}</tr>')
+    rows.append(gap())
+
+    # summary / totals
+    if summary:
+        labels = [
+            'Total', 'Completed', 'Delayed', 'Pending',
+            'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
+        ]
+        values = [
+            summary['total'], summary['completed'], summary['delayed'], summary['pending'],
+            counts[CAT_ON_TIME], counts[CAT_LATE], counts[CAT_PENDING]
+        ]
+        tints = [None] * 4 + [ROW_STYLES[CAT_ON_TIME], ROW_STYLES[CAT_LATE], ROW_STYLES[CAT_PENDING]]
+        rows.append(f'<tr>{spacer}{"".join(th(label) for label in labels)}</tr>')
+        value_cells = []
+        for value, meta in zip(values, tints):
+            bg = f'bgcolor="{meta["bg"]}" ' if meta else ''
+            extra = f'background:{meta["bg"]};color:{meta["fg"]};' if meta else 'color:#1E293B;'
+            value_cells.append(
+                f'<td {bg}style="{extra}font-weight:bold;text-align:center;{cell_base}">{value}</td>'
+            )
+        rows.append(f'<tr>{spacer}{"".join(value_cells)}</tr>')
+        rows.append(gap())
+
+    # task table
+    rows.append(f'<tr>{spacer}{"".join(th(label) for label in TASK_COLUMNS)}</tr>')
+    for task, cat in zip(tasks, categories):
+        meta = ROW_STYLES[cat]
+        base = f'background:{meta["bg"]};color:{meta["fg"]};{cell_base}'
+        bg = f'bgcolor="{meta["bg"]}"'
+        left = f'<td {bg} style="{base};text-align:left">'
+        center = f'<td {bg} style="{base};text-align:center">'
+        marks = ['', '', '']
+        marks[CATEGORY_COLUMN[cat] - 6] = '&#10004;'
+        rows.append(
+            f'<tr>{spacer}'
+            f'{left}{escape(task.title or "")}</td>'
+            f'{left}{escape(task.assignee.name if task.assignee else "")}</td>'
+            f'{center}{escape(task.priority or "")}</td>'
+            f'{center}{escape(task.status or "")}</td>'
+            f'{center}{escape(task.due_date.strftime("%Y-%m-%d") if task.due_date else "")}</td>'
+            f'{left}{escape(task.department.name if task.department else "")}</td>'
+            f'{center}{marks[0]}</td>'
+            f'{center}{marks[1]}</td>'
+            f'{center}{marks[2]}</td>'
             '</tr>'
         )
 
+    rows.append(gap(18))  # space after the last row
     rows.append('</table></body></html>')
     buffer = io.BytesIO(''.join(rows).encode('utf-8'))
     buffer.seek(0)
@@ -621,8 +951,11 @@ def export_report():
     timestamp = datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S-%f')
     file_stem = f'{report_type.lower()}-{timestamp}'
 
-    pdf_buffer = _generate_pdf(f'{report_type} Report', tasks, summary=payload['summary'])
-    excel_buffer = _generate_excel(f'{report_type} Report', tasks, summary=payload['summary'])
+    report_title = _report_title(assigned_to)
+    period = _period_text(date_from or start_date_from, date_to or due_date_to)
+
+    pdf_buffer = _generate_pdf(report_title, tasks, summary=payload['summary'], period=period)
+    excel_buffer = _generate_excel(report_title, tasks, summary=payload['summary'], period=period)
 
     pdf_abs_path, pdf_rel_path = _save_report_buffer(pdf_buffer, f'{file_stem}.pdf')
     excel_abs_path, excel_rel_path = _save_report_buffer(excel_buffer, f'{file_stem}.xlsx')
@@ -737,16 +1070,7 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
 
     registers = query.all()
 
-    register_ids = [r.id for r in registers]
-    occurrence_maps = {r.id: {} for r in registers}
-    if register_ids:
-        all_occurrences = RegisterOccurrence.query.filter(
-            RegisterOccurrence.register_id.in_(register_ids),
-            RegisterOccurrence.occurrence_date >= date_from,
-            RegisterOccurrence.occurrence_date <= date_to,
-        ).all()
-        for occ in all_occurrences:
-            occurrence_maps[occ.register_id][occ.occurrence_date] = occ
+    occurrence_maps = fetch_occurrence_maps(registers, date_from, date_to)
 
     # Match `register.status` on the Register Monitoring / calendar popup:
     # keyed by each register's OWN current-cycle occurrence date (today for
@@ -916,10 +1240,14 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     writer.writerow([f"{data['finalPerformance']}%"])
     writer.writerow([])
 
+    # Register Report columns. Only the displayed labels changed; the values
+    # underneath are the same counts as before (Completed -> On time Checked,
+    # Missed -> Missed Checking, Rejected -> Total Delayed, Total Due ->
+    # Total Checked). The per-register Status column is intentionally absent.
     writer.writerow(['Detailed Register Records'])
     writer.writerow([
-        'Register', 'Register No', 'Head', 'Cycle', 'Status',
-        'Completed (Changed)', 'Missed (Not Changed)', 'Rejected', 'Total Due', 'Completion %'
+        'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
+        'On time Checked', 'Missed Checking', 'Total Delayed', 'Total Checked', 'Completion%'
     ])
     for s in data['summaries']:
         register = s['register']
@@ -928,7 +1256,6 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
             register.register_no,
             s['headName'],
             register.cycle,
-            s['status'],
             s['completed'],
             s['missed'],
             s['rejected'],

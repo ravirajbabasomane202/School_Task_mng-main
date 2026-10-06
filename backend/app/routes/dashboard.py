@@ -8,7 +8,7 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.models.department import Department
 from app.models.notification import Announcement
-from app.models.register import Register, RegisterOccurrence, CYCLES
+from app.models.register import Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps
 from app.models.task import Task
 from app.models.user import TASK_ASSIGNABLE_ROLES, User
 from app.utils.response import success, error
@@ -311,16 +311,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
     range_start = date_from or (today - timedelta(days=90))
     range_end = date_to or today
 
-    all_register_ids = [register.id for register in all_user_registers]
-    occurrence_maps = {register_id: {} for register_id in all_register_ids}
-    if all_register_ids:
-        range_occurrences = RegisterOccurrence.query.filter(
-            RegisterOccurrence.register_id.in_(all_register_ids),
-            RegisterOccurrence.occurrence_date >= range_start,
-            RegisterOccurrence.occurrence_date <= range_end,
-        ).all()
-        for occ in range_occurrences:
-            occurrence_maps[occ.register_id][occ.occurrence_date] = occ
+    occurrence_maps = fetch_occurrence_maps(all_user_registers, range_start, range_end)
 
     for user in department_users:
         user_tasks = tasks_by_user.get(user.id, [])
