@@ -1,0 +1,175 @@
+export interface ModuleTaskGroup {
+  head: string;
+  tasks: string[];
+}
+
+export const MODULE_TASK_GROUPS: ModuleTaskGroup[] = [
+  {
+    head: 'School Director',
+    tasks: [
+      'Academic PPT Submission (Every Month 1st Tuesday)',
+      'Checking all Academic Registers',
+      'Academic Syllabus Status Reporting (Monthly)',
+      'Create Yearly Academic Plan',
+      'Create Academic Time Table',
+      'Teachers Workload Status',
+      'Event Calendar',
+      'Admission Status',
+      'LC Report',
+      'Parent Grievance Mgt',
+      'Class Observation',
+      'Teachers Recruitment Chart',
+      'Teachers Appraisal',
+      'Exam Mgt',
+      'Competition Mgt',
+      'Campus Visit Status',
+      'MCB (MyClassBoard) Notification Status',
+      'Inspection Status',
+      'Extra Curriculum',
+      'All Committee Status',
+    ],
+  },
+  {
+    head: 'Admin Head',
+    tasks: [
+      'CBSC Affiliation File Status (Yearly)',
+      'School Documents Files Mgt',
+      'Govt Permission Renewal',
+      'Master Policy File Mgt',
+      'Central Register Completion Status (Monthly)',
+      'Vendor Management',
+      'ID Card Distribution Status',
+      'Uniform Distribution Status',
+      'Books Distribution Status',
+      'Fire Safety Report Status',
+      'Lift Safety Report Status',
+    ],
+  },
+  {
+    head: 'Admin Assistance',
+    tasks: [
+      'GR Records Maintenance',
+      'LC Records Maintenance',
+      'UDIS (Student) Records',
+      'Teachers Training Status',
+      'Outword & Inword Mgt',
+      'Bonafide Application File',
+      'Original Docs Return Register',
+      'Service Book Status',
+      'All Staff File Record Keeping',
+    ],
+  },
+  {
+    head: 'Finance Head',
+    tasks: [
+      'Fees Collection Status',
+      'Salary Mgt',
+      'Vendor Payment Mgt',
+      'Vendor Payment Approval',
+      'ITR File (Yearly)',
+      'Professional TAX and TDS Filling Status (Monthly)',
+      'Yearly Budget',
+      'Monthly Income and Expenses Status',
+      'Event & Celebration Expenses',
+      'Property Tax, Light Bill and Water Bill Payment Status',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'Admission Head / Marketing Executive',
+    tasks: [
+      'Admission Status',
+      'Admission Enquiry (Daily)',
+      'School Marketing on Facebook, Instagram and LinkedIn',
+      'Marketing Banner Design',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'HR Head',
+    tasks: [
+      'New Appointment Status',
+      'Training',
+      'PR',
+      'Staff Grievance',
+      'Leave Application Status',
+      'Employee Engagement Program',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'Purchase Head / Jr. Accountant / Store',
+    tasks: [
+      'Student Academic Fee Collection',
+      'Student Transport Fee Collection',
+      'Store Stock Status',
+      'Cheque Deposit Status',
+      'Petty Cash Status',
+      'Stock Issue',
+      'Fees Followup Status',
+      'Petrol / Diesel Expenses',
+      'Purchase Order Status',
+      'Purchase Approval / Requisition Request',
+      'Inventory Mgt',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'Transport Head',
+    tasks: [
+      'Transport Admission Status',
+      'Bus Route Finalisation',
+      'Daily Transport Summary Submission',
+      'Transport Compliance Status',
+      'Individual Vehicle Record',
+      'Vehicle Maintenance',
+      'Vehicle Petrol / Diesel Expenses Demand',
+      'Bus Cleaning Status',
+      'School Bus Record File (With Driver and Mavshi Details)',
+      'Driver and Mavshi Safety Training Status',
+    ],
+  },
+  {
+    head: 'IT Head',
+    tasks: [
+      'Website Maintenance',
+      'MCB (MyClassBoard) Monitoring',
+      'Firewall (Internet) Service Mgt',
+      'School Mail_ID Creation',
+      'All Gadget Mgt (Computer / Desktop, CCTV, Intercom and Mobile)',
+      'Gadget Issue',
+      'IT Related Grievance Records',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'Front Desk / Reception / Jr. Clerk',
+    tasks: [
+      'Guest Welcome',
+      'Visitor Register Mgt',
+      'Student Halfday Register Mgt',
+      'Inword',
+      'Staff Movement Register',
+      'Permission for Child in School Campus',
+      'Early Pickup',
+      'HOD Register',
+    ],
+  },
+  {
+    head: 'HouseKeeping Head',
+    tasks: [
+      'Daily Cleaning Report',
+      'Daily Duty Assignment Report',
+      'HK Material Outword',
+      'Toilet Washroom Cleaning Report',
+      'School Premises (Inside and Outside) Cleaning Report',
+    ],
+  },
+];
+
+export const TASK_TITLE_GROUPS = MODULE_TASK_GROUPS.map((group) => ({
+  group: group.head,
+  titles: group.tasks,
+}));
+
+export const PREDEFINED_TASK_TITLES = MODULE_TASK_GROUPS.flatMap((group) => group.tasks);

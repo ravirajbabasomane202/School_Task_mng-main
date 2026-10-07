@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+venv/
+.venv/
+
+
+
+# Build files
+dist/
+build/
+
+# Database
+*.db
+*.sqlite3
+
+# Uploads
+uploads/tasks/
+uploads/reports/
+
+
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+
+backend/uploads/*
+!backend/uploads/.gitkeepbackend/.env
