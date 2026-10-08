@@ -9,7 +9,8 @@ import Button from '../common/Button';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
 import { getStaffPerformance } from '../../services/dashboardService';
 import { exportPerformanceReportFiltered } from '../../services/reportService';
-import { todayISO } from '../../utils/dateUtils';
+import { schoolTodayISO } from '../../utils/registerUtils';
+import { summarizeRegisterEvents, totalsFromSummaries } from '../../utils/registerPerformance';
 import type { Register, RegisterCycle, RegisterDotColor } from '../../types/register.types';
 
 const CYCLE_LABEL: Record<RegisterCycle, string> = {
@@ -29,6 +30,8 @@ const DOT_CLASS: Record<RegisterDotColor, string> = {
   yellow: 'bg-[#EAB308]',
   red: 'bg-[#EF4444]',
   gray: 'bg-[#E2E8F0]',
+  // Not Checked: hollow red ring, so it can never be mistaken for yellow.
+  missed: 'border-2 border-[#EF4444] bg-transparent box-border',
 };
 
 /** Light, professional color variants for the Task/Register/Final
@@ -77,32 +80,13 @@ function KpiBox({
 }
 
 function daysAgoISO(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().split('T')[0];
-}
-
-interface RegisterSummary {
-  register: Register;
-  completed: number;
-  missed: number;
-  rejected: number;
-  /** Completion-timing buckets: onTime + late + pending === total. */
-  onTime: number;
-  late: number;
-  pending: number;
-  total: number;
-  completionRate: number;
-  /** Chronological dot colors for the last ~30 days, oldest first — this IS
-   * the per-register "activity graph": a daily register shows ~30 dots, a
-   * weekly one shows ~4, a monthly one shows ~1, etc., because each register
-   * only has an occurrence on the days its own Checking Cycle actually falls
-   * due. */
-  strip: { date: string; color: RegisterDotColor }[];
+  // School-local calendar day, `days` before today.
+  const [y, m, d] = schoolTodayISO().split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d - days)).toISOString().split('T')[0];
 }
 
 function RegistryPerformancePanel() {
-  const today = todayISO();
+  const today = schoolTodayISO();
   const defaultRangeStart = daysAgoISO(90);
 
   const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
@@ -151,57 +135,12 @@ function RegistryPerformancePanel() {
     );
   }, [registers]);
 
-  const summaries = useMemo<RegisterSummary[]>(() => {
-    const byRegister = new Map<number, RegisterSummary>();
-    for (const register of registers) {
-      byRegister.set(register.id, {
-        register,
-        completed: 0,
-        missed: 0,
-        rejected: 0,
-        onTime: 0,
-        late: 0,
-        pending: 0,
-        total: 0,
-        completionRate: 0,
-        strip: [],
-      });
-    }
-
-    for (const event of events) {
-      // Only periods that have started count as "activity" — a future/UPCOMING
-      // period hasn't happened yet, so it can't be counted as completed or
-      // missed. (An open, not-yet-checked period is UPCOMING too: it can still
-      // be checked, so it isn't "missed" until the period ends.)
-      if (event.date > today) continue;
-      const summary = byRegister.get(event.register_id);
-      if (!summary) continue;
-
-      summary.strip.push({ date: event.date, color: event.dot_color });
-      if (event.computed_status === 'COMPLETED') {
-        summary.completed += 1;
-        // On time unless the check was recorded after the period's due date
-        // (no due date / no recorded time counts as on time).
-        // checked_at <= due_date -> on time; checked_at > due_date -> after due date.
-        // due_date is the stored scheduled date (falls back to the period end).
-        const done = event.completed_at ? event.completed_at.slice(0, 10) : null;
-        const due = event.due_date ?? event.period_end;
-        if (due && done && done > due) summary.late += 1;
-        else summary.onTime += 1;
-      } else if (event.computed_status === 'FAILED') summary.rejected += 1;
-      else if (event.computed_status === 'PENDING') summary.missed += 1;
-    }
-
-    for (const summary of byRegister.values()) {
-      summary.total = summary.completed + summary.missed + summary.rejected;
-      summary.pending = summary.missed + summary.rejected;
-      summary.completionRate = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
-      // Newest first; only the latest 5 are rendered (see latestEntries).
-      summary.strip.sort((a, b) => b.date.localeCompare(a.date));
-    }
-
-    return Array.from(byRegister.values()).sort((a, b) => a.completionRate - b.completionRate);
-  }, [registers, events, today]);
+  // Counts come from the backend's `check_outcome` (see utils/registerPerformance):
+  // this component never decides on-time / late / not-checked itself.
+  const summaries = useMemo(
+    () => summarizeRegisterEvents(registers, events, { from: dateFrom, to: dateTo }, today),
+    [registers, events, dateFrom, dateTo, today]
+  );
 
   // Apply the Cycle / Head / Status filters — everything below (cards,
   // table, and export) reacts to this SAME filtered set, so the screen and
@@ -221,45 +160,19 @@ function RegistryPerformancePanel() {
   }, [summaries, cycleFilter, headFilter, statusFilter]);
 
   // Task Performance rows, scoped to the same Head filter as the register
-  // data above (matched on name, since the performance API returns each
-  // user's name/role but registers store head_name as free text/derived
-  // from the same user).
+  // data above. Matched by user id only, never by name text. A register whose
+  // head is only a free-text name has no user, so it has no task rows.
   const filteredStaffPerformance = useMemo(() => {
     if (headFilter === 'ALL') return staffPerformance;
-    if (headFilter.startsWith('name:')) {
-      return staffPerformance.filter((row) => row.name === headFilter.slice(5));
-    }
+    if (headFilter.startsWith('name:')) return [];
     return staffPerformance.filter((row) => row.userId === Number(headFilter));
   }, [staffPerformance, headFilter]);
 
-  // Overall performance: how much activity was "changed" (completed on time)
-  // vs "not changed" (missed / never actioned) vs rejected, across every
-  // register that matches the current filter.
-  const overall = useMemo(() => {
-    const totalCompleted = filteredSummaries.reduce((sum, s) => sum + s.completed, 0);
-    const totalMissed = filteredSummaries.reduce((sum, s) => sum + s.missed, 0);
-    const totalRejected = filteredSummaries.reduce((sum, s) => sum + s.rejected, 0);
-    const totalDue = totalCompleted + totalMissed + totalRejected;
-    const completionRate = totalDue ? Math.round((totalCompleted / totalDue) * 100) : 0;
-    return { totalCompleted, totalMissed, totalRejected, totalDue, completionRate };
-  }, [filteredSummaries]);
-
-  // Total Registers KPI (requirement: Total Register / Checked / Not
-  // Checked / Delayed / Performance). A register counts as "Checked" here
-  // if it has at least one completed occurrence within the selected date
-  // range/filters; otherwise it is "Not Checked" — this covers registers
-  // that were never actioned or were rejected. "Delayed" mirrors the Task
-  // side's definition: occurrences whose due date passed without being
-  // actioned (the register-level equivalent of a task auto-flipping to
-  // DELAYED once overdue) — i.e. the same occurrences counted in
-  // `overall.totalMissed` below, just surfaced here as a register KPI too.
-  const registerTotals = useMemo(() => {
-    const totalRegisters = filteredSummaries.length;
-    const checked = filteredSummaries.filter((s) => s.completed > 0).length;
-    const notChecked = totalRegisters - checked;
-    const delayed = filteredSummaries.reduce((sum, s) => sum + s.missed, 0);
-    return { totalRegisters, checked, notChecked, delayed };
-  }, [filteredSummaries]);
+  // Register totals: one unit everywhere -- register checks (periods) due in
+  // the selected range. On Time Checked + Checked After Due Date + Not Checked
+  // + Rejected === Total Estimated Check, in the cards, the table and the export.
+  const registerTotals = useMemo(() => totalsFromSummaries(filteredSummaries), [filteredSummaries]);
+  const overall = { completionRate: registerTotals.completionRate };
 
   // Task Performance KPI (requirement: Total Task / Completed / Not
   // Completed / Delayed / Performance) — aggregated from the same Task
@@ -281,7 +194,7 @@ function RegistryPerformancePanel() {
   // aggregate (currently filtered) level.
   const finalPerformance = useMemo(() => {
     const hasTasks = taskTotals.totalTasks > 0;
-    const hasRegisters = registerTotals.totalRegisters > 0;
+    const hasRegisters = registerTotals.totalChecks > 0;
     if (hasTasks && hasRegisters) {
       return Math.round(taskTotals.taskPerformance * 0.5 + overall.completionRate * 0.5);
     }
@@ -425,15 +338,15 @@ function RegistryPerformancePanel() {
         <KpiBox color="purple" label="Performance" value={`${taskTotals.taskPerformance}%`} />
       </div>
 
-      {/* Register Performance row: Total Register / Checked / Not Checked /
-          Delayed / Performance — mirrors the Task row above, same filters.
-          Delayed/Performance use their own shades (orange/indigo) so this
-          row stays visually distinct from the Task Performance row. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiBox color="cyan" label="Total Register" value={registerTotals.totalRegisters} />
-        <KpiBox color="green" label="Checked" value={registerTotals.checked} />
-        <KpiBox color="yellow" label={L.notChecked} value={registerTotals.notChecked} />
-        <KpiBox color="orange" label={L.delayed} value={registerTotals.delayed} />
+      {/* Register Performance row: every card counts register checks due in the
+          range and uses the shared labels, so the four buckets add up to the
+          Total Estimated Check and match the table columns below. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        <KpiBox color="cyan" label={L.totalEstimatedCheck} value={registerTotals.totalChecks} />
+        <KpiBox color="green" label={L.onTimeChecked} value={registerTotals.onTime} />
+        <KpiBox color="yellow" label={L.checkedAfterDueDate} value={registerTotals.late} />
+        <KpiBox color="red" label={L.notChecked} value={registerTotals.notChecked} />
+        <KpiBox color="orange" label={L.rejected} value={registerTotals.rejected} />
         <KpiBox color="indigo" label="Performance" value={`${overall.completionRate}%`} />
       </div>
 
@@ -463,15 +376,16 @@ function RegistryPerformancePanel() {
                 <th className="px-4 py-3 text-left font-semibold">Recent Activity</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.pending}</th>
-                <th className="px-4 py-3 text-center font-semibold">Total Checked</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.rejected}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.totalEstimatedCheck}</th>
                 <th className="px-4 py-3 text-center font-semibold">Completion%</th>
               </tr>
             </thead>
             <tbody>
               {filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
+                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
                     No registers match the selected filters.
                   </td>
                 </tr>
@@ -506,7 +420,8 @@ function RegistryPerformancePanel() {
                     </td>
                     <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
                     <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
-                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.pending}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.notChecked}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.rejected}</td>
                     <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">

@@ -7,6 +7,8 @@ re-exports the names, so existing imports keep working.
 """
 from datetime import timezone
 
+from app.utils.timezone import to_school_date
+
 CAT_ON_TIME = 'ON_TIME'
 CAT_LATE = 'LATE'
 CAT_PENDING = 'PENDING'
@@ -48,53 +50,70 @@ def task_completion_category(task):
     return CAT_ON_TIME if done <= due else CAT_LATE
 
 
-def register_completion_category(occ_status, period_end, completed_at):
-    """Classify one register checking period into exactly one category.
-
-    `occ_status` is the computed status from `Register.generate_occurrences`:
-    - COMPLETED (check recorded OK)  -> ON_TIME when the check was recorded on
-      or before the period's due date (`period_end`), LATE when after it.
-      A register with no due date, or a completed check with no recorded
-      completion time, is treated as ON_TIME.
-    - anything else that counts as activity (PENDING = missed, FAILED =
-      rejected) -> PENDING (not completed).
-    """
-    if occ_status != 'COMPLETED':
-        return CAT_PENDING
-    due = as_utc_date(period_end)
-    done = as_utc_date(completed_at)
-    if due is None or done is None:
-        return CAT_ON_TIME
-    return CAT_ON_TIME if done <= due else CAT_LATE
-
-
 # ----------------------------------------------------------------------
-# Register check outcome (status rules)
+# Register check outcome (status rules) -- THE one classifier.
 #
 # due_date = the scheduled check date (first day of the checking period);
 # the period's window runs from due_date to window_end (e.g. 5th-11th).
 #
 #   checked_at <= due_date                -> ON_TIME      ("On Time Checked", green)
 #   checked_at >  due_date                -> LATE         ("Checked After Due Date", yellow)
-#   not checked and today > window_end    -> DELAYED      ("Delayed" / "Not Checked")
-#   not checked and today <= window_end   -> UPCOMING     (still can be checked)
+#   rejected check                        -> REJECTED     (red)
+#   not checked and today > window_end    -> DELAYED      ("Not Checked" / "Delayed")
+#   not checked and today <= window_end   -> UPCOMING     (still open, can be checked)
 #
-# Only the stored scheduled `due_date` and the actual `checked_at` are used.
+# Dates are compared as calendar days in the SCHOOL time zone (checked_at is
+# stored in UTC; see utils/timezone.py). A check recorded as OK that has no
+# checked_at (legacy data) is never given an invented date: it counts as On
+# Time Checked and is flagged "date unknown" by the caller.
+#
+# Every consumer (calendar, register list, dashboard performance, reports,
+# CSV/Excel exports, the Performance panel) calls this function or reads the
+# `check_outcome` it produced -- nobody compares dates on their own.
 # ----------------------------------------------------------------------
 CHECK_ON_TIME = 'ON_TIME'
 CHECK_LATE = 'LATE'
 CHECK_DELAYED = 'DELAYED'
 CHECK_UPCOMING = 'UPCOMING'
+CHECK_REJECTED = 'REJECTED'
+
+# Dot colour for each outcome. `missed` is its own marker (a hollow red ring)
+# so it can never be confused with yellow = Checked After Due Date.
+OUTCOME_DOT_COLOR = {
+    CHECK_ON_TIME: 'green',
+    CHECK_LATE: 'yellow',
+    CHECK_REJECTED: 'red',
+    CHECK_DELAYED: 'missed',
+    CHECK_UPCOMING: 'gray',
+}
 
 
-def register_check_outcome(due_date, checked_at, today, window_end=None):
-    due = as_utc_date(due_date)
-    if checked_at is not None:
-        done = as_utc_date(checked_at)
-        if due is None or done <= due:
+def register_check_outcome(due_date, checked_at, today, window_end=None, status=None):
+    """Classify one register checking period. See the rules above.
+
+    `status` is the stored check status ('OK' / 'REJECTED' / 'IDLE'). When
+    omitted it is inferred: a `checked_at` means the register was checked.
+    """
+    status = (status or ('OK' if checked_at is not None else 'IDLE')).upper()
+    if status == 'REJECTED':
+        return CHECK_REJECTED
+    if status == 'OK':
+        due = to_school_date(due_date)
+        done = to_school_date(checked_at)
+        if due is None or done is None:
             return CHECK_ON_TIME
-        return CHECK_LATE
-    end = as_utc_date(window_end) if window_end is not None else due
-    if end is not None and as_utc_date(today) > end:
+        return CHECK_ON_TIME if done <= due else CHECK_LATE
+    end = to_school_date(window_end if window_end is not None else due_date)
+    if end is not None and today is not None and today > end:
         return CHECK_DELAYED
     return CHECK_UPCOMING
+
+
+def register_completion_category(occ_status, period_due, completed_at):
+    """Task-style ON_TIME / LATE / PENDING view of one register period, built on
+    `register_check_outcome` (kept for callers that think in those terms).
+    `occ_status` is the computed status (COMPLETED / FAILED / PENDING / ...)."""
+    if occ_status != 'COMPLETED':
+        return CAT_PENDING
+    outcome = register_check_outcome(period_due, completed_at, None, status='OK')
+    return CAT_ON_TIME if outcome == CHECK_ON_TIME else CAT_LATE

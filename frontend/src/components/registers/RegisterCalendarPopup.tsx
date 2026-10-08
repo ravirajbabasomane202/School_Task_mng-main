@@ -5,9 +5,18 @@ import Modal from '../common/Modal';
 import Button from '../common/Button';
 import Badge from '../common/Badge';
 import { getRegisterCalendarFor, updateOccurrenceStatus } from '../../services/registerService';
-import type { Register, RegisterComputedStatus, RegisterDotColor, RegisterStatus } from '../../types/register.types';
+import type { Register, RegisterCheckOutcome, RegisterComputedStatus, RegisterDotColor, RegisterStatus } from '../../types/register.types';
 import { REGISTER_STATUSES } from '../../types/register.types';
-import { formatPeriod, isInCurrentPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
+import {
+  CHECK_OUTCOME_LABEL,
+  checkTooltip,
+  formatCalendarDay,
+  formatCheckedOn,
+  formatPeriod,
+  isInCurrentPeriod,
+  isRegisterUpdatable,
+} from '../../utils/registerUtils';
+import { MARKER_CLASS, RegisterLegend } from './RegisterMarkers';
 import { formatDate } from '../../utils/dateUtils';
 
 interface RegisterCalendarPopupProps {
@@ -15,20 +24,40 @@ interface RegisterCalendarPopupProps {
   onClose: () => void;
 }
 
-const DOT_CLASS: Record<RegisterDotColor, string> = {
-  green: 'bg-[#22C55E]',
-  yellow: 'bg-[#EAB308]',
-  red: 'bg-[#EF4444]',
-  gray: 'bg-[#CBD5E1]',
+const OUTCOME_BADGE: Record<RegisterCheckOutcome, 'green' | 'amber' | 'red' | 'gray'> = {
+  ON_TIME: 'green',
+  LATE: 'amber',
+  DELAYED: 'red',
+  REJECTED: 'red',
+  UPCOMING: 'gray',
 };
 
-// One dot per checking period, shown on the period's first day.
-const LEGEND: { color: RegisterDotColor; label: string }[] = [
-  { color: 'green', label: 'On Time Checked' },
-  { color: 'yellow', label: 'Checked After Due Date / Missed' },
-  { color: 'red', label: 'Rejected' },
-  { color: 'gray', label: 'Open / Future' },
-];
+interface EntryInfo {
+  dot_color: RegisterDotColor;
+  status: RegisterComputedStatus;
+  period_end?: string;
+  is_open?: boolean;
+  due_date?: string;
+  checked_at?: string | null;
+  checked_at_unknown?: boolean;
+  check_outcome?: RegisterCheckOutcome;
+}
+
+/** Due Date + Checked On, e.g. "Due 5 Oct 2026 / Checked 8 Oct 2026, 10:42 AM". */
+function DueAndChecked({ due, checkedAt, unknown }: { due?: string | null; checkedAt?: string | null; unknown?: boolean }) {
+  return (
+    <dl className="mt-2 grid grid-cols-2 gap-2 text-xs">
+      <div>
+        <dt className="font-semibold text-[#36506C]">Due Date</dt>
+        <dd className="text-[#1E293B]" data-testid="popup-due-date">{formatCalendarDay(due)}</dd>
+      </div>
+      <div>
+        <dt className="font-semibold text-[#36506C]">Checked On</dt>
+        <dd className="text-[#1E293B]" data-testid="popup-checked-on">{formatCheckedOn(checkedAt, unknown)}</dd>
+      </div>
+    </dl>
+  );
+}
 
 const COMPUTED_LABEL: Record<RegisterComputedStatus, string> = {
   COMPLETED: 'Checked',
@@ -101,7 +130,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
   const entriesByDate = useMemo(() => {
     const map = new Map<
       string,
-      { dot_color: RegisterDotColor; status: RegisterComputedStatus; period_end?: string; is_open?: boolean }
+      EntryInfo
     >();
     for (const entry of data?.entries ?? []) {
       map.set(entry.date, {
@@ -109,6 +138,10 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
         status: entry.status as RegisterComputedStatus,
         period_end: entry.period_end,
         is_open: entry.is_open,
+        due_date: entry.due_date,
+        checked_at: entry.checked_at,
+        checked_at_unknown: entry.checked_at_unknown,
+        check_outcome: entry.check_outcome,
       });
     }
     return map;
@@ -240,7 +273,12 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                   >
                     {day.getDate()}
                   </span>
-                  {dot ? <span className={['mt-1 h-2 w-2 rounded-full', DOT_CLASS[dot]].join(' ')} /> : null}
+                  {dot ? (
+                    <span
+                      className={['mt-1 h-2 w-2 rounded-full', MARKER_CLASS[dot]].join(' ')}
+                      title={checkTooltip(entriesByDate.get(key) ?? {})}
+                    />
+                  ) : null}
                 </button>
               );
             })}
@@ -248,14 +286,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
 
           {isLoading ? <p className="text-center text-xs text-[#8A99B0]">Loading…</p> : null}
 
-          <div className="flex flex-wrap justify-center gap-3 border-t border-[#EFF2F6] pt-3 text-xs text-[#5B6E8C]">
-            {LEGEND.map((item) => (
-              <span key={item.color} className="flex items-center gap-1.5">
-                <span className={['h-2.5 w-2.5 rounded-full', DOT_CLASS[item.color]].join(' ')} />
-                {item.label}
-              </span>
-            ))}
-          </div>
+          <RegisterLegend className="border-t border-[#EFF2F6] pt-3" />
 
           {currentPeriodLabel ? (
             <p className="text-center text-xs text-[#5B6E8C]">
@@ -279,8 +310,13 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                       {registerUpdatability.updatable ? 'Not Checked Yet' : COMPUTED_LABEL[liveRegister.computed_status]}
                     </Badge>
                   </div>
+                  <DueAndChecked
+                    due={liveRegister.current_due_date}
+                    checkedAt={liveRegister.current_checked_at}
+                    unknown={liveRegister.current_checked_at_unknown}
+                  />
                   {registerUpdatability.updatable ? (
-                    <div className="space-y-2">
+                    <div className="mt-2 space-y-2">
                       <label className="flex flex-col gap-1.5">
                         <span className="text-[11px] font-medium text-[#36506C]">Result of this check</span>
                         <select
@@ -329,12 +365,25 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                         ? `${formatDate(selectedDate)} – ${formatDate(selectedEntry.period_end)}`
                         : formatDate(selectedDate)}
                     </span>
-                    <Badge variant={COMPUTED_BADGE[selectedEntry.status]}>
-                      {selectedEntry.is_open && selectedEntry.status === 'UPCOMING'
-                        ? 'Open'
-                        : COMPUTED_LABEL[selectedEntry.status]}
+                    <Badge
+                      variant={
+                        selectedEntry.check_outcome
+                          ? OUTCOME_BADGE[selectedEntry.check_outcome]
+                          : COMPUTED_BADGE[selectedEntry.status]
+                      }
+                    >
+                      {selectedEntry.check_outcome
+                        ? CHECK_OUTCOME_LABEL[selectedEntry.check_outcome]
+                        : selectedEntry.is_open && selectedEntry.status === 'UPCOMING'
+                          ? 'Open'
+                          : COMPUTED_LABEL[selectedEntry.status]}
                     </Badge>
                   </div>
+                  <DueAndChecked
+                    due={selectedEntry.due_date ?? selectedDate}
+                    checkedAt={selectedEntry.checked_at}
+                    unknown={selectedEntry.checked_at_unknown}
+                  />
                   <p className="text-xs text-[#8A99B0]">
                     This period is read-only — only the current checking period can be checked.
                   </p>

@@ -30,6 +30,9 @@ class Config:
     SCHOOL_NAME = os.environ.get('SCHOOL_NAME', 'Adhira International School')
     CHAIRMAN_NAME = os.environ.get('CHAIRMAN_NAME', 'Navnath Dhawale')
     APP_NAME = os.environ.get('APP_NAME', 'EduTask Pro')
+    # The school's own time zone (IANA name). Register due dates are calendar days
+    # here; check times are stored in UTC and converted to it before comparing.
+    SCHOOL_TIMEZONE = os.environ.get('SCHOOL_TIMEZONE', 'Asia/Kolkata')
 
 
 class DevelopmentConfig(Config):

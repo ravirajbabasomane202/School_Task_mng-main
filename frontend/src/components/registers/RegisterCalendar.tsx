@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import type { RegisterCalendarEvent, RegisterDotColor } from '../../types/register.types';
+import type { RegisterCalendarEvent } from '../../types/register.types';
+import { checkTooltip } from '../../utils/registerUtils';
+import { MARKER_CLASS, RegisterLegend } from './RegisterMarkers';
 
 interface RegisterCalendarProps {
   events: RegisterCalendarEvent[];
@@ -10,15 +12,8 @@ interface RegisterCalendarProps {
 
 type ViewMode = 'week' | 'month';
 
-// Colored dots only (Section 5 of the spec) — Completed / Pending / Missed / Future.
-// No status text is ever rendered inside a calendar cell; a native title attribute
-// still gives an accessible/hover-only label.
-const COLOR_DOT: Record<RegisterDotColor, string> = {
-  gray: 'bg-[#94A3B8]',
-  green: 'bg-[#22C55E]',
-  yellow: 'bg-[#EAB308]',
-  red: 'bg-[#EF4444]',
-};
+// Colored dots only. Each colour has ONE meaning (see RegisterMarkers / the legend
+// under the grid). The hover title gives the exact due and check dates.
 
 function startOfWeek(d: Date): Date {
   const date = new Date(d);
@@ -45,6 +40,11 @@ function addDays(d: Date, n: number): Date {
   const next = new Date(d);
   next.setDate(next.getDate() + n);
   return next;
+}
+
+function markerTitle(event: RegisterCalendarEvent): string {
+  const tip = checkTooltip(event);
+  return tip ? `${event.title}\n${tip}` : event.title;
 }
 
 function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalendarProps) {
@@ -190,10 +190,10 @@ function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalen
                     type="button"
                     onClick={() => onEventClick?.(event)}
                     className="flex h-3 w-3 items-center justify-center rounded-full transition hover:scale-125"
-                    title={event.title}
-                    aria-label={event.title}
+                    title={markerTitle(event)}
+                    aria-label={markerTitle(event)}
                   >
-                    <span className={['h-2.5 w-2.5 rounded-full', COLOR_DOT[event.dot_color]].join(' ')} />
+                    <span className={['h-2.5 w-2.5 rounded-full', MARKER_CLASS[event.dot_color]].join(' ')} />
                   </button>
                 ))}
               </div>
@@ -201,6 +201,7 @@ function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalen
           );
         })}
       </div>
+      <RegisterLegend className="border-t border-[#EFF2F6] pt-3" />
     </div>
   );
 }

@@ -24,6 +24,7 @@ from app.models.register import (
 )
 from app.models.role import sync_roles
 from app.models.user import User
+from app.utils.timezone import iso_utc, school_now, school_today
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
 
@@ -31,9 +32,16 @@ registers_bp = Blueprint('registers', __name__)
 
 
 def _today():
-    """The date used to decide which checking period is current. One place,
-    so every register endpoint agrees (and tests can pin it)."""
-    return date.today()
+    """The date used to decide which checking period is current: today in the
+    SCHOOL time zone (not the server's local date, not UTC). One place, so
+    every register endpoint agrees (and tests can pin it)."""
+    return school_today()
+
+
+def _now():
+    """The moment a check is recorded (timezone-aware UTC). One place so tests
+    can pin it; it is converted to school time before any date comparison."""
+    return school_now()
 
 REGISTER_MANAGER_ROLES = ('CHAIRMAN',)
 # Roles that can VIEW every register (school-wide), even though they cannot
@@ -255,8 +263,11 @@ def calendar_events():
                 'period_start': occ['period_start'].isoformat(),
                 'period_end': occ['period_end'].isoformat(),
                 'due_date': occ['due_date'].isoformat(),
-                'checked_at': occ['completed_at'].isoformat() if occ.get('completed_at') else None,
-                'completed_at': occ['completed_at'].isoformat() if occ.get('completed_at') else None,
+                'checked_at': iso_utc(occ['completed_at']),
+                'completed_at': iso_utc(occ['completed_at']),
+                'checked_at_unknown': occ['checked_at_unknown'],
+                'check_outcome': occ['check_outcome'],
+                'check_timing': occ['check_timing'],
                 'title': f'{r.name} ({r.register_no})',
                 'date': occ_date.isoformat(),
                 'status': r.status,
@@ -462,7 +473,7 @@ def _record_period_check(register, new_status, user_id, today, requested_date=No
     occurrence.status = new_status
     occurrence.completed_by = user_id
     # The actual check time goes in its own field ...
-    occurrence.completed_at = datetime.now(timezone.utc)
+    occurrence.completed_at = _now()
     # ... and the scheduled due date is written once and never replaced by it.
     if occurrence.due_date is None:
         occurrence.due_date = scheduled_due_date(register.cycle, p_start)
@@ -548,7 +559,7 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
         return error(exc.message, exc.status_code)
 
     return success({
-        'occurrence': occurrence.to_dict(),
+        'occurrence': occurrence.to_dict(today=today),
         'register': register.to_dict(today=today, occurrence=occurrence),
     }, 'Register checked successfully')
 
@@ -629,6 +640,11 @@ def register_calendar(register_id: int):
             'period_start': occ['period_start'].isoformat(),
             'period_end': occ['period_end'].isoformat(),
             'is_open': occ['is_open'],
+            'due_date': occ['due_date'].isoformat(),
+            'checked_at': iso_utc(occ['completed_at']),
+            'checked_at_unknown': occ['checked_at_unknown'],
+            'check_outcome': occ['check_outcome'],
+            'check_timing': occ['check_timing'],
         }
         for occ in register.generate_occurrences(range_start, range_end, today)
     ]

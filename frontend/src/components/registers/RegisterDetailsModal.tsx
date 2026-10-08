@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import Modal from '../common/Modal';
 import Badge from '../common/Badge';
 import { formatDate } from '../../utils/dateUtils';
+import { CHECK_OUTCOME_LABEL, formatCalendarDay, formatCheckedOn } from '../../utils/registerUtils';
 import type { Register } from '../../types/register.types';
 
 interface RegisterDetailsModalProps {
@@ -45,6 +46,14 @@ function RegisterDetailsModal({ register, onClose }: RegisterDetailsModalProps) 
           <Row label="Checking Cycle" value={CYCLE_LABEL[register.checking_cycle]} />
           <Row label="Priority" value={register.priority} />
           <Row label="Start Date" value={formatDate(register.start_date)} />
+          <Row label="Due Date" value={formatCalendarDay(register.current_due_date)} />
+          <Row
+            label="Checked On"
+            value={formatCheckedOn(register.current_checked_at, register.current_checked_at_unknown)}
+          />
+          {register.current_check_outcome && register.current_check_outcome !== 'UPCOMING' ? (
+            <Row label="Check Result" value={CHECK_OUTCOME_LABEL[register.current_check_outcome]} />
+          ) : null}
           <Row label="Next Due Date" value={formatDate(register.next_due_date)} />
           <Row label="Status" value={<Badge variant={STATUS_BADGE[register.status]}>{register.status}</Badge>} />
         </div>

@@ -8,7 +8,10 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.models.department import Department
 from app.models.notification import Announcement
-from app.models.register import Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps
+from app.models.register import (
+    Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps, summarize_register_periods,
+)
+from app.utils.timezone import school_today
 from app.models.task import Task
 from app.models.role import sync_roles
 from app.models.user import User
@@ -261,7 +264,7 @@ def _parse_date(value):
         return None
 
 
-def _staff_performance_rows(date_from=None, date_to=None):
+def _staff_performance_rows(date_from=None, date_to=None, today=None):
     """Per-user Task/Register/Overall performance rows.
 
     Shared by the `/dashboard/performance` route AND the Performance-screen
@@ -326,7 +329,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
     # current point-in-time `computed_status()`. A register's status is
     # almost never left sitting on `OK` (`COMPLETED`) between cycles, so the
     # old status-based tally was ~always 0% regardless of real activity.
-    today = datetime.now(timezone.utc).date()
+    today = today or school_today()
     range_start = date_from or (today - timedelta(days=90))
     range_end = date_to or today
 
@@ -365,29 +368,22 @@ def _staff_performance_rows(date_from=None, date_to=None):
             key=lambda cycle: cycle_rank.get(cycle, len(CYCLES))
         )
 
-        completed_registers = missed_registers = rejected_registers = 0
-        on_time_registers = late_registers = 0
+        # One shared summariser (models/register.summarize_register_periods):
+        # periods belong to the range by due_date, each lands in exactly one
+        # bucket, and on-time + after-due + not-checked + rejected == checks due.
+        on_time_registers = late_registers = missed_registers = rejected_registers = 0
         for register in user_registers:
-            for occ in register.generate_occurrences(
-                range_start, range_end, today, occurrence_map=occurrence_maps[register.id]
-            ):
-                if occ['date'] > today:
-                    continue
-                if occ['status'] == 'COMPLETED':
-                    completed_registers += 1
-                    if register_completion_category(
-                        occ['status'], occ['due_date'], occ.get('completed_at')
-                    ) == CAT_LATE:
-                        late_registers += 1
-                    else:
-                        on_time_registers += 1
-                elif occ['status'] == 'FAILED':
-                    rejected_registers += 1
-                elif occ['status'] == 'PENDING':
-                    missed_registers += 1
+            counts = summarize_register_periods(
+                register, range_start, range_end, today, occurrence_map=occurrence_maps[register.id]
+            )
+            on_time_registers += counts['on_time']
+            late_registers += counts['late']
+            missed_registers += counts['not_checked']
+            rejected_registers += counts['rejected']
 
+        completed_registers = on_time_registers + late_registers
         registers_due = completed_registers + missed_registers + rejected_registers
-        # Not completed = missed + rejected (the three buckets sum to registers_due).
+        # Not completed = not checked + rejected (kept for the existing field).
         pending_registers = missed_registers + rejected_registers
         register_performance = (
             round((completed_registers / registers_due) * 100) if registers_due else 0
@@ -420,6 +416,12 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 'onTimeCompleteRegisters': on_time_registers,
                 'completedAfterDueRegisters': late_registers,
                 'pendingRegisters': pending_registers,
+                # New, unambiguous fields: every one is a count of register
+                # checks (periods) due in the range, so they add up:
+                # onTimeCompleteRegisters + completedAfterDueRegisters
+                #   + notCheckedRegisters + rejectedRegisters == registerChecksDue
+                'notCheckedRegisters': missed_registers,
+                'registerChecksDue': registers_due,
                 'missedRegisters': missed_registers,
                 'rejectedRegisters': rejected_registers,
                 'registerPerformance': register_performance,

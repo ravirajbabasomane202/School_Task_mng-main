@@ -64,6 +64,10 @@ export interface RoleRow {
   onTimeCompleteRegisters: number;
   completedAfterDueRegisters: number;
   pendingRegisters: number;
+  notCheckedRegisters: number;
+  rejectedRegisters: number;
+  /** onTime + afterDue + notChecked + rejected */
+  registerChecksDue: number;
   registerPerformance: number;
   overallPerformance: number;
 }
@@ -90,13 +94,16 @@ export function aggregateByRole(rows: StaffPerformance[], roles: RoleOption[] = 
     const delayedTasks = sum(list, (r) => r.delayedTasks);
     const onTimeReg = sum(list, (r) => r.onTimeCompleteRegisters);
     const lateReg = sum(list, (r) => r.completedAfterDueRegisters);
-    const pendingReg = sum(list, (r) => r.pendingRegisters);
+    const notCheckedReg = sum(list, (r) => r.notCheckedRegisters ?? r.missedRegisters);
+    const rejectedReg = sum(list, (r) => r.rejectedRegisters);
+    const pendingReg = notCheckedReg + rejectedReg;
+    const checksDue = onTimeReg + lateReg + pendingReg;
     const totalRegisters = sum(list, (r) => r.totalRegisters);
     const delayRate = pct(delayedTasks, totalTasks);
     const performanceScore = totalTasks
       ? Math.round((completedTasks / totalTasks) * 100 * (1 - delayRate / 100))
       : 0;
-    const registerPerformance = pct(onTimeReg + lateReg, onTimeReg + lateReg + pendingReg);
+    const registerPerformance = pct(onTimeReg + lateReg, checksDue);
     const overallPerformance =
       totalTasks && totalRegisters
         ? Math.round((performanceScore + registerPerformance) / 2)
@@ -124,6 +131,9 @@ export function aggregateByRole(rows: StaffPerformance[], roles: RoleOption[] = 
       onTimeCompleteRegisters: onTimeReg,
       completedAfterDueRegisters: lateReg,
       pendingRegisters: pendingReg,
+      notCheckedRegisters: notCheckedReg,
+      rejectedRegisters: rejectedReg,
+      registerChecksDue: checksDue,
       registerPerformance,
       overallPerformance,
     };

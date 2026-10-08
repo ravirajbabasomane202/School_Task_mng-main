@@ -33,13 +33,14 @@ def _pin(monkeypatch, day):
 
 def test_on_time_check():
     due = D(2026, 10, 5)
-    assert register_check_outcome(due, datetime(2026, 10, 5, 23, 0), D(2026, 10, 20), D(2026, 10, 11)) == CHECK_ON_TIME
-    assert register_check_outcome(due, datetime(2026, 10, 2, 9, 0), D(2026, 10, 20), D(2026, 10, 11)) == CHECK_ON_TIME
+    ist = timezone(timedelta(hours=5, minutes=30))  # dates are compared in school time
+    assert register_check_outcome(due, datetime(2026, 10, 5, 23, 0, tzinfo=ist), D(2026, 10, 20), D(2026, 10, 11)) == CHECK_ON_TIME
+    assert register_check_outcome(due, datetime(2026, 10, 2, 9, 0, tzinfo=ist), D(2026, 10, 20), D(2026, 10, 11)) == CHECK_ON_TIME
 
 
 def test_late_check():
     due = D(2026, 10, 5)
-    assert register_check_outcome(due, datetime(2026, 10, 8, 10, 0), D(2026, 10, 8), D(2026, 10, 11)) == CHECK_LATE
+    assert register_check_outcome(due, datetime(2026, 10, 8, 10, 0, tzinfo=timezone.utc), D(2026, 10, 8), D(2026, 10, 11)) == CHECK_LATE
 
 
 def test_never_checked():

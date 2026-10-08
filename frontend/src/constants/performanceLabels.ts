@@ -11,6 +11,7 @@ export const PERFORMANCE_LABELS = {
   checkedAfterDueDate: 'Checked After Due Date',
   notChecked: 'Not Checked',
   delayed: 'Delayed',
+  rejected: 'Rejected',
   pending: 'Pending',
   inProgress: 'In Progress',
   escalated: 'Escalated',

@@ -69,8 +69,9 @@ function PerformanceAnalytics() {
   const totalCompleted = sum((r) => r.completedTasks);
   const totalOnTimeChecked = sum((r) => r.onTimeCompleteRegisters);
   const totalCheckedAfterDue = sum((r) => r.completedAfterDueRegisters);
-  const totalNotChecked = sum((r) => r.pendingRegisters);
-  const totalDelayed = sum((r) => r.delayedTasks);
+  const totalNotChecked = sum((r) => r.notCheckedRegisters);
+  const totalRejected = sum((r) => r.rejectedRegisters);
+  const totalChecksDue = sum((r) => r.registerChecksDue);
   const schoolAverage = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
   const topPerformer = [...roleRows].sort(
     (left, right) => right.overallPerformance - left.overallPerformance
@@ -123,20 +124,27 @@ function PerformanceAnalytics() {
         </div>
       </div>
 
-      {/* Summary cards use the SAME label constants and the SAME totals as the
-          table columns, so a card and its column always match. */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {[
-          { label: L.onTimeChecked, value: totalOnTimeChecked, cls: CATEGORY_CELL.onTime },
-          { label: L.checkedAfterDueDate, value: totalCheckedAfterDue, cls: CATEGORY_CELL.late },
-          { label: L.notChecked, value: totalNotChecked, cls: CATEGORY_CELL.pending },
-          { label: L.delayed, value: totalDelayed, cls: CATEGORY_CELL.pending }
-        ].map((card) => (
-          <div key={card.label} className={`rounded-[16px] p-4 ${card.cls}`}>
-            <h3 className="text-sm font-semibold">{card.label}</h3>
-            <p className="mt-2 text-2xl font-semibold">{card.value}</p>
-          </div>
-        ))}
+      {/* Register check summary. Every card counts register checks (periods) due in
+          the selected range and uses the SAME label constants and totals as the
+          Register Performance table columns, so a card and its column always
+          match and On Time Checked + Checked After Due Date + Not Checked +
+          Rejected = Total Estimated Check. */}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold text-[#1E293B]">Register Checks</h2>
+        <div className="grid gap-4 md:grid-cols-5">
+          {[
+            { label: L.onTimeChecked, value: totalOnTimeChecked, cls: CATEGORY_CELL.onTime },
+            { label: L.checkedAfterDueDate, value: totalCheckedAfterDue, cls: CATEGORY_CELL.late },
+            { label: L.notChecked, value: totalNotChecked, cls: CATEGORY_CELL.pending },
+            { label: L.rejected, value: totalRejected, cls: CATEGORY_CELL.pending },
+            { label: L.totalEstimatedCheck, value: totalChecksDue, cls: 'bg-[#E0F2FE] text-[#0C4A6E]' }
+          ].map((card) => (
+            <div key={card.label} className={`rounded-[16px] p-4 ${card.cls}`}>
+              <h3 className="text-sm font-semibold">{card.label}</h3>
+              <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Task performance — its own table, separate from Register
@@ -222,7 +230,10 @@ function PerformanceAnalytics() {
                   {L.checkedAfterDueDate}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  {L.pending}
+                  {L.notChecked}
+                </th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
+                  {L.rejected}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
                   {L.totalEstimatedCheck}
@@ -245,10 +256,9 @@ function PerformanceAnalytics() {
                   </td>
                   <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{user.onTimeCompleteRegisters}</td>
                   <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{user.completedAfterDueRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.pendingRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>
-                    {user.onTimeCompleteRegisters + user.completedAfterDueRegisters + user.pendingRegisters}
-                  </td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.notCheckedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.rejectedRegisters}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.registerChecksDue}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

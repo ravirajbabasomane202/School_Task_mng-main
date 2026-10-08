@@ -6,11 +6,18 @@ export type RegisterStatus = 'IDLE' | 'OK' | 'REJECTED';
 // COMPLETED (on time), PENDING (due date passed, no record), FAILED (rejected),
 // UPCOMING (future scheduled date).
 export type RegisterComputedStatus = 'COMPLETED' | 'PENDING' | 'FAILED' | 'UPCOMING';
-export type RegisterDotColor = 'green' | 'yellow' | 'red' | 'gray';
+// One meaning per colour:
+//   green  = On Time Checked          yellow = Checked After Due Date
+//   red    = Rejected                 missed = Not Checked (period ended unchecked, hollow red ring)
+//   gray   = still open / not started
+export type RegisterDotColor = 'green' | 'yellow' | 'red' | 'gray' | 'missed';
+
+/** The backend's single classification of one register period. */
+export type RegisterCheckOutcome = 'ON_TIME' | 'LATE' | 'DELAYED' | 'UPCOMING' | 'REJECTED';
 
 export const STATUS_DOT_COLOR: Record<RegisterComputedStatus, RegisterDotColor> = {
   COMPLETED: 'green',
-  PENDING: 'yellow',
+  PENDING: 'missed',
   FAILED: 'red',
   UPCOMING: 'gray',
 };
@@ -65,6 +72,13 @@ export interface Register {
    * hasn't started yet (`start_date` is in the future).
    */
   current_due_date: string | null;
+  /** When the current period was ACTUALLY checked (ISO, UTC), or null. Never replaces the due date. */
+  current_checked_at?: string | null;
+  /** Checked OK but no check time was ever recorded (legacy data). */
+  current_checked_at_unknown?: boolean;
+  /** Backend classification of the current period (On Time / After Due Date / ...). */
+  current_check_outcome?: RegisterCheckOutcome | null;
+  current_check_timing?: 'ON_TIME' | 'LATE' | null;
   /**
    * The register's CURRENT checking period (inclusive, YYYY-MM-DD): the day
    * for DAILY, Monday–Sunday for WEEKLY, the calendar month for MONTHLY, and
@@ -143,6 +157,10 @@ export interface RegisterCalendarEvent {
   due_date?: string;
   /** Actual check time (same value as completed_at). */
   checked_at?: string | null;
+  checked_at_unknown?: boolean;
+  /** Backend classification: the ONLY source for on-time / late / not-checked. */
+  check_outcome?: RegisterCheckOutcome;
+  check_timing?: 'ON_TIME' | 'LATE' | null;
   /** When the check was recorded (ISO), or null if unchecked. */
   completed_at?: string | null;
   title: string;
@@ -165,6 +183,11 @@ export interface RegisterCalendarEntry {
   period_end?: string;
   /** The period is still running (today falls inside it). */
   is_open?: boolean;
+  due_date?: string;
+  checked_at?: string | null;
+  checked_at_unknown?: boolean;
+  check_outcome?: RegisterCheckOutcome;
+  check_timing?: 'ON_TIME' | 'LATE' | null;
 }
 
 export interface RegisterCalendarResponse {

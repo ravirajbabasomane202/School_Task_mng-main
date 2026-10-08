@@ -10,7 +10,14 @@ import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPo
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
 import { downloadCsv } from '../../utils/fileDownload';
-import { currentCycleOccurrenceDate, formatPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
+import {
+  CHECK_OUTCOME_LABEL,
+  currentCycleOccurrenceDate,
+  formatCalendarDay,
+  formatCheckedOn,
+  formatPeriod,
+  isRegisterUpdatable,
+} from '../../utils/registerUtils';
 import {
   deleteRegister,
   getRegisterHeads,
@@ -251,7 +258,10 @@ function RegisterMonitoring() {
   // Staff Performance page that produced a second, disconnected download.
   const handleExport = () => {
     const rows: (string | number | null | undefined)[][] = [
-      ['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Status', 'Next Due Date', 'Last Completed'],
+      [
+        'Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Status',
+        'Due Date', 'Checked On', 'Check Result', 'Next Due Date', 'Last Completed',
+      ],
       ...registers.map((r) => [
         r.name,
         r.register_no,
@@ -259,6 +269,11 @@ function RegisterMonitoring() {
         CYCLE_LABEL[r.checking_cycle],
         r.priority,
         r.status,
+        r.current_due_date ?? '',
+        r.current_checked_at || r.current_checked_at_unknown
+          ? formatCheckedOn(r.current_checked_at, r.current_checked_at_unknown)
+          : '',
+        r.current_check_outcome ? CHECK_OUTCOME_LABEL[r.current_check_outcome] : '',
         r.next_due_date,
         r.last_completed_date ?? '',
       ]),
@@ -383,6 +398,8 @@ function RegisterMonitoring() {
                   'Checking Cycle',
                   'Priority',
                   'Start Date',
+                  'Due Date',
+                  'Checked On',
                   'Status',
                   'Actions',
                 ].map((h) => (
@@ -411,6 +428,15 @@ function RegisterMonitoring() {
                     <Badge variant={PRIORITY_BADGE[r.priority]}>{r.priority}</Badge>
                   </td>
                   <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.start_date)}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]" data-testid={`due-date-${r.id}`}>
+                    {formatCalendarDay(r.current_due_date)}
+                  </td>
+                  <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]" data-testid={`checked-on-${r.id}`}>
+                    <div>{formatCheckedOn(r.current_checked_at, r.current_checked_at_unknown)}</div>
+                    {r.current_check_outcome === 'LATE' ? (
+                      <Badge variant="amber">{CHECK_OUTCOME_LABEL.LATE}</Badge>
+                    ) : null}
+                  </td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_BADGE[r.status]}>{r.status}</Badge>
                   </td>
@@ -572,6 +598,12 @@ function RegisterMonitoring() {
                 </>
               ) : null}
               . It can only be checked once in this period; earlier and later periods are not affected.
+            </p>
+            <p className="text-sm text-[#5B6E8C]">
+              <span className="font-semibold text-[#1E293B]">Due Date:</span>{' '}
+              {formatCalendarDay(occurrenceTarget.register.current_due_date)}
+              {' · '}
+              Checking now is recorded as the actual Checked On time; the Due Date is never changed.
             </p>
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-medium text-[#36506C]">Status</span>

@@ -64,8 +64,9 @@ def test_register_category_rules():
     from app.utils.completion import register_completion_category as cat
 
     due = date(2026, 1, 10)
-    assert cat('COMPLETED', due, datetime(2026, 1, 10, 23, 0)) == 'ON_TIME'
-    assert cat('COMPLETED', due, datetime(2026, 1, 11, 1, 0)) == 'LATE'
+    ist = timezone(timedelta(hours=5, minutes=30))   # the school's time zone
+    assert cat('COMPLETED', due, datetime(2026, 1, 10, 23, 0, tzinfo=ist)) == 'ON_TIME'
+    assert cat('COMPLETED', due, datetime(2026, 1, 11, 1, 0, tzinfo=ist)) == 'LATE'
     assert cat('COMPLETED', None, datetime(2026, 1, 11)) == 'ON_TIME'   # no due date
     assert cat('COMPLETED', due, None) == 'ON_TIME'                     # no completion time
     assert cat('PENDING', due, None) == 'PENDING'                       # missed
@@ -112,7 +113,7 @@ def test_performance_excel_export(app, client, auth_headers):
     _register(app, uid, 'Excel Register')
 
     resp = client.get('/api/reports/performance/export', headers=auth_headers['chairman'],
-                      query_string={'format': 'excel', 'head': name,
+                      query_string={'format': 'excel', 'head': str(uid),
                                     'date_from': (date.today() - timedelta(days=30)).isoformat(),
                                     'date_to': date.today().isoformat()})
     assert resp.status_code == 200
@@ -131,7 +132,7 @@ def test_performance_excel_export(app, client, auth_headers):
     assert 'Green = On Time Checked' in body and 'Red = Pending' in body
     assert body.count('>Total<') == 3                                  # totals row per table
     assert name in body or 'All heads' not in body                     # head filter reflected
-    assert f'Head: {name}' in body
+    assert f'Head: {name}' in body  # id in the request, name shown in the header
 
 
 def test_performance_export_requires_auth_excel(client):
