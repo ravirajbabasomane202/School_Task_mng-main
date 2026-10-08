@@ -2,6 +2,7 @@ import calendar
 from datetime import datetime, timedelta, timezone
 
 from app.extensions import db
+from app.utils.completion import as_utc_date
 
 CYCLES = ('DAILY', 'WEEKLY', '15_DAYS', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY')
 PRIORITIES = ('HIGH', 'MEDIUM', 'LOW')
@@ -128,10 +129,19 @@ def next_period_start(cycle, d):
 
 
 def scheduled_due_date(cycle, d):
-    """The SCHEDULED due date of the checking period containing `d`: the last
-    day of the period. It depends only on the schedule (cycle + calendar),
+    """The SCHEDULED due date (check date) of the checking period containing
+    `d`: the FIRST day of the period (e.g. period 5-11 is due on the 5th).
+    A check made on that day is on time; a check later in the window (6th-11th)
+    is "after due date". It depends only on the schedule (cycle + calendar),
     never on when the register was actually checked."""
-    return period_bounds(cycle, d)[1]
+    return period_bounds(cycle, d)[0]
+
+
+def checked_after_due(due_date, checked_at):
+    """True when the check was made after the scheduled due date."""
+    if due_date is None or checked_at is None:
+        return False
+    return as_utc_date(checked_at) > as_utc_date(due_date)
 
 
 def schedule_next_due_date(cycle, scheduled_period_start):
@@ -299,8 +309,14 @@ class Register(db.Model):
         for p_start, p_end in self.periods_in_range(range_start, range_end):
             row = by_period.get(p_start)
             is_open = p_start <= today <= p_end
+            # The due date frozen on the stored check wins over the one
+            # derived from today's cycle, so history never moves if the
+            # register's cycle is edited later. Due = the period's first day.
+            due = row.due_date if (row is not None and row.due_date) else p_start
+            late = row is not None and row.status == 'OK' and checked_after_due(due, row.completed_at)
             if row is not None and row.status == 'OK':
-                computed_status, dot_color = 'COMPLETED', 'green'
+                # green = checked on/before the due date, yellow = checked after it
+                computed_status, dot_color = 'COMPLETED', ('yellow' if late else 'green')
             elif row is not None and row.status == 'REJECTED':
                 computed_status, dot_color = 'FAILED', 'red'
             elif p_end < today:
@@ -308,15 +324,12 @@ class Register(db.Model):
             else:
                 computed_status, dot_color = 'UPCOMING', 'gray'
 
-            # The due date frozen on the stored check wins over the one
-            # derived from today's cycle, so history never moves if the
-            # register's cycle is edited later.
-            due = row.due_date if (row is not None and row.due_date) else p_end
             results.append({
                 'date': p_start,
                 'period_start': p_start,
                 'period_end': p_end,
                 'due_date': due,
+                'check_timing': ('LATE' if late else 'ON_TIME') if (row is not None and row.status == 'OK') else None,
                 'is_open': is_open,
                 'status': computed_status,
                 'dot_color': dot_color,
@@ -350,7 +363,9 @@ class Register(db.Model):
             status = 'IDLE'
 
         if status == 'OK':
-            computed_status, dot_color = 'COMPLETED', 'green'
+            due = (occurrence.due_date if occurrence.due_date else current_due)
+            late = checked_after_due(due, occurrence.completed_at)
+            computed_status, dot_color = 'COMPLETED', ('yellow' if late else 'green')
         elif status == 'REJECTED':
             computed_status, dot_color = 'FAILED', 'red'
         elif current_due is not None:
@@ -422,7 +437,7 @@ class RegisterOccurrence(db.Model):
     register_id = db.Column(db.Integer, db.ForeignKey('registers.id', ondelete='CASCADE'), nullable=False, index=True)
     occurrence_date = db.Column(db.Date, nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False, default='IDLE')
-    # Scheduled due date of this period (its last day). Set once, when the row
+    # Scheduled due date of this period (its first day, the scheduled check date). Set once, when the row
     # is first written, and never overwritten -- a late check must not replace it.
     due_date = db.Column(db.Date, nullable=True)
     completed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
@@ -434,7 +449,8 @@ class RegisterOccurrence(db.Model):
 
     def to_dict(self):
         if self.status == 'OK':
-            computed_status, dot_color = 'COMPLETED', 'green'
+            late = checked_after_due(self.due_date or self.occurrence_date, self.completed_at)
+            computed_status, dot_color = 'COMPLETED', ('yellow' if late else 'green')
         elif self.status == 'REJECTED':
             computed_status, dot_color = 'FAILED', 'red'
         else:

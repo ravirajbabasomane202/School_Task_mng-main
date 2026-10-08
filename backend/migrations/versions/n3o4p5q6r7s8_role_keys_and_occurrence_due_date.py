@@ -7,7 +7,7 @@ Revises: m2n3o4p5q6r7
    their code as key; custom roles keep their current name as key, which is
    exactly what users.role already stores, so no user row changes.
 2. register_occurrences.due_date (scheduled due date, never overwritten by the
-   check). Backfill: the last day of the period for existing rows.
+   check). Backfill: the first day of the period (= occurrence_date) for existing rows.
 """
 import sqlalchemy as sa
 from alembic import op
@@ -53,7 +53,7 @@ def upgrade():
         if isinstance(occ_date, str):
             occ_date = date.fromisoformat(occ_date[:10])
         bind.execute(sa.text('UPDATE register_occurrences SET due_date=:d WHERE id=:i'),
-                     {'d': _period_end(cycle, occ_date), 'i': oid})
+                     {'d': occ_date, 'i': oid})
 
 
 def downgrade():

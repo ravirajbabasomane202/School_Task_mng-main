@@ -24,8 +24,8 @@ const DOT_CLASS: Record<RegisterDotColor, string> = {
 
 // One dot per checking period, shown on the period's first day.
 const LEGEND: { color: RegisterDotColor; label: string }[] = [
-  { color: 'green', label: 'Checked' },
-  { color: 'yellow', label: 'Missed' },
+  { color: 'green', label: 'On Time Checked' },
+  { color: 'yellow', label: 'Checked After Due Date / Missed' },
   { color: 'red', label: 'Rejected' },
   { color: 'gray', label: 'Open / Future' },
 ];

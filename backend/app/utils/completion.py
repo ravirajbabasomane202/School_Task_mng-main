@@ -71,10 +71,13 @@ def register_completion_category(occ_status, period_end, completed_at):
 # ----------------------------------------------------------------------
 # Register check outcome (status rules)
 #
-#   checked_at <= due_date                -> ON_TIME      ("On Time Checked")
-#   checked_at >  due_date                -> LATE         ("Checked After Due Date")
-#   not checked and today > due_date      -> DELAYED      ("Delayed" / "Not Checked")
-#   not checked and today <= due_date     -> UPCOMING     (still can be checked)
+# due_date = the scheduled check date (first day of the checking period);
+# the period's window runs from due_date to window_end (e.g. 5th-11th).
+#
+#   checked_at <= due_date                -> ON_TIME      ("On Time Checked", green)
+#   checked_at >  due_date                -> LATE         ("Checked After Due Date", yellow)
+#   not checked and today > window_end    -> DELAYED      ("Delayed" / "Not Checked")
+#   not checked and today <= window_end   -> UPCOMING     (still can be checked)
 #
 # Only the stored scheduled `due_date` and the actual `checked_at` are used.
 # ----------------------------------------------------------------------
@@ -84,13 +87,14 @@ CHECK_DELAYED = 'DELAYED'
 CHECK_UPCOMING = 'UPCOMING'
 
 
-def register_check_outcome(due_date, checked_at, today):
+def register_check_outcome(due_date, checked_at, today, window_end=None):
     due = as_utc_date(due_date)
     if checked_at is not None:
         done = as_utc_date(checked_at)
         if due is None or done <= due:
             return CHECK_ON_TIME
         return CHECK_LATE
-    if due is not None and as_utc_date(today) > due:
+    end = as_utc_date(window_end) if window_end is not None else due
+    if end is not None and as_utc_date(today) > end:
         return CHECK_DELAYED
     return CHECK_UPCOMING
