@@ -229,3 +229,58 @@ export const exportDailyReportPdf = async () => {
 
   return response.data as Blob;
 };
+
+
+export interface RegisterPerformancePeriod {
+  date: string;
+  due_date: string;
+  period_end: string;
+  outcome: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'UPCOMING';
+  dot_color: 'green' | 'yellow' | 'red' | 'gray' | 'outline';
+  check_timing: 'ON_TIME' | 'LATE' | null;
+  checked_at: string | null;
+  checked_at_unknown: boolean;
+}
+
+export interface RegisterPerformanceSummary {
+  register_id: number;
+  name: string;
+  register_no: string;
+  cycle: string;
+  head_id: number | null;
+  head_name: string;
+  status: string;
+  onTimeChecked: number;
+  checkedAfterDueDate: number;
+  notChecked: number;
+  totalPeriodsDue: number;
+  open: number;
+  completionRate: number;
+  periods: RegisterPerformancePeriod[];
+}
+
+export interface RegisterPerformanceData {
+  summaries: RegisterPerformanceSummary[];
+  totals: {
+    onTimeChecked: number;
+    checkedAfterDueDate: number;
+    notChecked: number;
+    totalPeriodsDue: number;
+    open: number;
+    totalRegisters: number;
+  };
+}
+
+/**
+ * Per-register performance, classified by the backend (one source of truth):
+ * On Time Checked + Checked After Due Date + Not Checked = Total Periods Due.
+ */
+export const getRegisterPerformance = async (range: {
+  dateFrom: string;
+  dateTo: string;
+}): Promise<RegisterPerformanceData> => {
+  const response = await api.get<{ data: RegisterPerformanceData }>('/reports/performance/registers', {
+    params: { date_from: range.dateFrom, date_to: range.dateTo }
+  });
+  return response.data.data;
+};

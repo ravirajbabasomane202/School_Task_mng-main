@@ -63,10 +63,11 @@ def _check(app, reg_id, occ_date, status, completed_at):
 def test_register_category_rules():
     from app.utils.completion import register_completion_category as cat
 
+    from app.utils.timezone import school_tz
+    tz = school_tz()  # check times are compared as SCHOOL calendar days, not UTC
     due = date(2026, 1, 10)
-    ist = timezone(timedelta(hours=5, minutes=30))   # the school's time zone
-    assert cat('COMPLETED', due, datetime(2026, 1, 10, 23, 0, tzinfo=ist)) == 'ON_TIME'
-    assert cat('COMPLETED', due, datetime(2026, 1, 11, 1, 0, tzinfo=ist)) == 'LATE'
+    assert cat('COMPLETED', due, datetime(2026, 1, 10, 23, 0, tzinfo=tz)) == 'ON_TIME'
+    assert cat('COMPLETED', due, datetime(2026, 1, 11, 1, 0, tzinfo=tz)) == 'LATE'
     assert cat('COMPLETED', None, datetime(2026, 1, 11)) == 'ON_TIME'   # no due date
     assert cat('COMPLETED', due, None) == 'ON_TIME'                     # no completion time
     assert cat('PENDING', due, None) == 'PENDING'                       # missed
@@ -82,10 +83,14 @@ def test_staff_rows_categories_sum_to_totals(app):
     _task(app, uid, 'COMPLETED', now - timedelta(days=3), now)
     _task(app, uid, 'IN_PROGRESS', now + timedelta(days=2))
     reg = _register(app, uid, 'Cat Register', days_ago=4)
-    today = date.today()
-    _check(app, reg, today - timedelta(days=1), 'OK', now - timedelta(days=1))                 # on time
-    _check(app, reg, today - timedelta(days=2), 'OK', now)                                      # late
-    _check(app, reg, today - timedelta(days=3), 'REJECTED', now - timedelta(days=3))            # pending
+    # Register days are SCHOOL calendar days (not the server's local date), and a
+    # check time is compared as a school day too.
+    from app.utils.timezone import school_today, school_tz
+    today = school_today()
+    at = lambda d, hh=10: datetime(d.year, d.month, d.day, hh, 0, tzinfo=school_tz())
+    _check(app, reg, today - timedelta(days=1), 'OK', at(today - timedelta(days=1)))            # on time (due day)
+    _check(app, reg, today - timedelta(days=2), 'OK', at(today - timedelta(days=1)))            # late (next day)
+    _check(app, reg, today - timedelta(days=3), 'REJECTED', at(today - timedelta(days=3)))      # pending
 
     with app.app_context():
         row = next(r for r in _staff_performance_rows() if r['userId'] == uid)
@@ -113,7 +118,7 @@ def test_performance_excel_export(app, client, auth_headers):
     _register(app, uid, 'Excel Register')
 
     resp = client.get('/api/reports/performance/export', headers=auth_headers['chairman'],
-                      query_string={'format': 'excel', 'head': str(uid),
+                      query_string={'format': 'excel', 'head': name,
                                     'date_from': (date.today() - timedelta(days=30)).isoformat(),
                                     'date_to': date.today().isoformat()})
     assert resp.status_code == 200
@@ -132,7 +137,7 @@ def test_performance_excel_export(app, client, auth_headers):
     assert 'Green = On Time Checked' in body and 'Red = Pending' in body
     assert body.count('>Total<') == 3                                  # totals row per table
     assert name in body or 'All heads' not in body                     # head filter reflected
-    assert f'Head: {name}' in body  # id in the request, name shown in the header
+    assert f'Head: {name}' in body
 
 
 def test_performance_export_requires_auth_excel(client):

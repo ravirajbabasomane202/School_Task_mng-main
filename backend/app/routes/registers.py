@@ -19,12 +19,13 @@ from app.models.register import (
     period_bounds,
     schedule_next_due_date,
     scheduled_due_date,
+    _iso_utc,
     period_label,
     _add_months,
 )
 from app.models.role import sync_roles
+from app.utils.timezone import school_today
 from app.models.user import User
-from app.utils.timezone import iso_utc, school_now, school_today
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
 
@@ -32,16 +33,16 @@ registers_bp = Blueprint('registers', __name__)
 
 
 def _today():
-    """The date used to decide which checking period is current: today in the
-    SCHOOL time zone (not the server's local date, not UTC). One place, so
-    every register endpoint agrees (and tests can pin it)."""
+    """The date used to decide which checking period is current. One place,
+    so every register endpoint agrees (and tests can pin it). It is the
+    calendar date at the SCHOOL (default Asia/Kolkata), not the server's
+    local date, so it agrees with how check times are compared."""
     return school_today()
 
-
 def _now():
-    """The moment a check is recorded (timezone-aware UTC). One place so tests
-    can pin it; it is converted to school time before any date comparison."""
-    return school_now()
+    """The actual moment of a check (UTC). One place, so tests can pin it."""
+    return datetime.now(timezone.utc)
+
 
 REGISTER_MANAGER_ROLES = ('CHAIRMAN',)
 # Roles that can VIEW every register (school-wide), even though they cannot
@@ -263,11 +264,11 @@ def calendar_events():
                 'period_start': occ['period_start'].isoformat(),
                 'period_end': occ['period_end'].isoformat(),
                 'due_date': occ['due_date'].isoformat(),
-                'checked_at': iso_utc(occ['completed_at']),
-                'completed_at': iso_utc(occ['completed_at']),
+                'checked_at': _iso_utc(occ.get('completed_at')),
+                'completed_at': _iso_utc(occ.get('completed_at')),
                 'checked_at_unknown': occ['checked_at_unknown'],
-                'check_outcome': occ['check_outcome'],
                 'check_timing': occ['check_timing'],
+                'outcome': occ['outcome'],
                 'title': f'{r.name} ({r.register_no})',
                 'date': occ_date.isoformat(),
                 'status': r.status,
@@ -559,7 +560,7 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
         return error(exc.message, exc.status_code)
 
     return success({
-        'occurrence': occurrence.to_dict(today=today),
+        'occurrence': occurrence.to_dict(),
         'register': register.to_dict(today=today, occurrence=occurrence),
     }, 'Register checked successfully')
 
@@ -641,10 +642,10 @@ def register_calendar(register_id: int):
             'period_end': occ['period_end'].isoformat(),
             'is_open': occ['is_open'],
             'due_date': occ['due_date'].isoformat(),
-            'checked_at': iso_utc(occ['completed_at']),
+            'checked_at': _iso_utc(occ.get('completed_at')),
             'checked_at_unknown': occ['checked_at_unknown'],
-            'check_outcome': occ['check_outcome'],
             'check_timing': occ['check_timing'],
+            'outcome': occ['outcome'],
         }
         for occ in register.generate_occurrences(range_start, range_end, today)
     ]

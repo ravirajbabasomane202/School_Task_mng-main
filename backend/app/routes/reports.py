@@ -9,11 +9,7 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
 from app.models.department import Department
-from app.models.register import (
-    Register, RegisterOccurrence, fetch_current_cycle_occurrences, fetch_occurrence_maps,
-    summarize_register_periods,
-)
-from app.utils.timezone import school_today
+from app.models.register import Register, RegisterOccurrence, fetch_current_cycle_occurrences, fetch_occurrence_maps
 from app.models.report import ReportHistory
 from app.models.task import Task
 from app.models.user import User
@@ -21,9 +17,12 @@ from app.routes.dashboard import _overall_performance, _staff_performance_rows
 from app.routes.registers import _scope_to_user
 from app.utils.response import error, success
 from app.utils.decorators import roles_required
+from app.models.register import _iso_utc
+from app.utils.timezone import school_today
+from app.utils.completion import CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_REJECTED
 from app.utils.labels import (
     LABEL_CHECKED_AFTER_DUE, LABEL_DELAYED, LABEL_IN_PROGRESS, LABEL_NOT_CHECKED, LABEL_ON_TIME_CHECKED,
-    LABEL_PENDING, LABEL_REJECTED, LABEL_TOTAL_ESTIMATED_CHECK,
+    LABEL_PENDING,
 )
 from app.utils.completion import (
     CAT_LATE, CAT_ON_TIME, CAT_PENDING, as_utc_date, register_completion_category,
@@ -311,9 +310,7 @@ def _performance_report_rows():
     shares today's date as the report generation date.
     """
     Task.mark_overdue_delayed()
-    report_date = school_today()
-    reg_end = report_date
-    reg_start = reg_end - timedelta(days=90)
+    report_date = datetime.now(timezone.utc).date()
 
     all_tasks = Task.query.all()
     tasks_by_dept: dict = defaultdict(list)
@@ -341,17 +338,11 @@ def _performance_report_rows():
 
         dept_registers = registers_by_dept.get(department.id, [])
         total_registers = len(dept_registers)
-        # Same shared summariser as every other register number: checks due in
-        # the last 90 days, completed = on time + after due date.
-        dept_maps = fetch_occurrence_maps(dept_registers, reg_start, reg_end)
-        completed_registers = checks_due = 0
-        for register in dept_registers:
-            counts = summarize_register_periods(
-                register, reg_start, reg_end, report_date, occurrence_map=dept_maps[register.id])
-            completed_registers += counts['completed']
-            checks_due += counts['total']
+        completed_registers = sum(
+            1 for register in dept_registers if register.computed_status() == 'COMPLETED'
+        )
         registry_performance = (
-            round((completed_registers / checks_due) * 100) if checks_due else 0
+            round((completed_registers / total_registers) * 100) if total_registers else 0
         )
 
         final_performance = _overall_performance(
@@ -1024,17 +1015,16 @@ def role_label(role_key):
     return role.name if role else str(role_key).replace('_', ' ').title()
 
 
-def _registry_performance_summaries(user, date_from, date_to, cycle=None, status=None, today=None):
-    """Per-register check counts within [date_from, date_to], produced by the
-    SAME `summarize_register_periods` the dashboard rows use, which walks the
-    same `Register.generate_occurrences()` series as the `/registers/calendar`
-    endpoint -- so a period can never be counted differently here than on
-    screen. Periods belong to the range by their due date, and each lands in
-    exactly one bucket:
-
-        onTimeComplete + completedAfterDue + notChecked + rejected == total
+def _registry_performance_summaries(user, date_from, date_to, cycle=None, status=None):
+    """Per-register Completed/Missed/Rejected/Total counts within
+    [date_from, date_to], computed the exact same way as the Performance
+    screen (`RegistryPerformancePanel.tsx`): both walk the SAME
+    `Register.generate_occurrences()` series used by the `/registers/calendar`
+    endpoint, so an occurrence can never be counted differently here than on
+    screen. Only past-or-today occurrences count as activity, matching the
+    frontend's `event.date > today` guard.
     """
-    today = today or school_today()
+    today = school_today()
 
     query = _scope_to_user(Register.query, user)
     if cycle and cycle.upper() != 'ALL':
@@ -1045,7 +1035,9 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
     occurrence_maps = fetch_occurrence_maps(registers, date_from, date_to)
 
     # Match `register.status` on the Register Monitoring / calendar popup:
-    # keyed by each register's OWN current-cycle occurrence.
+    # keyed by each register's OWN current-cycle occurrence date (today for
+    # DAILY, the exact cyclic `next_due_date` otherwise), not a single
+    # shared "today" for every register.
     current_occurrences = fetch_current_cycle_occurrences(registers, today)
 
     summaries = []
@@ -1054,32 +1046,103 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
         if status and status.upper() != 'ALL' and effective_status != status.upper():
             continue
 
-        counts = summarize_register_periods(
-            register, date_from, date_to, today, occurrence_map=occurrence_maps[register.id])
-        total = counts['total']
-        completion_rate = round((counts['completed'] / total) * 100) if total else 0
+        completed = missed = rejected = open_periods = 0
+        on_time = late = 0
+        periods = []
+        # Same rule as the dashboard: a period belongs to the range by its due
+        # date, and the bucket is the one backend classification (`outcome`).
+        for occ in register.generate_occurrences(
+            date_from, date_to, today, occurrence_map=occurrence_maps[register.id], by_due_date=True
+        ):
+            outcome = occ['outcome']
+            if outcome == CHECK_ON_TIME:
+                completed += 1
+                on_time += 1
+            elif outcome == CHECK_LATE:
+                completed += 1
+                late += 1
+            elif outcome == CHECK_REJECTED:
+                rejected += 1
+            elif outcome == CHECK_DELAYED:
+                missed += 1
+            else:
+                open_periods += 1
+            periods.append({
+                'date': occ['date'].isoformat(),
+                'due_date': occ['due_date'].isoformat(),
+                'period_end': occ['period_end'].isoformat(),
+                'outcome': outcome,
+                'dot_color': occ['dot_color'],
+                'check_timing': occ['check_timing'],
+                'checked_at': _iso_utc(occ.get('completed_at')),
+                'checked_at_unknown': occ['checked_at_unknown'],
+            })
+
+        total = completed + missed + rejected
+        completion_rate = round((completed / total) * 100) if total else 0
         summaries.append(
             {
                 'register': register,
                 'headName': register.head.name if register.head else register.head_name,
                 'headId': register.head_id,
                 'status': effective_status,
-                'completed': counts['completed'],
-                'onTimeComplete': counts['on_time'],
-                'completedAfterDue': counts['late'],
-                'notChecked': counts['not_checked'],
-                'rejected': counts['rejected'],
-                'open': counts['open'],
-                # Kept for older callers: `missed` is `notChecked`; `pending`
-                # is everything that was not completed.
-                'missed': counts['not_checked'],
-                'pending': counts['not_checked'] + counts['rejected'],
+                'completed': completed,
+                'missed': missed,
+                'rejected': rejected,
+                # Completion-timing buckets; on-time + after-due + pending == total.
+                'onTimeComplete': on_time,
+                'completedAfterDue': late,
+                'pending': missed + rejected,
                 'total': total,
+                'open': open_periods,
+                'periods': periods,
                 'completionRate': completion_rate,
             }
         )
 
     return summaries
+
+
+def _json_summary(s):
+    r = s['register']
+    return {
+        'register_id': r.id, 'name': r.name, 'register_no': r.register_no, 'cycle': r.cycle,
+        'head_id': s['headId'], 'head_name': s['headName'], 'status': s['status'],
+        'onTimeChecked': s['onTimeComplete'], 'checkedAfterDueDate': s['completedAfterDue'],
+        'notChecked': s['pending'], 'totalPeriodsDue': s['total'], 'open': s['open'],
+        'completionRate': s['completionRate'], 'periods': s['periods'],
+    }
+
+
+@reports_bp.route('/performance/registers', methods=['GET'])
+@jwt_required()
+def performance_registers_json():
+    """Per-register performance for the Performance screen, from the SAME
+    function the exports use. A period belongs to the range by its due date;
+    On Time Checked + Checked After Due Date + Not Checked == Total Periods Due.
+    The browser only displays these numbers, it never re-classifies a period."""
+    user = db.session.get(User, int(get_jwt_identity()))
+    if not user:
+        return error('User not found', 401)
+    today_iso = school_today().isoformat()
+    date_from = _parse_date(request.args.get('date_from')) or _parse_date(today_iso)
+    date_to = _parse_date(request.args.get('date_to')) or _parse_date(today_iso)
+    if date_from > date_to:
+        return error('date_from must be before date_to', 400)
+    head, cycle, status = request.args.get('head'), request.args.get('cycle'), request.args.get('status')
+    summaries = _registry_performance_summaries(user, date_from.date(), date_to.date(), cycle=cycle, status=status)
+    if head and head.upper() != 'ALL':
+        summaries = [s for s in summaries if _head_matches(head, s['headId'], s['headName'])]
+    items = [_json_summary(s) for s in summaries]
+    totals = {
+        'onTimeChecked': sum(i['onTimeChecked'] for i in items),
+        'checkedAfterDueDate': sum(i['checkedAfterDueDate'] for i in items),
+        'notChecked': sum(i['notChecked'] for i in items),
+        'totalPeriodsDue': sum(i['totalPeriodsDue'] for i in items),
+        'open': sum(i['open'] for i in items),
+        'totalRegisters': len(items),
+    }
+    return success({'summaries': items, 'totals': totals})
 
 
 def _head_display(head):
@@ -1091,15 +1154,17 @@ def _head_display(head):
     return head
 
 
-def _head_matches(head, user_id, name=None):
-    """The Head filter identifies a person by their user id -- never by name
-    text, which is free text (a register's head_name is a copy that can differ
-    from the user's current name). `name` is accepted only so existing callers
-    keep working; it is ignored."""
-    return str(head).isdigit() and user_id is not None and int(head) == user_id
+def _head_matches(head, user_id, name):
+    """The Head filter identifies a person by their user id. Matching on the
+    name text is only kept for old clients that still send a name: names are
+    free text (a register's head_name is a copy that can differ from the
+    user's current name), which is why filtering by name dropped tasks."""
+    if str(head).isdigit():
+        return user_id is not None and int(head) == user_id
+    return name == head
 
 
-def _performance_export_data(user, date_from, date_to, head, cycle, status, today=None):
+def _performance_export_data(user, date_from, date_to, head, cycle, status):
     """Build the exact dataset the Performance screen's export needs
     (Registration Performance, Task Performance, Performance Metrics,
     detailed records) using the SAME underlying computations as the
@@ -1107,25 +1172,26 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status, toda
     `/dashboard/performance` endpoint, so the export can never disagree
     with what's on screen.
     """
-    today = today or school_today()
-    summaries = _registry_performance_summaries(user, date_from, date_to, cycle=cycle, status=status, today=today)
+    summaries = _registry_performance_summaries(user, date_from, date_to, cycle=cycle, status=status)
     if head and head.upper() != 'ALL':
         summaries = [s for s in summaries if _head_matches(head, s['headId'], s['headName'])]
 
     total_registers = len(summaries)
-    on_time_checked = sum(s['onTimeComplete'] for s in summaries)
-    checked_after_due = sum(s['completedAfterDue'] for s in summaries)
-    not_checked = sum(s['notChecked'] for s in summaries)
-    total_rejected = sum(s['rejected'] for s in summaries)
-    total_completed = on_time_checked + checked_after_due
-    total_missed = not_checked
-    total_due = total_completed + not_checked + total_rejected
-    register_performance = round((total_completed / total_due) * 100) if total_due else 0
-    # A period whose window ended unchecked is "Not Checked" and "Delayed" at
-    # once (one status rule, two names), so both KPIs are the same set.
-    register_delayed = not_checked
+    checked = sum(1 for s in summaries if s['completed'] > 0)
+    not_checked = total_registers - checked
 
-    staff_rows = _staff_performance_rows(date_from, date_to, today=today)
+    total_completed = sum(s['completed'] for s in summaries)
+    total_missed = sum(s['missed'] for s in summaries)
+    total_rejected = sum(s['rejected'] for s in summaries)
+    total_due = total_completed + total_missed + total_rejected
+    register_performance = round((total_completed / total_due) * 100) if total_due else 0
+    # "Delayed" for registers mirrors the Task side's definition: occurrences
+    # whose due date passed without being actioned (i.e. the same occurrence
+    # count already captured as `total_missed`/"Not checked" activity above),
+    # surfaced here as its own KPI to match the Task row's shape.
+    register_delayed = total_missed
+
+    staff_rows = _staff_performance_rows(date_from, date_to)
     if head and head.upper() != 'ALL':
         staff_rows = [row for row in staff_rows if _head_matches(head, row['userId'], row['name'])]
 
@@ -1152,16 +1218,14 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status, toda
     return {
         'registerTotals': {
             'totalRegisters': total_registers,
-            # Every figure below counts register checks (periods) due in the
-            # range, so they add up:
-            #   onTimeChecked + checkedAfterDue + notChecked + rejected == totalChecks
-            'onTimeChecked': on_time_checked,
-            'checkedAfterDue': checked_after_due,
-            'checked': total_completed,
+            'checked': checked,
             'notChecked': not_checked,
-            'rejected': total_rejected,
-            'totalChecks': total_due,
             'delayed': register_delayed,
+            # Period-level numbers (what the screen cards show):
+            'onTimeChecked': sum(s['onTimeComplete'] for s in summaries),
+            'checkedAfterDueDate': sum(s['completedAfterDue'] for s in summaries),
+            'notCheckedPeriods': sum(s['pending'] for s in summaries),
+            'totalPeriodsDue': total_due,
         },
         'overall': {
             'totalCompleted': total_completed,
@@ -1198,7 +1262,7 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     def escape(value):
         return str(value).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
-    ncols = 10
+    ncols = 9
     spacer = '<td style="width:24px"></td>'
     cell_base = 'padding:6px 10px;border:1px solid #CBD5E1'
     th_style = f'background:{HEADER_COLOR};color:#FFFFFF;font-weight:bold;text-align:center;{cell_base}'
@@ -1276,7 +1340,7 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     legend_label = {
         CAT_ON_TIME: f'Green = {LABEL_ON_TIME_CHECKED}',
         CAT_LATE: f'Yellow = {LABEL_CHECKED_AFTER_DUE}',
-        CAT_PENDING: f'Red = {LABEL_PENDING} / {LABEL_NOT_CHECKED}',
+        CAT_PENDING: f'Red = {LABEL_PENDING}',
     }
     legend_cells = ''.join(
         f'<td bgcolor="{ROW_STYLES[c]["bg"]}" colspan="{span}" style="background:{ROW_STYLES[c]["bg"]};'
@@ -1315,32 +1379,28 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     rows.append(gap())
 
     # ---- Register performance (per role) -----------------------------------
-    # Every count is a number of register checks (periods) due in the range:
-    # On Time Checked + Checked After Due Date + Not Checked + Rejected
-    # == Total Estimated Check, in every row and in the Total row.
     r_total = sum(r['totalRegisters'] for r in staff)
     r_on = sum(r['onTimeCompleteRegisters'] for r in staff)
     r_late = sum(r['completedAfterDueRegisters'] for r in staff)
-    r_nc = sum(r['notCheckedRegisters'] for r in staff)
-    r_rej = sum(r['rejectedRegisters'] for r in staff)
-    r_due = r_on + r_late + r_nc + r_rej
+    r_pend = sum(r['pendingRegisters'] for r in staff)
+    r_due = r_on + r_late + r_pend
     r_perf = round(((r_on + r_late) / r_due) * 100) if r_due else 0
     r_overall = _overall_performance(t_score, bool(t_total), r_perf, bool(r_total))
     rows.append(section_title('Register Performance'))
     rows.extend(table(
         ['Role', 'Total Registers', 'Checking Cycle', LABEL_ON_TIME_CHECKED,
-         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_REJECTED, LABEL_TOTAL_ESTIMATED_CHECK,
+         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, 'Total Periods Due',
          'Register Performance %', 'Overall Performance %'],
         [
             [r['roleName'], r['totalRegisters'],
              ', '.join(r['checkingCycles']) or 'N/A', r['onTimeCompleteRegisters'],
-             r['completedAfterDueRegisters'], r['notCheckedRegisters'], r['rejectedRegisters'],
-             r['registerChecksDue'],
+             r['completedAfterDueRegisters'], r['pendingRegisters'],
+             r['onTimeCompleteRegisters'] + r['completedAfterDueRegisters'] + r['pendingRegisters'],
              f"{r['registerPerformance']}%", f"{r['overallPerformance']}%"]
             for r in staff
         ],
-        ['Total', r_total, '', r_on, r_late, r_nc, r_rej, r_due, f'{r_perf}%', f'{r_overall}%'],
-        {3: CAT_ON_TIME, 4: CAT_LATE, 5: CAT_PENDING, 6: CAT_PENDING},
+        ['Total', r_total, '', r_on, r_late, r_pend, r_due, f'{r_perf}%', f'{r_overall}%'],
+        {3: CAT_ON_TIME, 4: CAT_LATE, 5: CAT_PENDING},
     ))
     rows.append(gap())
 
@@ -1348,23 +1408,21 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     summaries = data['summaries']
     d_on = sum(s['onTimeComplete'] for s in summaries)
     d_late = sum(s['completedAfterDue'] for s in summaries)
-    d_nc = sum(s['notChecked'] for s in summaries)
-    d_rej = sum(s['rejected'] for s in summaries)
+    d_pend = sum(s['pending'] for s in summaries)
     d_total = sum(s['total'] for s in summaries)
     d_rate = round(((d_on + d_late) / d_total) * 100) if d_total else 0
     rows.append(section_title('Register Activity Report'))
     rows.extend(table(
         ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', LABEL_ON_TIME_CHECKED,
-         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_REJECTED, LABEL_TOTAL_ESTIMATED_CHECK,
-         'Completion %'],
+         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, 'Total Periods Due', 'Completion %'],
         [
             [s['register'].name, s['register'].register_no, s['headName'], s['register'].cycle,
-             s['onTimeComplete'], s['completedAfterDue'], s['notChecked'], s['rejected'],
-             s['total'], f"{s['completionRate']}%"]
+             s['onTimeComplete'], s['completedAfterDue'], s['pending'], s['total'],
+             f"{s['completionRate']}%"]
             for s in summaries
         ],
-        ['Total', f'{len(summaries)} registers', '', '', d_on, d_late, d_nc, d_rej, d_total, f'{d_rate}%'],
-        {4: CAT_ON_TIME, 5: CAT_LATE, 6: CAT_PENDING, 7: CAT_PENDING},
+        ['Total', f'{len(summaries)} registers', '', '', d_on, d_late, d_pend, d_total, f'{d_rate}%'],
+        {4: CAT_ON_TIME, 5: CAT_LATE, 6: CAT_PENDING},
         left_cols=(0, 1, 2, 3),
     ))
     rows.append(gap())
@@ -1419,19 +1477,15 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     writer.writerow([])
 
     writer.writerow(['Registration Performance'])
-    # Counts of register checks (periods) due in the range; the four buckets
-    # add up to the Total Estimated Check, with the same labels as the screen.
-    writer.writerow([
-        'Total Registers', LABEL_TOTAL_ESTIMATED_CHECK, LABEL_ON_TIME_CHECKED,
-        LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_REJECTED, 'Performance',
-    ])
+    # On Time Checked + Checked After Due Date + Not Checked == Total Periods Due
+    writer.writerow(['Total Registers', LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE,
+                     LABEL_NOT_CHECKED, 'Total Periods Due', 'Performance'])
     writer.writerow([
         data['registerTotals']['totalRegisters'],
-        data['registerTotals']['totalChecks'],
         data['registerTotals']['onTimeChecked'],
-        data['registerTotals']['checkedAfterDue'],
-        data['registerTotals']['notChecked'],
-        data['registerTotals']['rejected'],
+        data['registerTotals']['checkedAfterDueDate'],
+        data['registerTotals']['notCheckedPeriods'],
+        data['registerTotals']['totalPeriodsDue'],
         f"{data['overall']['completionRate']}%"
     ])
     writer.writerow([])
@@ -1441,11 +1495,15 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     writer.writerow([f"{data['finalPerformance']}%"])
     writer.writerow([])
 
+    # Register Report columns use the shared Performance labels and add up:
+    # On Time Checked + Checked After Due Date + Not Checked = Total Periods Due.
+    # (Not Checked = periods that ended unchecked + rejected checks; periods that
+    # are still open are not counted yet.) No per-register Status column.
     writer.writerow(['Detailed Register Records'])
     writer.writerow([
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
-        LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_REJECTED,
-        LABEL_TOTAL_ESTIMATED_CHECK, 'Completion%'
+        LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED,
+        'Total Periods Due', 'Completion %'
     ])
     for s in data['summaries']:
         register = s['register']
@@ -1456,8 +1514,7 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
             register.cycle,
             s['onTimeComplete'],
             s['completedAfterDue'],
-            s['notChecked'],
-            s['rejected'],
+            s['pending'],
             s['total'],
             s['completionRate']
         ])

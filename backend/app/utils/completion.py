@@ -7,11 +7,12 @@ re-exports the names, so existing imports keep working.
 """
 from datetime import timezone
 
-from app.utils.timezone import to_school_date
-
 CAT_ON_TIME = 'ON_TIME'
 CAT_LATE = 'LATE'
 CAT_PENDING = 'PENDING'
+
+
+from app.utils.timezone import to_school_date as as_school_date
 
 
 def as_utc_date(value):
@@ -50,26 +51,32 @@ def task_completion_category(task):
     return CAT_ON_TIME if done <= due else CAT_LATE
 
 
+def register_completion_category(occ_status, due_date, completed_at):
+    """Timing bucket of one register period: ON_TIME / LATE for a completed
+    period, PENDING otherwise. Thin wrapper over classify_register_period so
+    there is a single comparison in the code base."""
+    if occ_status != 'COMPLETED':
+        return CAT_PENDING
+    outcome = register_check_outcome(due_date, completed_at, None)
+    return CAT_LATE if outcome == CHECK_LATE else CAT_ON_TIME
+
+
 # ----------------------------------------------------------------------
-# Register check outcome (status rules) -- THE one classifier.
+# Register period classification -- THE single source of truth.
 #
-# due_date = the scheduled check date (first day of the checking period);
-# the period's window runs from due_date to window_end (e.g. 5th-11th).
+# due_date   = scheduled check date = FIRST day of the checking period.
+# window_end = LAST day of the period (the check window is due_date..window_end).
+# checked_at = the actual moment of the check, converted to the SCHOOL time
+#              zone (app.utils.timezone) before dates are compared.
 #
-#   checked_at <= due_date                -> ON_TIME      ("On Time Checked", green)
-#   checked_at >  due_date                -> LATE         ("Checked After Due Date", yellow)
-#   rejected check                        -> REJECTED     (red)
-#   not checked and today > window_end    -> DELAYED      ("Not Checked" / "Delayed")
-#   not checked and today <= window_end   -> UPCOMING     (still open, can be checked)
+#   checked_at <= due_date                -> ON_TIME     "On Time Checked"        green
+#   checked_at >  due_date                -> LATE        "Checked After Due Date" yellow
+#   rejected check                        -> REJECTED                              red
+#   not checked and today > window_end    -> DELAYED     "Not Checked"            grey outline
+#   not checked and today <= window_end   -> UPCOMING    open / not started       grey
 #
-# Dates are compared as calendar days in the SCHOOL time zone (checked_at is
-# stored in UTC; see utils/timezone.py). A check recorded as OK that has no
-# checked_at (legacy data) is never given an invented date: it counts as On
-# Time Checked and is flagged "date unknown" by the caller.
-#
-# Every consumer (calendar, register list, dashboard performance, reports,
-# CSV/Excel exports, the Performance panel) calls this function or reads the
-# `check_outcome` it produced -- nobody compares dates on their own.
+# Everything (calendar, register list, dashboard performance, reports and
+# exports) calls classify_register_period; nothing else compares these dates.
 # ----------------------------------------------------------------------
 CHECK_ON_TIME = 'ON_TIME'
 CHECK_LATE = 'LATE'
@@ -77,43 +84,49 @@ CHECK_DELAYED = 'DELAYED'
 CHECK_UPCOMING = 'UPCOMING'
 CHECK_REJECTED = 'REJECTED'
 
-# Dot colour for each outcome. `missed` is its own marker (a hollow red ring)
-# so it can never be confused with yellow = Checked After Due Date.
-OUTCOME_DOT_COLOR = {
-    CHECK_ON_TIME: 'green',
-    CHECK_LATE: 'yellow',
-    CHECK_REJECTED: 'red',
-    CHECK_DELAYED: 'missed',
-    CHECK_UPCOMING: 'gray',
-}
 
-
-def register_check_outcome(due_date, checked_at, today, window_end=None, status=None):
-    """Classify one register checking period. See the rules above.
-
-    `status` is the stored check status ('OK' / 'REJECTED' / 'IDLE'). When
-    omitted it is inferred: a `checked_at` means the register was checked.
-    """
-    status = (status or ('OK' if checked_at is not None else 'IDLE')).upper()
-    if status == 'REJECTED':
-        return CHECK_REJECTED
-    if status == 'OK':
-        due = to_school_date(due_date)
-        done = to_school_date(checked_at)
-        if due is None or done is None:
+def register_check_outcome(due_date, checked_at, today, window_end=None):
+    due = as_school_date(due_date)
+    if checked_at is not None:
+        done = as_school_date(checked_at)
+        if due is None or done <= due:
             return CHECK_ON_TIME
-        return CHECK_ON_TIME if done <= due else CHECK_LATE
-    end = to_school_date(window_end if window_end is not None else due_date)
-    if end is not None and today is not None and today > end:
+        return CHECK_LATE
+    end = as_school_date(window_end) if window_end is not None else due
+    if end is not None and as_school_date(today) is not None and as_school_date(today) > end:
         return CHECK_DELAYED
     return CHECK_UPCOMING
 
 
-def register_completion_category(occ_status, period_due, completed_at):
-    """Task-style ON_TIME / LATE / PENDING view of one register period, built on
-    `register_check_outcome` (kept for callers that think in those terms).
-    `occ_status` is the computed status (COMPLETED / FAILED / PENDING / ...)."""
-    if occ_status != 'COMPLETED':
-        return CAT_PENDING
-    outcome = register_check_outcome(period_due, completed_at, None, status='OK')
-    return CAT_ON_TIME if outcome == CHECK_ON_TIME else CAT_LATE
+def classify_register_period(status, due_date, window_end, checked_at, today):
+    """Classify one checking period.
+
+    `status` is the STORED occurrence status ('OK', 'REJECTED', anything else
+    or None = not checked). Returns a dict:
+      outcome            ON_TIME | LATE | REJECTED | DELAYED | UPCOMING
+      computed_status    COMPLETED | FAILED | PENDING | UPCOMING (API enum, unchanged)
+      dot_color          green | yellow | red | outline | gray
+      check_timing       'ON_TIME' | 'LATE' | None (only for completed periods)
+      checked_at_unknown True for an OK row that has no check time (legacy data):
+                         counted as On Time Checked, the date is NOT invented.
+    """
+    if status == 'OK':
+        unknown = checked_at is None
+        outcome = register_check_outcome(due_date, checked_at, today, window_end)
+        late = outcome == CHECK_LATE
+        return {
+            'outcome': CHECK_LATE if late else CHECK_ON_TIME,
+            'computed_status': 'COMPLETED',
+            'dot_color': 'yellow' if late else 'green',
+            'check_timing': CHECK_LATE if late else CHECK_ON_TIME,
+            'checked_at_unknown': unknown,
+        }
+    if status == 'REJECTED':
+        return {'outcome': CHECK_REJECTED, 'computed_status': 'FAILED', 'dot_color': 'red',
+                'check_timing': None, 'checked_at_unknown': False}
+    outcome = register_check_outcome(due_date, None, today, window_end)
+    if outcome == CHECK_DELAYED:
+        return {'outcome': CHECK_DELAYED, 'computed_status': 'PENDING', 'dot_color': 'outline',
+                'check_timing': None, 'checked_at_unknown': False}
+    return {'outcome': CHECK_UPCOMING, 'computed_status': 'UPCOMING', 'dot_color': 'gray',
+            'check_timing': None, 'checked_at_unknown': False}

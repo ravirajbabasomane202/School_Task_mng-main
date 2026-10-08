@@ -646,16 +646,3 @@ def register_commands(app: Flask):
             click.echo('Done. Legacy users removed (protected Housekeeping Head user left untouched).')
         else:
             click.echo('\nDry run only — no changes made. Re-run with --confirm to actually delete.')
-
-    @app.cli.command('repair-register-dates')
-    @click.option('--dry-run', is_flag=True, default=False, help='Report only; change nothing.')
-    def repair_register_dates(dry_run: bool):
-        """Fix register check rows: due_date = first day of the period where it is
-        NULL/wrong. OK rows without a check time are only counted (never invented)."""
-        from app.services.register_repair import repair_register_occurrences
-        report = repair_register_occurrences(db.session, dry_run=dry_run)
-        if not dry_run:
-            db.session.commit()
-        for key, value in report.items():
-            click.echo(f'{key}: {value}')
-

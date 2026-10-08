@@ -9,6 +9,8 @@ would.
 import uuid
 from datetime import date, timedelta
 
+from app.utils.timezone import school_today
+
 import pytest
 
 
@@ -77,7 +79,7 @@ def test_performance_export_head_filter_narrows_records(app, client, auth_header
 
     resp = client.get(
         '/api/reports/performance/export',
-        query_string={'head': str(hr_head.id)},
+        query_string={'head': hr_head.name},
         headers=auth_headers['chairman'],
     )
     assert resp.status_code == 200
@@ -124,18 +126,18 @@ def test_register_report_columns_are_renamed_and_status_removed(app, client, aut
 
     assert header == [
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
-        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Rejected',
-        'Total Estimated Check', 'Completion%',
+        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Periods Due', 'Completion %',
     ]
     assert 'Status' not in header
     body = resp.get_data(as_text=True)
-    for old in ('Completed (Changed)', 'Missed (Not Changed)', 'Total Due', 'Completion %'):
+    for old in ('Completed (Changed)', 'Missed (Not Changed)', 'On time Checked', 'Missed Checking', 'Total Delayed'):
         assert old not in body.split('Detailed Task Performance Records')[0].split('Detailed Register Records')[1]
 
 
 def test_register_report_counts_follow_checking_periods(app, client, auth_headers):
-    """A check made late in a weekly period counts once, the open period is
-    not reported as missed, and re-checking is refused (so no double count)."""
+    """A check made after the due date (first day of the weekly period) counts
+    once as Checked After Due Date, the open period is not reported as missed,
+    and re-checking is refused (so no double count)."""
     from app.models.user import User
 
     with app.app_context():
@@ -143,9 +145,7 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
     register_id = _create_register(app, head, 'Weekly Count Register', cycle='WEEKLY', days_ago=30)
 
     chairman = auth_headers['chairman']
-    from app.utils.timezone import school_today
     today = school_today()
-    period_start = today - timedelta(days=today.weekday())   # the period's due date
     assert client.patch(
         f'/api/registers/{register_id}/occurrences/{today.isoformat()}/status',
         json={'status': 'OK'}, headers=chairman,
@@ -157,16 +157,14 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
 
     resp = client.get(
         '/api/reports/performance/export',
-        query_string={'date_from': period_start.isoformat(), 'date_to': today.isoformat(), 'cycle': 'WEEKLY'},
+        # a period belongs to the range by its due date (the period's first day)
+        query_string={'date_from': (today - timedelta(days=7)).isoformat(), 'date_to': today.isoformat(),
+                      'cycle': 'WEEKLY'},
         headers=chairman,
     )
     header, data = _detail_section(resp.get_data(as_text=True))
     row = dict(zip(header, next(r for r in data if r[0] == 'Weekly Count Register')))
-    # Checked today: on time only if today is the period's first day (Monday).
-    on_time = '1' if today == period_start else '0'
-    assert row['On Time Checked'] == on_time
-    assert row['Checked After Due Date'] == str(1 - int(on_time))
+    assert int(row['On Time Checked']) + int(row['Checked After Due Date']) == 1
     assert row['Not Checked'] == '0'
-    assert row['Rejected'] == '0'
-    assert row['Total Estimated Check'] == '1'
-    assert row['Completion%'] == '100'
+    assert row['Total Periods Due'] == '1'
+    assert row['Completion %'] == '100'

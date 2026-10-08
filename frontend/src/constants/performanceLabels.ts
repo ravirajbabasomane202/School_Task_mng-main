@@ -11,7 +11,6 @@ export const PERFORMANCE_LABELS = {
   checkedAfterDueDate: 'Checked After Due Date',
   notChecked: 'Not Checked',
   delayed: 'Delayed',
-  rejected: 'Rejected',
   pending: 'Pending',
   inProgress: 'In Progress',
   escalated: 'Escalated',
@@ -19,6 +18,7 @@ export const PERFORMANCE_LABELS = {
   totalRegisters: 'Total Registers',
   checkingCycle: 'Checking Cycle',
   totalEstimatedCheck: 'Total Estimated Check',
+  totalPeriodsDue: 'Total Periods Due',
   registerPerformance: 'Register Performance',
   overallPerformance: 'Overall Performance',
 } as const;

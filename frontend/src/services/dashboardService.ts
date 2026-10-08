@@ -25,10 +25,6 @@ export interface StaffPerformance {
   onTimeCompleteRegisters: number;
   completedAfterDueRegisters: number;
   pendingRegisters: number;
-  /** Periods whose window ended unchecked (also called Delayed). */
-  notCheckedRegisters?: number;
-  /** Register checks (periods) due in the range: on time + after due + not checked + rejected. */
-  registerChecksDue?: number;
   missedRegisters: number;
   rejectedRegisters: number;
   registerPerformance: number;

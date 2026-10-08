@@ -2,16 +2,8 @@ import calendar
 from datetime import datetime, timedelta, timezone
 
 from app.extensions import db
-from app.utils.completion import (
-    CHECK_DELAYED,
-    CHECK_LATE,
-    CHECK_ON_TIME,
-    CHECK_REJECTED,
-    CHECK_UPCOMING,
-    OUTCOME_DOT_COLOR,
-    register_check_outcome,
-)
-from app.utils.timezone import iso_utc, school_today, to_school_date
+from app.utils.completion import as_school_date, classify_register_period
+from app.utils.timezone import school_today, to_school_datetime
 
 CYCLES = ('DAILY', 'WEEKLY', '15_DAYS', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY')
 PRIORITIES = ('HIGH', 'MEDIUM', 'LOW')
@@ -137,6 +129,17 @@ def next_period_start(cycle, d):
     return period_bounds(cycle, d)[1] + timedelta(days=1)
 
 
+def _iso_utc(value):
+    """ISO string with an explicit UTC offset, so the browser converts the
+    stored UTC moment to the viewer's local time correctly."""
+    if value is None:
+        return None
+    from datetime import timezone as _tz
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=_tz.utc)
+    return value.isoformat()
+
+
 def scheduled_due_date(cycle, d):
     """The SCHEDULED due date (check date) of the checking period containing
     `d`: the FIRST day of the period (e.g. period 5-11 is due on the 5th).
@@ -147,41 +150,10 @@ def scheduled_due_date(cycle, d):
 
 
 def checked_after_due(due_date, checked_at):
-    """True when the check was made after the scheduled due date (school-local
-    calendar days; see utils/completion.register_check_outcome)."""
+    """True when the check was made after the scheduled due date."""
     if due_date is None or checked_at is None:
         return False
-    return register_check_outcome(due_date, checked_at, None, status='OK') == CHECK_LATE
-
-
-# Outcome -> the computed status the calendar/list have always exposed.
-_OUTCOME_COMPUTED_STATUS = {
-    CHECK_ON_TIME: 'COMPLETED',
-    CHECK_LATE: 'COMPLETED',
-    CHECK_REJECTED: 'FAILED',
-    CHECK_DELAYED: 'PENDING',     # period ended unchecked (shown as "Missed")
-    CHECK_UPCOMING: 'UPCOMING',
-}
-
-
-def describe_check(row, due, today, window_end):
-    """Everything one period's check says, derived ONLY from the stored row and
-    the shared classifier. Returned for every API so they cannot disagree."""
-    status = row.status if row is not None and row.status in CHECKED_STATUSES else None
-    checked_at = row.completed_at if (row is not None and status) else None
-    outcome = register_check_outcome(due, checked_at, today, window_end, status=status or 'IDLE')
-    return {
-        'outcome': outcome,
-        'computed_status': _OUTCOME_COMPUTED_STATUS[outcome],
-        'dot_color': OUTCOME_DOT_COLOR[outcome],
-        'checked_at': checked_at,
-        # Checked OK in the past but no moment was ever recorded (legacy data):
-        # counted as On Time Checked, never given an invented date.
-        'checked_at_unknown': status == 'OK' and checked_at is None,
-        'check_timing': (
-            ('LATE' if outcome == CHECK_LATE else 'ON_TIME') if status == 'OK' else None
-        ),
-    }
+    return as_school_date(checked_at) > as_school_date(due_date)
 
 
 def schedule_next_due_date(cycle, scheduled_period_start):
@@ -264,39 +236,6 @@ def fetch_current_cycle_occurrences(registers, today):
     return result
 
 
-def summarize_register_periods(register, date_from, date_to, today, occurrence_map=None):
-    """Check counts of ONE register over [date_from, date_to] -- the single
-    place the Performance numbers are produced (dashboard rows, the Performance
-    panel's data, reports and exports all call this).
-
-    Unit = one checking period due in the range (see `due_periods_in_range`).
-    Every period lands in exactly one bucket, so
-        on_time + late + not_checked + rejected == total
-    holds everywhere. A period that is still open (unchecked, window not over)
-    can still be checked, so it is reported as `open` and is NOT in `total`.
-    """
-    counts = {'on_time': 0, 'late': 0, 'not_checked': 0, 'rejected': 0, 'open': 0}
-    strip = []
-    for occ in register.due_periods_in_range(date_from, date_to, today, occurrence_map):
-        outcome = occ['check_outcome']
-        if outcome == CHECK_ON_TIME:
-            counts['on_time'] += 1
-        elif outcome == CHECK_LATE:
-            counts['late'] += 1
-        elif outcome == CHECK_DELAYED:
-            counts['not_checked'] += 1
-        elif outcome == CHECK_REJECTED:
-            counts['rejected'] += 1
-        else:
-            counts['open'] += 1
-            continue
-        strip.append({'date': occ['date'], 'color': occ['dot_color']})
-    counts['total'] = counts['on_time'] + counts['late'] + counts['not_checked'] + counts['rejected']
-    counts['completed'] = counts['on_time'] + counts['late']
-    counts['strip'] = strip
-    return counts
-
-
 _UNSET = object()
 
 
@@ -340,13 +279,21 @@ class Register(db.Model):
         period = self.current_period(today)
         return period[0] if period else None
 
-    def periods_in_range(self, range_start, range_end):
+    def periods_in_range(self, range_start, range_end, by_due_date=False):
         """Every checking period overlapping [range_start, range_end] that
-        isn't entirely before the register's start date, as (start, end)."""
+        isn't entirely before the register's start date, as (start, end).
+
+        With by_due_date=True a period belongs to the range by its DUE DATE
+        (its first day) only: a period that started before range_start is
+        left out even if it ends inside the range. Performance and report
+        counts use this, so each period is counted in exactly one range.
+        """
         if self.start_date is None:
             return []
         periods = []
         start = period_bounds(self.cycle, max(range_start, self.start_date))[0]
+        if by_due_date and start < range_start:
+            start = period_bounds(self.cycle, start)[1] + timedelta(days=1)
         guard = 0
         while start <= range_end:
             end = period_bounds(self.cycle, start)[1]
@@ -357,26 +304,7 @@ class Register(db.Model):
                 break
         return periods
 
-    def due_periods_in_range(self, range_start, range_end, today, occurrence_map=None):
-        """The periods that BELONG to [range_start, range_end] for performance
-        purposes: a period belongs to the range by its due_date (its stored due
-        date, else its first day), and only once that due date has arrived.
-
-        A period that merely overlaps the range, but is due before it or after
-        it, is not included -- and a check made after the range end still counts
-        for the period it was made for, because the period is found by its own
-        due date, never by when it was checked.
-        """
-        if occurrence_map is None:
-            occurrence_map = fetch_occurrence_maps([self], range_start, range_end)[self.id]
-        return [
-            occ for occ in self.generate_occurrences(
-                range_start - timedelta(days=366), range_end, today,
-                occurrence_map=occurrence_map)
-            if range_start <= occ['due_date'] <= range_end and occ['due_date'] <= today
-        ]
-
-    def generate_occurrences(self, range_start, range_end, today, occurrence_map=None):
+    def generate_occurrences(self, range_start, range_end, today, occurrence_map=None, by_due_date=False):
         """One entry per checking period overlapping [range_start, range_end],
         each with its computed status/dot color.
 
@@ -398,48 +326,38 @@ class Register(db.Model):
         by_period = index_rows_by_period(self.cycle, occurrence_map.values())
 
         results = []
-        for p_start, p_end in self.periods_in_range(range_start, range_end):
+        for p_start, p_end in self.periods_in_range(range_start, range_end, by_due_date=by_due_date):
             row = by_period.get(p_start)
             is_open = p_start <= today <= p_end
             # The due date frozen on the stored check wins over the one
             # derived from today's cycle, so history never moves if the
             # register's cycle is edited later. Due = the period's first day.
             due = row.due_date if (row is not None and row.due_date) else p_start
-            info = describe_check(row, due, today, p_end)
+            cls = classify_register_period(
+                row.status if row is not None else None, due, p_end,
+                row.completed_at if row is not None else None, today,
+            )
+            computed_status, dot_color = cls['computed_status'], cls['dot_color']
 
             results.append({
                 'date': p_start,
                 'period_start': p_start,
                 'period_end': p_end,
                 'due_date': due,
-                'check_outcome': info['outcome'],
-                'check_timing': info['check_timing'],
-                'checked_at_unknown': info['checked_at_unknown'],
+                'check_timing': cls['check_timing'],
+                'outcome': cls['outcome'],
+                'checked_at_unknown': cls['checked_at_unknown'],
                 'is_open': is_open,
-                'status': info['computed_status'],
-                'dot_color': info['dot_color'],
+                'status': computed_status,
+                'dot_color': dot_color,
                 'occurrence_id': row.id if row is not None else None,
-                # When the check was recorded (None if unchecked).
-                'completed_at': info['checked_at'],
-                'checked_at': info['checked_at'],
+                # When the check was recorded (None if unchecked); used to tell
+                # an on-time check from one made after the period's due date.
+                'completed_at': row.completed_at if row is not None else None,
+                'checked_at': row.completed_at if row is not None else None,
             })
 
         return results
-
-    def current_check(self, today, occurrence=None):
-        """The check state of the CURRENT period, from the shared classifier:
-        {outcome, computed_status, dot_color, checked_at, checked_at_unknown,
-        check_timing, due_date, period_start, period_end}, or None before the
-        register has started. `occurrence` is the row for the current period
-        (see `fetch_current_cycle_occurrences`)."""
-        period = self.current_period(today)
-        if period is None:
-            return None
-        row = occurrence if (occurrence is not None and occurrence.status in CHECKED_STATUSES) else None
-        due = row.due_date if (row is not None and row.due_date) else period[0]
-        info = describe_check(row, due, today, period[1])
-        info.update({'due_date': due, 'period_start': period[0], 'period_end': period[1]})
-        return info
 
     def effective_today_status(self, today, occurrence=None):
         """(status, computed_status, dot_color, current_due) for the
@@ -448,15 +366,35 @@ class Register(db.Model):
 
         `status` comes only from a check recorded in the current period, so
         it returns to IDLE by itself when a new period starts. `current_due`
-        is the current period's start date. An unchecked current period is
-        still open (it can be checked until it ends), so it is UPCOMING/gray,
-        never yellow: yellow only ever means Checked After Due Date.
+        is the current period's start date.
         """
-        info = self.current_check(today, occurrence)
-        if info is None:
-            return 'IDLE', 'UPCOMING', OUTCOME_DOT_COLOR[CHECK_UPCOMING], None
-        status = occurrence.status if (occurrence is not None and occurrence.status in CHECKED_STATUSES) else 'IDLE'
-        return status, info['computed_status'], info['dot_color'], info['period_start']
+        current_due = self.current_cycle_occurrence_date(today)
+
+        if (
+            occurrence is not None
+            and current_due is not None
+            and occurrence.status in CHECKED_STATUSES
+        ):
+            status = occurrence.status
+        else:
+            status = 'IDLE'
+
+        cls = None
+        if status in CHECKED_STATUSES:
+            due = occurrence.due_date or current_due
+            window_end = self.current_period(today)
+            cls = classify_register_period(
+                status, due, window_end[1] if window_end else None, occurrence.completed_at, today
+            )
+            computed_status, dot_color = cls['computed_status'], cls['dot_color']
+        elif current_due is not None:
+            # Unchecked, window still open: "Pending" in the list (enum unchanged),
+            # drawn grey -- yellow is reserved for "Checked After Due Date".
+            computed_status, dot_color = 'PENDING', 'gray'
+        else:
+            computed_status, dot_color = 'UPCOMING', 'gray'
+
+        return status, computed_status, dot_color, current_due
 
     # ------------------------------------------------------------------
 
@@ -470,9 +408,16 @@ class Register(db.Model):
             occurrence = fetch_current_cycle_occurrences([self], today).get(self.id)
 
         status, computed_status, dot_color, current_due = self.effective_today_status(today, occurrence)
-        current = self.current_check(today, occurrence)
 
         checked = period is not None and status in CHECKED_STATUSES
+        # Due / checked info of the CURRENT period (None until it is checked).
+        cur_due, cur_checked_at, cur_timing, cur_unknown = None, None, None, False
+        if period is not None:
+            cur_due = (occurrence.due_date if occurrence is not None and occurrence.due_date else period[0])
+            if checked:
+                cur_checked_at = occurrence.completed_at
+                cls = classify_register_period(status, cur_due, period[1], cur_checked_at, today)
+                cur_timing, cur_unknown = cls['check_timing'], cls['checked_at_unknown']
         if period is None:
             can_check = False
             block_reason = f'Checking starts on {self.start_date.isoformat()}.' if self.start_date else None
@@ -498,16 +443,12 @@ class Register(db.Model):
             'start_date': self.start_date.isoformat() if self.start_date else None,
             'next_due_date': self.next_due_date.isoformat() if self.next_due_date else None,
             'current_due_date': current_due.isoformat() if current_due else None,
-            # Check state of the current period (all from the shared classifier):
-            # when it was ACTUALLY checked, how that compares with the due date.
-            'current_checked_at': (
-                iso_utc(current['checked_at']) if current and current['checked_at'] else None
-            ),
-            'current_checked_at_unknown': bool(current and current['checked_at_unknown']),
-            'current_check_outcome': current['outcome'] if current else None,
-            'current_check_timing': current['check_timing'] if current else None,
             'current_period_start': period[0].isoformat() if period else None,
             'current_period_end': period[1].isoformat() if period else None,
+            'due_date': cur_due.isoformat() if cur_due else None,
+            'checked_at': _iso_utc(cur_checked_at),
+            'checked_at_unknown': cur_unknown,
+            'check_timing': cur_timing,
             'checked_in_current_period': checked,
             'can_check': can_check,
             'check_block_reason': block_reason,
@@ -542,22 +483,23 @@ class RegisterOccurrence(db.Model):
     def to_dict(self, today=None):
         today = today or school_today()
         due = self.due_date or self.occurrence_date
-        # The window end is not stored; a single-row view only needs it for the
-        # unchecked case, where `today` against the due date is the best it has.
-        info = describe_check(self, due, today, due)
+        reg = getattr(self, 'register', None)
+        window_end = period_bounds(reg.cycle, self.occurrence_date)[1] if reg is not None else due
+        cls = classify_register_period(self.status, due, window_end, self.completed_at, today)
+        computed_status, dot_color = cls['computed_status'], cls['dot_color']
 
         return {
             'id': self.id,
             'register_id': self.register_id,
             'occurrence_date': self.occurrence_date.isoformat() if self.occurrence_date else None,
             'status': self.status,
-            'computed_status': info['computed_status'],
-            'dot_color': info['dot_color'],
-            'check_outcome': info['outcome'],
-            'check_timing': info['check_timing'],
-            'checked_at_unknown': info['checked_at_unknown'],
-            'due_date': due.isoformat() if due else None,
+            'computed_status': computed_status,
+            'dot_color': dot_color,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
             'completed_by': self.completed_by,
-            'completed_at': iso_utc(self.completed_at),
-            'checked_at': iso_utc(self.completed_at),
+            'completed_at': _iso_utc(self.completed_at),
+            'checked_at': _iso_utc(self.completed_at),
+            'checked_at_unknown': cls['checked_at_unknown'],
+            'check_timing': cls['check_timing'],
+            'outcome': cls['outcome'],
         }

@@ -1,78 +1,63 @@
-"""The ONE school time zone.
+"""The ONE school time zone used for every register/task date decision.
 
-`checked_at` is stored in UTC, but a register's due date is a calendar day in
-the school's own time zone (India, IST = UTC+5:30 by default). Comparing the
-UTC calendar day with the due date misfiles any check made between 00:00 and
-05:30 IST (and "today" would be wrong for the same hours), so every date
-decision about registers goes through the helpers below.
+Timestamps (completed_at / checked_at) are stored in UTC, but "which day was
+this checked on?" is a school-calendar question. A check at 00:30 IST on the
+6th is stored as 19:00 UTC on the 5th; comparing UTC dates would call it a
+check on the 5th and show a late check as on time. Everything converts to the
+school zone before comparing dates, through the helpers below.
 
-Configure with the SCHOOL_TIMEZONE setting / environment variable
-(an IANA name such as "Asia/Kolkata").
+Configure with the SCHOOL_TIMEZONE environment variable (default Asia/Kolkata).
 """
 import os
-from datetime import datetime, timezone
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from datetime import date, datetime, timedelta, timezone
+
+try:  # zoneinfo needs the tz database (tzdata package on Windows)
+    from zoneinfo import ZoneInfo
+except ImportError:  # pragma: no cover
+    ZoneInfo = None
 
 DEFAULT_SCHOOL_TIMEZONE = 'Asia/Kolkata'
-
-
-def school_timezone_name():
-    try:
-        from flask import current_app, has_app_context
-        if has_app_context():
-            name = current_app.config.get('SCHOOL_TIMEZONE')
-            if name:
-                return name
-    except Exception:  # pragma: no cover - flask always importable here
-        pass
-    return os.environ.get('SCHOOL_TIMEZONE') or DEFAULT_SCHOOL_TIMEZONE
+_FALLBACK_IST = timezone(timedelta(hours=5, minutes=30), 'IST')
 
 
 def school_tz():
-    name = school_timezone_name()
-    try:
-        return ZoneInfo(name)
-    except (ZoneInfoNotFoundError, ValueError):
-        return ZoneInfo(DEFAULT_SCHOOL_TIMEZONE)
+    name = os.environ.get('SCHOOL_TIMEZONE', DEFAULT_SCHOOL_TIMEZONE)
+    if ZoneInfo is not None:
+        try:
+            return ZoneInfo(name)
+        except Exception:  # unknown zone / no tzdata
+            pass
+    return _FALLBACK_IST if name == DEFAULT_SCHOOL_TIMEZONE else timezone.utc
 
 
-def as_aware_utc(value):
-    """A datetime as timezone-aware UTC. Naive values (SQLite returns them)
-    were stored as UTC, so they are tagged rather than shifted."""
-    if value is None:
-        return None
-    if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+def school_now():
+    return datetime.now(timezone.utc).astimezone(school_tz())
+
+
+def school_today():
+    """Today's calendar date at the school."""
+    return school_now().date()
 
 
 def to_school_datetime(value):
-    """A stored datetime expressed in school local time."""
-    value = as_aware_utc(value)
-    return value.astimezone(school_tz()) if value is not None else None
+    """Aware datetime in the school zone. Naive datetimes are UTC (that is how
+    the database stores them)."""
+    if value is None:
+        return None
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+    return value.astimezone(school_tz())
 
 
 def to_school_date(value):
-    """The school-local calendar day of a stored datetime. A plain `date` is
-    already a calendar day and is returned unchanged."""
+    """Calendar date at the school for a datetime (converted) or a plain date
+    (returned unchanged: a date has no time zone)."""
     if value is None:
         return None
     if isinstance(value, datetime):
         return to_school_datetime(value).date()
-    return value
-
-
-def school_now():
-    return datetime.now(timezone.utc)
-
-
-def school_today(now=None):
-    """Today's date in the school time zone (`now` is injectable for tests)."""
-    return to_school_date(now or school_now())
-
-
-def iso_utc(value):
-    """ISO-8601 string of a stored datetime, always with an explicit UTC offset
-    (naive SQLite values would otherwise be read by browsers as local time)."""
-    value = as_aware_utc(value)
-    return value.isoformat() if value is not None else None
+    if isinstance(value, date):
+        return value
+    return None

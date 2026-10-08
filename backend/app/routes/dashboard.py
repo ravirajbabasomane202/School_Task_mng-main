@@ -8,15 +8,14 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.models.department import Department
 from app.models.notification import Announcement
-from app.models.register import (
-    Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps, summarize_register_periods,
-)
-from app.utils.timezone import school_today
+from app.models.register import Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps
 from app.models.task import Task
 from app.models.role import sync_roles
+from app.utils.timezone import school_today
 from app.models.user import User
 from app.utils.completion import (
-    CAT_LATE, CAT_ON_TIME, register_completion_category, task_completion_category
+    CAT_LATE, CAT_ON_TIME, CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_REJECTED,
+    task_completion_category
 )
 from app.utils.response import success, error
 
@@ -264,7 +263,7 @@ def _parse_date(value):
         return None
 
 
-def _staff_performance_rows(date_from=None, date_to=None, today=None):
+def _staff_performance_rows(date_from=None, date_to=None):
     """Per-user Task/Register/Overall performance rows.
 
     Shared by the `/dashboard/performance` route AND the Performance-screen
@@ -329,7 +328,7 @@ def _staff_performance_rows(date_from=None, date_to=None, today=None):
     # current point-in-time `computed_status()`. A register's status is
     # almost never left sitting on `OK` (`COMPLETED`) between cycles, so the
     # old status-based tally was ~always 0% regardless of real activity.
-    today = today or school_today()
+    today = school_today()
     range_start = date_from or (today - timedelta(days=90))
     range_end = date_to or today
 
@@ -368,22 +367,33 @@ def _staff_performance_rows(date_from=None, date_to=None, today=None):
             key=lambda cycle: cycle_rank.get(cycle, len(CYCLES))
         )
 
-        # One shared summariser (models/register.summarize_register_periods):
-        # periods belong to the range by due_date, each lands in exactly one
-        # bucket, and on-time + after-due + not-checked + rejected == checks due.
-        on_time_registers = late_registers = missed_registers = rejected_registers = 0
+        completed_registers = missed_registers = rejected_registers = open_registers = 0
+        on_time_registers = late_registers = 0
         for register in user_registers:
-            counts = summarize_register_periods(
-                register, range_start, range_end, today, occurrence_map=occurrence_maps[register.id]
-            )
-            on_time_registers += counts['on_time']
-            late_registers += counts['late']
-            missed_registers += counts['not_checked']
-            rejected_registers += counts['rejected']
+            # A period belongs to the range by its due date; a check made after
+            # the range end is still counted in its ORIGINAL period (the row is
+            # keyed by the period start). The bucket comes from the one backend
+            # classification (`outcome`), never from a local comparison.
+            for occ in register.generate_occurrences(
+                range_start, range_end, today, occurrence_map=occurrence_maps[register.id],
+                by_due_date=True,
+            ):
+                outcome = occ['outcome']
+                if outcome == CHECK_ON_TIME:
+                    completed_registers += 1
+                    on_time_registers += 1
+                elif outcome == CHECK_LATE:
+                    completed_registers += 1
+                    late_registers += 1
+                elif outcome == CHECK_REJECTED:
+                    rejected_registers += 1
+                elif outcome == CHECK_DELAYED:
+                    missed_registers += 1
+                else:
+                    open_registers += 1  # still open / not started: not counted in the total
 
-        completed_registers = on_time_registers + late_registers
         registers_due = completed_registers + missed_registers + rejected_registers
-        # Not completed = not checked + rejected (kept for the existing field).
+        # Not completed = missed + rejected (the three buckets sum to registers_due).
         pending_registers = missed_registers + rejected_registers
         register_performance = (
             round((completed_registers / registers_due) * 100) if registers_due else 0
@@ -416,12 +426,9 @@ def _staff_performance_rows(date_from=None, date_to=None, today=None):
                 'onTimeCompleteRegisters': on_time_registers,
                 'completedAfterDueRegisters': late_registers,
                 'pendingRegisters': pending_registers,
-                # New, unambiguous fields: every one is a count of register
-                # checks (periods) due in the range, so they add up:
-                # onTimeCompleteRegisters + completedAfterDueRegisters
-                #   + notCheckedRegisters + rejectedRegisters == registerChecksDue
-                'notCheckedRegisters': missed_registers,
-                'registerChecksDue': registers_due,
+                # Periods due in the range = onTime + afterDue + notChecked (pendingRegisters).
+                'registersDue': registers_due,
+                'openRegisters': open_registers,
                 'missedRegisters': missed_registers,
                 'rejectedRegisters': rejected_registers,
                 'registerPerformance': register_performance,

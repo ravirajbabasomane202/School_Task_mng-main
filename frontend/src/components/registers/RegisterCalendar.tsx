@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { RegisterCalendarEvent } from '../../types/register.types';
-import { checkTooltip } from '../../utils/registerUtils';
-import { MARKER_CLASS, RegisterLegend } from './RegisterMarkers';
+import { DOT_CLASS, DOT_LEGEND } from '../../constants/registerDots';
+import { markerTooltip } from '../../utils/registerCheckUtils';
 
 interface RegisterCalendarProps {
   events: RegisterCalendarEvent[];
@@ -12,8 +12,9 @@ interface RegisterCalendarProps {
 
 type ViewMode = 'week' | 'month';
 
-// Colored dots only. Each colour has ONE meaning (see RegisterMarkers / the legend
-// under the grid). The hover title gives the exact due and check dates.
+// Colored dots only (Section 5 of the spec) — Completed / Pending / Missed / Future.
+// No status text is ever rendered inside a calendar cell; a native title attribute
+// still gives an accessible/hover-only label.
 
 function startOfWeek(d: Date): Date {
   const date = new Date(d);
@@ -40,11 +41,6 @@ function addDays(d: Date, n: number): Date {
   const next = new Date(d);
   next.setDate(next.getDate() + n);
   return next;
-}
-
-function markerTitle(event: RegisterCalendarEvent): string {
-  const tip = checkTooltip(event);
-  return tip ? `${event.title}\n${tip}` : event.title;
 }
 
 function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalendarProps) {
@@ -123,18 +119,11 @@ function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalen
 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-3 text-xs text-[#5B6E8C]">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#22C55E]" /> On Time Checked
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#EAB308]" /> Checked After Due Date / Pending
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#EF4444]" /> Missed
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#94A3B8]" /> Future
-            </span>
+            {DOT_LEGEND.map((item) => (
+              <span key={item.color} className="flex items-center gap-1.5">
+                <span className={['h-2.5 w-2.5 rounded-full', DOT_CLASS[item.color]].join(' ')} /> {item.label}
+              </span>
+            ))}
           </div>
           <div className="flex overflow-hidden rounded-lg border border-[#E4EAF2]">
             {(['week', 'month'] as ViewMode[]).map((mode) => (
@@ -190,10 +179,10 @@ function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalen
                     type="button"
                     onClick={() => onEventClick?.(event)}
                     className="flex h-3 w-3 items-center justify-center rounded-full transition hover:scale-125"
-                    title={markerTitle(event)}
-                    aria-label={markerTitle(event)}
+                    title={`${event.title} — ${markerTooltip(event, 'Open / Future')}`}
+                    aria-label={`${event.title} — ${markerTooltip(event, 'Open / Future')}`}
                   >
-                    <span className={['h-2.5 w-2.5 rounded-full', MARKER_CLASS[event.dot_color]].join(' ')} />
+                    <span className={['h-2.5 w-2.5 rounded-full', DOT_CLASS[event.dot_color]].join(' ')} />
                   </button>
                 ))}
               </div>
@@ -201,7 +190,6 @@ function RegisterCalendar({ events, onEventClick, onRangeChange }: RegisterCalen
           );
         })}
       </div>
-      <RegisterLegend className="border-t border-[#EFF2F6] pt-3" />
     </div>
   );
 }
