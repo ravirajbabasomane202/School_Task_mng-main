@@ -276,7 +276,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                   <div className="mb-2 flex items-center justify-between">
                     <span className="text-xs font-semibold text-[#1E293B]">{currentPeriodLabel}</span>
                     <Badge variant={registerUpdatability.updatable ? 'amber' : COMPUTED_BADGE[liveRegister.computed_status]}>
-                      {registerUpdatability.updatable ? 'Not checked yet' : COMPUTED_LABEL[liveRegister.computed_status]}
+                      {registerUpdatability.updatable ? 'Not Checked Yet' : COMPUTED_LABEL[liveRegister.computed_status]}
                     </Badge>
                   </div>
                   {registerUpdatability.updatable ? (

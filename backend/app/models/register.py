@@ -127,6 +127,24 @@ def next_period_start(cycle, d):
     return period_bounds(cycle, d)[1] + timedelta(days=1)
 
 
+def scheduled_due_date(cycle, d):
+    """The SCHEDULED due date of the checking period containing `d`: the last
+    day of the period. It depends only on the schedule (cycle + calendar),
+    never on when the register was actually checked."""
+    return period_bounds(cycle, d)[1]
+
+
+def schedule_next_due_date(cycle, scheduled_period_start):
+    """Next due date after the period that was just satisfied.
+
+    Calculated from the SCHEDULE: `scheduled_period_start` is the scheduled
+    period the check belongs to, not the day the check was physically made. A
+    late check therefore can't shift the schedule (and an early or late click
+    can't skip or repeat a period).
+    """
+    return next_period_start(cycle, scheduled_period_start)
+
+
 def _best_row(current, candidate):
     """Of two RegisterOccurrence rows in one period, the one that represents
     the period: a recorded check beats an IDLE placeholder, then the later one."""
@@ -290,10 +308,15 @@ class Register(db.Model):
             else:
                 computed_status, dot_color = 'UPCOMING', 'gray'
 
+            # The due date frozen on the stored check wins over the one
+            # derived from today's cycle, so history never moves if the
+            # register's cycle is edited later.
+            due = row.due_date if (row is not None and row.due_date) else p_end
             results.append({
                 'date': p_start,
                 'period_start': p_start,
                 'period_end': p_end,
+                'due_date': due,
                 'is_open': is_open,
                 'status': computed_status,
                 'dot_color': dot_color,
@@ -301,6 +324,7 @@ class Register(db.Model):
                 # When the check was recorded (None if unchecked); used to tell
                 # an on-time check from one made after the period's due date.
                 'completed_at': row.completed_at if row is not None else None,
+                'checked_at': row.completed_at if row is not None else None,
             })
 
         return results
@@ -398,7 +422,12 @@ class RegisterOccurrence(db.Model):
     register_id = db.Column(db.Integer, db.ForeignKey('registers.id', ondelete='CASCADE'), nullable=False, index=True)
     occurrence_date = db.Column(db.Date, nullable=False, index=True)
     status = db.Column(db.String(20), nullable=False, default='IDLE')
+    # Scheduled due date of this period (its last day). Set once, when the row
+    # is first written, and never overwritten -- a late check must not replace it.
+    due_date = db.Column(db.Date, nullable=True)
     completed_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    # The ACTUAL moment the register was checked (checked_at). Kept apart from
+    # due_date so "on time" vs "after due date" can always be told.
     completed_at = db.Column(db.DateTime, nullable=True)
 
     completer = db.relationship('User', foreign_keys=[completed_by])
@@ -418,6 +447,8 @@ class RegisterOccurrence(db.Model):
             'status': self.status,
             'computed_status': computed_status,
             'dot_color': dot_color,
+            'due_date': self.due_date.isoformat() if self.due_date else None,
             'completed_by': self.completed_by,
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
+            'checked_at': self.completed_at.isoformat() if self.completed_at else None,
         }

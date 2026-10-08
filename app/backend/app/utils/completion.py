@@ -66,3 +66,31 @@ def register_completion_category(occ_status, period_end, completed_at):
     if due is None or done is None:
         return CAT_ON_TIME
     return CAT_ON_TIME if done <= due else CAT_LATE
+
+
+# ----------------------------------------------------------------------
+# Register check outcome (status rules)
+#
+#   checked_at <= due_date                -> ON_TIME      ("On Time Checked")
+#   checked_at >  due_date                -> LATE         ("Checked After Due Date")
+#   not checked and today > due_date      -> DELAYED      ("Delayed" / "Not Checked")
+#   not checked and today <= due_date     -> UPCOMING     (still can be checked)
+#
+# Only the stored scheduled `due_date` and the actual `checked_at` are used.
+# ----------------------------------------------------------------------
+CHECK_ON_TIME = 'ON_TIME'
+CHECK_LATE = 'LATE'
+CHECK_DELAYED = 'DELAYED'
+CHECK_UPCOMING = 'UPCOMING'
+
+
+def register_check_outcome(due_date, checked_at, today):
+    due = as_utc_date(due_date)
+    if checked_at is not None:
+        done = as_utc_date(checked_at)
+        if due is None or done <= due:
+            return CHECK_ON_TIME
+        return CHECK_LATE
+    if due is not None and as_utc_date(today) > due:
+        return CHECK_DELAYED
+    return CHECK_UPCOMING

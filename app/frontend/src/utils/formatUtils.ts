@@ -88,3 +88,14 @@ export function capitalise(str: string | null | undefined): string {
   if (!str) return '';
   return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
 }
+
+/**
+ * Title Case a string built at runtime from a code constant (not API/user data):
+ * the first letter of every word (split on whitespace, "-", "/" and "(") is upper-cased,
+ * every other character is left as it is, so acronyms such as "HR" or "IT" survive.
+ * e.g. "check-in" -> "Check-In", "to-do" -> "To-Do", "alerts & escalations" -> "Alerts & Escalations"
+ */
+export function toTitleCase(text: string | null | undefined): string {
+  if (!text) return '';
+  return text.replace(/(^|[\s(\/-])([a-z])/g, (_match, boundary: string, letter: string) => boundary + letter.toUpperCase());
+}

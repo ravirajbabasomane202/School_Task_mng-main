@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Task, TaskCadence, TaskPriority, TaskStatus } from '../../types/task.types';
 import Badge from '../common/Badge';
+import { toTitleCase } from '../../utils/formatUtils';
 import {
   ASSIGNEE_STATUS_HINT,
   getAllowedStatuses,
@@ -35,12 +36,7 @@ const statusVariant: Record<TaskStatus, 'blue' | 'amber' | 'green' | 'red' | 'gr
   ESCALATED: 'gray'
 };
 
-const formatLabel = (value: string) =>
-  value
-    .toLowerCase()
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
+const formatLabel = (value: string) => toTitleCase(value.toLowerCase().replace(/_/g, ' '));
 
 const formatDate = (value: string) => {
   const date = new Date(value);
@@ -177,7 +173,7 @@ function TaskTable({
     return (
       <div className="flex min-h-[240px] items-center justify-center rounded-[18px] border border-[#EFF2F6] bg-white p-8 text-center">
         <div>
-          <p className="text-sm font-semibold text-[#1E293B]">No tasks found</p>
+          <p className="text-sm font-semibold text-[#1E293B]">No Tasks Found</p>
           <p className="mt-2 text-sm text-[#8A99B0]">{emptyMessage}</p>
         </div>
       </div>
@@ -187,11 +183,11 @@ function TaskTable({
   const actionsEnabled = typeof showActions === 'function' ? tasks.some(showActions) : Boolean(showActions);
 
   const headers = [
-    'Task title',
-    'Assigned to',
+    'Task Title',
+    'Assigned To',
     'Priority',
     'Type',
-    'Assign date',
+    'Assign Date',
     'Deadline',
     'Status',
     ...(actionsEnabled ? ['Actions'] : [])
@@ -264,7 +260,7 @@ function TaskTable({
                           className="inline-flex items-center rounded-full bg-[#FFF1F1] px-2 py-0.5 text-[10px] font-semibold text-[#C13F3A]"
                           title="No proof uploaded for this completed task"
                         >
-                          No proof
+                          No Proof
                         </span>
                       )}
                     </div>

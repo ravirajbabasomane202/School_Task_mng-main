@@ -224,7 +224,7 @@ function TaskMonitoring() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Monitor Module
             </p>
-            <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Task monitoring view</h2>
+            <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Task Monitoring View</h2>
             <p className="mt-2 text-sm text-[#5B6E8C]">
               Track tasks by status, assign head, and deadline range. Open any row to
               review its full history log.

@@ -48,7 +48,7 @@ function ChangePassword() {
     <main className="min-h-screen bg-[#F1F4F9] px-6 py-10 text-[#1E293B]">
       {showToast ? (
         <div className="fixed right-6 top-6 rounded-md border border-[#EFF2F6] bg-white px-4 py-3 text-sm font-semibold text-[#185FA5] shadow-sm">
-          Password changed successfully.
+          Password Changed Successfully.
         </div>
       ) : null}
 
@@ -59,7 +59,7 @@ function ChangePassword() {
 
         <form onSubmit={handleSubmit} className="mt-7">
           <label className="block text-sm font-semibold" htmlFor="currentPassword">
-            Current password
+            Current Password
           </label>
           <input
             id="currentPassword"
@@ -71,7 +71,7 @@ function ChangePassword() {
           />
 
           <label className="mt-5 block text-sm font-semibold" htmlFor="newPassword">
-            New password
+            New Password
           </label>
           <input
             id="newPassword"
@@ -84,7 +84,7 @@ function ChangePassword() {
           />
 
           <label className="mt-5 block text-sm font-semibold" htmlFor="confirmPassword">
-            Confirm new password
+            Confirm New Password
           </label>
           <input
             id="confirmPassword"
@@ -110,7 +110,7 @@ function ChangePassword() {
             {isLoading ? (
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
             ) : (
-              'Change password'
+              'Change Password'
             )}
           </button>
         </form>

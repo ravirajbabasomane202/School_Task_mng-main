@@ -19,7 +19,9 @@ import {
   updateRegister,
 } from '../../services/registerService';
 import { getStaffPerformance } from '../../services/dashboardService';
-import { getRoleLabel } from '../../utils/roleUtils';
+import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
+import { useRoles } from '../../hooks/useRoles';
+import { aggregateByRole, filterRowsByRole } from '../../utils/performanceUtils';
 import {
   REGISTER_CYCLES,
   REGISTER_PRIORITIES,
@@ -112,7 +114,7 @@ function RegisterMonitoring() {
   // Staff Performance page.
   const { data: staffPerformance = [] } = useQuery({
     queryKey: ['staffPerformance'],
-    queryFn: getStaffPerformance,
+    queryFn: () => getStaffPerformance(),
   });
 
   const selectedHead = useMemo(
@@ -122,12 +124,17 @@ function RegisterMonitoring() {
 
   // Same Head filter the register list/table above already applies — kept
   // in sync so the export's Staff Performance section always matches
-  // what's currently on screen. Performance rows only carry `role`, and a
-  // Head's `role` is what a performance row's `role` matches directly.
+  // what's currently on screen. The match is on the role KEY (identity from
+  // the backend), never on a display name, and rows are grouped per role so
+  // everyone holding that role is counted (two people / two tasks => 2).
+  const { roles, getRoleName } = useRoles();
   const filteredStaffPerformance = useMemo(() => {
-    if (headFilter === 'ALL' || !selectedHead) return staffPerformance;
-    return staffPerformance.filter((row) => row.role === selectedHead.role);
-  }, [staffPerformance, headFilter, selectedHead]);
+    const rows =
+      headFilter === 'ALL' || !selectedHead
+        ? staffPerformance
+        : filterRowsByRole(staffPerformance, selectedHead.role);
+    return aggregateByRole(rows, roles);
+  }, [staffPerformance, headFilter, selectedHead, roles]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => updateRegister(id, data),
@@ -261,15 +268,26 @@ function RegisterMonitoring() {
           ? 'Staff Performance (all heads)'
           : `Staff Performance (${selectedHead?.name ?? headFilter})`,
       ],
-      ['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate', 'Total Registers', 'Completed Registers', 'Overall Performance'],
+      [
+        L.role,
+        L.totalTasks,
+        'Completed',
+        L.inProgress,
+        L.pending,
+        L.delayed,
+        L.totalRegisters,
+        'Completed Registers',
+        L.overallPerformance,
+      ],
       ...filteredStaffPerformance.map((p) => [
-        getRoleLabel(p.role),
+        getRoleName(p.role, p.roleName),
         p.totalTasks,
         p.completedTasks,
+        p.inProgressTasks,
+        p.pendingTasks,
         p.delayedTasks,
-        `${p.delayRate}%`,
         p.totalRegisters,
-        p.completedRegisters,
+        p.onTimeCompleteRegisters + p.completedAfterDueRegisters,
         `${p.overallPerformance}%`,
       ]),
     ];

@@ -139,7 +139,7 @@ function EscalateModal({
       <div className="mb-4 flex items-start gap-3 rounded-[12px] border border-[#F5D5D4] bg-[#FFF6F6] p-3.5">
         <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#D64545] text-[10px] font-bold text-white">!</span>
         <div>
-          <p className="text-sm font-semibold text-[#C13F3A]">This action will escalate the task</p>
+          <p className="text-sm font-semibold text-[#C13F3A]">This Action Will Escalate The Task</p>
           <p className="mt-0.5 text-xs text-[#A85050]">
             All assignees and relevant parties will be notified.
           </p>
@@ -332,10 +332,10 @@ function TaskDetailContent() {
     return (
       <section className="p-5">
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-8 text-center">
-          <p className="text-lg font-semibold text-[#1E293B]">Task not found</p>
+          <p className="text-lg font-semibold text-[#1E293B]">Task Not Found</p>
           <p className="mt-2 text-sm text-[#5B6E8C]">The requested task could not be loaded.</p>
           <Link className="mt-4 inline-flex text-sm font-semibold text-[#185FA5]" to={fallbackPath}>
-            ← Back to tasks
+            ← Back To Tasks
           </Link>
         </div>
       </section>
@@ -359,7 +359,7 @@ function TaskDetailContent() {
             to={fallbackPath}
           >
             <span className="text-base leading-none">←</span>
-            Back to tasks
+            Back To Tasks
           </Link>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -407,18 +407,18 @@ function TaskDetailContent() {
 
         {/* Meta grid */}
         <div className="mt-6 grid gap-x-6 gap-y-5 rounded-[14px] bg-[#F8F9FC] p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-          <MetaField label="Assigned to">
+          <MetaField label="Assigned To">
             <p className="text-sm font-medium text-[#1E293B]">
               {task.assignedTo?.name ?? task.assignedToName ?? '--'}
             </p>
           </MetaField>
-          <MetaField label="Start date">
+          <MetaField label="Start Date">
             <p className="text-sm font-medium text-[#1E293B]">{fmtDate(task.start_date)}</p>
           </MetaField>
-          <MetaField label="Due date">
+          <MetaField label="Due Date">
             <p className="text-sm font-medium text-[#1E293B]">{fmtDate(task.due_date)}</p>
           </MetaField>
-          <MetaField label="Brief attachment">
+          <MetaField label="Brief Attachment">
             {task.attachment_path ? (
               <button
                 type="button"
@@ -431,7 +431,7 @@ function TaskDetailContent() {
               <p className="text-sm text-[#8A99B0]">None</p>
             )}
           </MetaField>
-          <MetaField label="Completion proof">
+          <MetaField label="Completion Proof">
             {task.proof_path ? (
               <button
                 type="button"
@@ -467,7 +467,7 @@ function TaskDetailContent() {
             <h2 className="mt-1.5 text-xl font-semibold text-[#1E293B]">Timeline</h2>
           </div>
           <span className="rounded-full border border-[#EFF2F6] bg-[#F8F9FC] px-3 py-1 text-xs font-semibold text-[#5B6E8C]">
-            {task.history?.length ?? 0} update{(task.history?.length ?? 0) === 1 ? '' : 's'}
+            {task.history?.length ?? 0} Update{(task.history?.length ?? 0) === 1 ? '' : 's'}
           </span>
         </div>
 

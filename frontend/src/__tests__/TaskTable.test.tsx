@@ -80,7 +80,7 @@ describe('TaskTable Component', () => {
   it('should show empty state when no data provided', () => {
     render(<TaskTable tasks={[]} />);
 
-    expect(screen.getByText('No tasks found')).toBeInTheDocument();
+    expect(screen.getByText('No Tasks Found')).toBeInTheDocument();
     expect(screen.getByText('No tasks available right now.')).toBeInTheDocument();
   });
 
@@ -92,7 +92,7 @@ describe('TaskTable Component', () => {
       />
     );
 
-    expect(screen.getByText('No tasks found')).toBeInTheDocument();
+    expect(screen.getByText('No Tasks Found')).toBeInTheDocument();
     expect(screen.getByText('No tasks assigned to you yet.')).toBeInTheDocument();
   });
 
@@ -175,11 +175,11 @@ describe('TaskTable Component', () => {
   it('should render table headers correctly', () => {
     render(<TaskTable tasks={mockTasks} />);
 
-    expect(screen.getByText('Task title')).toBeInTheDocument();
-    expect(screen.getByText('Assigned to')).toBeInTheDocument();
+    expect(screen.getByText('Task Title')).toBeInTheDocument();
+    expect(screen.getByText('Assigned To')).toBeInTheDocument();
     expect(screen.getByText('Priority')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();
-    expect(screen.getByText('Assign date')).toBeInTheDocument();
+    expect(screen.getByText('Assign Date')).toBeInTheDocument();
     expect(screen.getByText('Deadline')).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
   });

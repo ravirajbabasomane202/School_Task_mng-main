@@ -10,9 +10,10 @@ from app.models.department import Department
 from app.models.notification import Announcement
 from app.models.register import Register, RegisterOccurrence, CYCLES, fetch_occurrence_maps
 from app.models.task import Task
-from app.models.user import TASK_ASSIGNABLE_ROLES, User
+from app.models.role import sync_roles
+from app.models.user import User
 from app.utils.completion import (
-    CAT_LATE, CAT_ON_TIME, CAT_PENDING, register_completion_category, task_completion_category
+    CAT_LATE, CAT_ON_TIME, register_completion_category, task_completion_category
 )
 from app.utils.response import success, error
 
@@ -23,6 +24,9 @@ from app.utils.response import success, error
 # metric that doesn't exist for that person.
 TASK_PERFORMANCE_WEIGHT = 0.5
 REGISTER_PERFORMANCE_WEIGHT = 0.5
+
+# The one role that is the assigner of work rather than a tracked assignee.
+PERFORMANCE_EXCLUDED_ROLE = 'CHAIRMAN'
 
 
 def _overall_performance(task_performance, has_tasks, register_performance, has_registers):
@@ -275,10 +279,15 @@ def _staff_performance_rows(date_from=None, date_to=None):
     """
     Task.mark_overdue_delayed()
     rows = []
+    # Every active staff member is tracked, whatever their role: the list is
+    # NOT limited to a hard-coded set of roles, so a role created later (and
+    # given to a user) shows up here with no code change. Only the school
+    # owner (the account that assigns the work) is not a tracked assignee.
+    roles_by_key = sync_roles()
     department_users = User.query.filter(
-        User.role.in_(TASK_ASSIGNABLE_ROLES),
+        User.role != PERFORMANCE_EXCLUDED_ROLE,
         User.is_active == True
-    ).all()
+    ).order_by(User.id).all()
 
     # Load all tasks for these users in one query instead of one per user
     user_ids = [u.id for u in department_users]
@@ -287,7 +296,14 @@ def _staff_performance_rows(date_from=None, date_to=None):
     if task_query is not None and date_from and date_to:
         start_dt = datetime.combine(date_from, datetime.min.time())
         end_dt = datetime.combine(date_to, datetime.min.time()) + timedelta(days=1)
-        task_query = task_query.filter(Task.due_date >= start_dt, Task.due_date < end_dt)
+        # A task belongs to the range by its due date. A task with NO due date
+        # used to be dropped by `due_date >= start` (NULL comparisons are never
+        # true), so it vanished from the totals whenever a range was applied;
+        # it is scoped by when it was created instead.
+        task_query = task_query.filter(or_(
+            db.and_(Task.due_date != None, Task.due_date >= start_dt, Task.due_date < end_dt),
+            db.and_(Task.due_date == None, Task.created_at >= start_dt, Task.created_at < end_dt),
+        ))
 
     all_user_tasks = task_query.all() if task_query is not None else []
 
@@ -321,6 +337,11 @@ def _staff_performance_rows(date_from=None, date_to=None):
         total = len(user_tasks)
         completed = sum(1 for task in user_tasks if task.status == 'COMPLETED')
         delayed = sum(1 for task in user_tasks if task.status == 'DELAYED')
+        # Status buckets: completed + in_progress + pending + delayed + escalated
+        # == total, so the Performance table always adds up.
+        in_progress = sum(1 for task in user_tasks if task.status == 'IN_PROGRESS')
+        pending_status = sum(1 for task in user_tasks if task.status == 'PENDING')
+        escalated = sum(1 for task in user_tasks if task.status == 'ESCALATED')
         delay_rate = round((delayed / total) * 100) if total else 0
         task_performance = ((completed / total) * 100) * (1 - delay_rate / 100) if total else 0
         performance_score = round(task_performance) if total else 0
@@ -330,7 +351,6 @@ def _staff_performance_rows(date_from=None, date_to=None):
         task_categories = [task_completion_category(task) for task in user_tasks]
         on_time_tasks = task_categories.count(CAT_ON_TIME)
         late_tasks = task_categories.count(CAT_LATE)
-        pending_tasks = task_categories.count(CAT_PENDING)
 
         user_registers = registers_by_user.get(user.id, [])
         total_registers = len(user_registers)
@@ -356,7 +376,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 if occ['status'] == 'COMPLETED':
                     completed_registers += 1
                     if register_completion_category(
-                        occ['status'], occ['period_end'], occ.get('completed_at')
+                        occ['status'], occ['due_date'], occ.get('completed_at')
                     ) == CAT_LATE:
                         late_registers += 1
                     else:
@@ -382,11 +402,15 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 'userId': user.id,
                 'name': user.name,
                 'role': user.role,
+                'roleId': roles_by_key[user.role].id if user.role in roles_by_key else None,
+                'roleName': roles_by_key[user.role].name if user.role in roles_by_key else user.role,
                 'totalTasks': total,
                 'completedTasks': completed,
                 'onTimeCompleteTasks': on_time_tasks,
                 'completedAfterDueTasks': late_tasks,
-                'pendingTasks': pending_tasks,
+                'pendingTasks': pending_status,
+                'inProgressTasks': in_progress,
+                'escalatedTasks': escalated,
                 'delayedTasks': delayed,
                 'performanceScore': performance_score,
                 'delayRate': delay_rate,

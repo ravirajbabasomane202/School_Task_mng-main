@@ -202,13 +202,13 @@ export default function ScheduleMeeting() {
               Meeting Management
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-[#1E293B]">
-              Schedule &amp; manage meetings
+              Schedule &amp; Manage Meetings
             </h1>
             <p className="mt-2 text-sm text-[#5B6E8C]">
               Create meetings, invite attendees, and track status from one place.
             </p>
           </div>
-          <Button onClick={openCreate}>+ Schedule meeting</Button>
+          <Button onClick={openCreate}>+ Schedule Meeting</Button>
         </div>
       </div>
 
@@ -259,7 +259,7 @@ export default function ScheduleMeeting() {
 
       {/* Meeting list */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-        <h2 className="mb-4 text-lg font-semibold text-[#1E293B]">All meetings</h2>
+        <h2 className="mb-4 text-lg font-semibold text-[#1E293B]">All Meetings</h2>
         {meetingsQuery.isLoading ? (
           <p className="text-sm text-[#8A99B0]">Loading...</p>
         ) : meetings.length === 0 ? (
@@ -297,7 +297,7 @@ export default function ScheduleMeeting() {
                       size="sm"
                       variant="ghost"
                     >
-                      Mark done
+                      Mark Done
                     </Button>
                   )}
                   <Button onClick={() => openEdit(m)} size="sm" variant="ghost">
@@ -416,7 +416,7 @@ export default function ScheduleMeeting() {
 
           <div>
             <label className="mb-1 block text-xs font-semibold text-[#5B6E8C]">
-              Invite Attendees ({form.attendee_ids.length} selected)
+              Invite Attendees ({form.attendee_ids.length} Selected)
             </label>
             <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-[#EFF2F6] p-2">
               {users.map((u) => (
@@ -452,7 +452,7 @@ export default function ScheduleMeeting() {
               loading={createMutation.isPending || updateMutation.isPending}
               onClick={handleSubmit}
             >
-              {editingMeeting ? 'Update meeting' : 'Schedule meeting'}
+              {editingMeeting ? 'Update Meeting' : 'Schedule Meeting'}
             </Button>
           </div>
         </div>

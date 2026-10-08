@@ -488,7 +488,7 @@ function TaskAssignment() {
             Tasks Module
           </p>
           <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">
-            {editingTask !== null ? 'Edit task' : 'Create new task'}
+            {editingTask !== null ? 'Edit Task' : 'Create New Task'}
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#5B6E8C]">
             Dispatch work to the School Manager and department heads with due dates, priority,
@@ -609,7 +609,7 @@ function TaskAssignment() {
           <div className="grid gap-4 sm:grid-cols-2">
             {/* ── Renamed "Start date" → "Assign date", defaults to today ── */}
             <Input
-              label="Assign date"
+              label="Assign Date"
               onChange={(event) => handleChange('start_date', event.target.value)}
               required
               type="date"
@@ -617,7 +617,7 @@ function TaskAssignment() {
             />
 
             <Input
-              label="Due date"
+              label="Due Date"
               onChange={(event) => handleChange('due_date', event.target.value)}
               required
               type="date"
@@ -644,7 +644,7 @@ function TaskAssignment() {
               loading={isSubmitting || (taskQuery.isFetching && tasks.length === 0)}
               type="submit"
             >
-              {editingTask !== null ? 'Update task' : 'Submit task'}
+              {editingTask !== null ? 'Update Task' : 'Submit Task'}
             </Button>
             {editingTask !== null && (
               <Button
@@ -671,7 +671,7 @@ function TaskAssignment() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
                 Assignment Queue
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Active task queue</h2>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Active Task Queue</h2>
             </div>
 
             <div className="flex flex-wrap gap-2">

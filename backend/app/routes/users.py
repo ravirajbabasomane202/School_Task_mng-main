@@ -2,22 +2,35 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from app.extensions import db
 from app.models.user import User, ROLES
-from app.models.role import Role
+from app.models.role import Role, sync_roles
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
 
 users_bp = Blueprint('users', __name__)
 
 
+def resolve_role_key(value):
+    """Return the stable role KEY for what the client sent, or None if unknown.
+
+    Accepts the key itself, a role id, or (legacy clients) the display name,
+    and always stores the key, so renaming a role never orphans its users.
+    """
+    if value is None or value == '':
+        return None
+    sync_roles()
+    if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
+        role = db.session.get(Role, int(value))
+        if role:
+            return role.key
+    text = str(value)
+    role = Role.query.filter_by(key=text).first()
+    if role is None:
+        role = Role.query.filter(db.func.lower(Role.name) == text.lower()).first()
+    return role.key if role else None
+
+
 def is_valid_role(name):
-    """A role is valid if it's one of the built-in ROLES (which drive
-    permissions/routing) or a custom role added via the roles catalog
-    (the "Other" option on the Add/Edit User forms)."""
-    if not name:
-        return False
-    if name in ROLES:
-        return True
-    return Role.query.filter(db.func.lower(Role.name) == name.lower()).first() is not None
+    return resolve_role_key(name) is not None
 
 
 @users_bp.route('', methods=['GET'])
@@ -71,7 +84,7 @@ def create_user():
     user = User(
         name=data['name'].strip(),
         email=data['email'].lower().strip(),
-        role=data['role']
+        role=resolve_role_key(data['role'])
     )
     user.set_password(data['password'])
     db.session.add(user)
@@ -101,9 +114,10 @@ def update_user(user_id):
     if 'role' in data:
         if not is_valid_role(data['role']):
             return error('Invalid role', 400)
-        if data['role'] == 'CHAIRMAN':
+        new_key = resolve_role_key(data['role'])
+        if new_key == 'CHAIRMAN':
             return error('Cannot assign CHAIRMAN role via this endpoint', 403)
-        user.role = data['role']
+        user.role = new_key
     if 'password' in data and data['password']:
         user.set_password(data['password'])
 

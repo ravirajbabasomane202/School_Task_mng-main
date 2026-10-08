@@ -89,8 +89,11 @@ def test_staff_rows_categories_sum_to_totals(app):
     with app.app_context():
         row = next(r for r in _staff_performance_rows() if r['userId'] == uid)
 
-    assert (row['onTimeCompleteTasks'], row['completedAfterDueTasks'], row['pendingTasks']) == (1, 1, 1)
-    assert row['onTimeCompleteTasks'] + row['completedAfterDueTasks'] + row['pendingTasks'] == row['totalTasks']
+    # pendingTasks is now the real PENDING status count; the one unfinished task here is IN_PROGRESS.
+    assert (row['onTimeCompleteTasks'], row['completedAfterDueTasks'], row['pendingTasks']) == (1, 1, 0)
+    assert row['inProgressTasks'] == 1
+    assert (row['completedTasks'] + row['inProgressTasks'] + row['pendingTasks']
+            + row['delayedTasks'] + row['escalatedTasks']) == row['totalTasks']
     assert row['onTimeCompleteTasks'] + row['completedAfterDueTasks'] == row['completedTasks']
 
     assert row['onTimeCompleteRegisters'] == 1
@@ -117,15 +120,15 @@ def test_performance_excel_export(app, client, auth_headers):
     assert resp.headers['Content-Disposition'].endswith('.xls')
     body = resp.get_data(as_text=True)
 
-    for label in ('On Time Complete', 'Complete After Due Date', 'Pending'):
+    for label in ('On Time Checked', 'Checked After Due Date', 'Pending', 'In Progress'):
         assert label in body
-    for gone in ('On time Checked', 'Missed Checking', 'Total Delayed', '>Completed<'):
+    for gone in ('On Time Complete', 'Complete After Due Date', 'Delay Rate', 'Missed Checking', 'Total Delayed', '>Completed<'):
         assert gone not in body
     assert 'Excel Register' in body
     assert 'Performance Report' in body
     assert '#1E3A5F' in body and '#2E75B6' in body                    # band + blue header
     assert GREEN_BG in body and YELLOW_BG in body and RED_BG in body  # tints + legend
-    assert 'Green = On Time Complete' in body and 'Red = Pending' in body
+    assert 'Green = On Time Checked' in body and 'Red = Pending' in body
     assert body.count('>Total<') == 3                                  # totals row per table
     assert name in body or 'All heads' not in body                     # head filter reflected
     assert f'Head: {name}' in body

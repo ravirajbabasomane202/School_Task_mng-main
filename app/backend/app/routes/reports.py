@@ -17,6 +17,9 @@ from app.routes.dashboard import _overall_performance, _staff_performance_rows
 from app.routes.registers import _scope_to_user
 from app.utils.response import error, success
 from app.utils.decorators import roles_required
+from app.utils.labels import (
+    LABEL_CHECKED_AFTER_DUE, LABEL_DELAYED, LABEL_IN_PROGRESS, LABEL_ON_TIME_CHECKED, LABEL_PENDING,
+)
 from app.utils.completion import (
     CAT_LATE, CAT_ON_TIME, CAT_PENDING, as_utc_date, register_completion_category,
     task_completion_category
@@ -163,7 +166,7 @@ def _report_title(assigned_to=None):
         except (TypeError, ValueError):
             head = None
         if head:
-            label = ROLE_LABELS.get(head.role) or str(head.role or '').replace('_', ' ').title()
+            label = role_label(head.role)
             if label:
                 return f'{label} Task Report'
     return 'All Heads Task Report'
@@ -998,21 +1001,14 @@ def export_performance_report():
     )
 
 
-ROLE_LABELS = {
-    'CHAIRMAN': 'Chairman',
-    'DIRECTOR': 'School Director',
-    'PROPERTY': 'Property & Maintenance Head',
-    'FINANCE': 'Finance Head',
-    'ADMIN': 'Admin Head',
-    'PRINCIPAL': 'Principal',
-    'ADMISSION': 'Admission Head',
-    'HR': 'HR Head',
-    'PURCHASE': 'Purchase Head',
-    'IT': 'IT & ERP Head',
-    'TRANSPORT': 'Transport Head',
-    'HOUSEKEEPING': 'HouseKeeping Head',
-    'FRONT_DESK': 'Front Desk / Reception'
-}
+def role_label(role_key):
+    """Display name of a role, read from the roles table (never hard-coded).
+    Falls back to a prettified key if the role is missing."""
+    if not role_key:
+        return ''
+    from app.models.role import sync_roles
+    role = sync_roles().get(role_key)
+    return role.name if role else str(role_key).replace('_', ' ').title()
 
 
 def _registry_performance_summaries(user, date_from, date_to, cycle=None, status=None):
@@ -1054,7 +1050,7 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
             if occ['status'] == 'COMPLETED':
                 completed += 1
                 if register_completion_category(
-                    occ['status'], occ['period_end'], occ.get('completed_at')
+                    occ['status'], occ['due_date'], occ.get('completed_at')
                 ) == CAT_LATE:
                     late += 1
                 else:
@@ -1070,6 +1066,7 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
             {
                 'register': register,
                 'headName': register.head.name if register.head else register.head_name,
+                'headId': register.head_id,
                 'status': effective_status,
                 'completed': completed,
                 'missed': missed,
@@ -1086,6 +1083,25 @@ def _registry_performance_summaries(user, date_from, date_to, cycle=None, status
     return summaries
 
 
+def _head_display(head):
+    if not head or head.upper() == 'ALL':
+        return 'All heads'
+    if str(head).isdigit():
+        user = db.session.get(User, int(head))
+        return user.name if user else str(head)
+    return head
+
+
+def _head_matches(head, user_id, name):
+    """The Head filter identifies a person by their user id. Matching on the
+    name text is only kept for old clients that still send a name: names are
+    free text (a register's head_name is a copy that can differ from the
+    user's current name), which is why filtering by name dropped tasks."""
+    if str(head).isdigit():
+        return user_id is not None and int(head) == user_id
+    return name == head
+
+
 def _performance_export_data(user, date_from, date_to, head, cycle, status):
     """Build the exact dataset the Performance screen's export needs
     (Registration Performance, Task Performance, Performance Metrics,
@@ -1096,7 +1112,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     """
     summaries = _registry_performance_summaries(user, date_from, date_to, cycle=cycle, status=status)
     if head and head.upper() != 'ALL':
-        summaries = [s for s in summaries if s['headName'] == head]
+        summaries = [s for s in summaries if _head_matches(head, s['headId'], s['headName'])]
 
     total_registers = len(summaries)
     checked = sum(1 for s in summaries if s['completed'] > 0)
@@ -1115,7 +1131,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
 
     staff_rows = _staff_performance_rows(date_from, date_to)
     if head and head.upper() != 'ALL':
-        staff_rows = [row for row in staff_rows if row['name'] == head]
+        staff_rows = [row for row in staff_rows if _head_matches(head, row['userId'], row['name'])]
 
     total_tasks = sum(row['totalTasks'] for row in staff_rows)
     completed_tasks = sum(row['completedTasks'] for row in staff_rows)
@@ -1124,6 +1140,8 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     on_time_tasks = sum(row['onTimeCompleteTasks'] for row in staff_rows)
     late_tasks = sum(row['completedAfterDueTasks'] for row in staff_rows)
     pending_tasks = sum(row['pendingTasks'] for row in staff_rows)
+    in_progress_tasks = sum(row['inProgressTasks'] for row in staff_rows)
+    escalated_tasks = sum(row['escalatedTasks'] for row in staff_rows)
     task_performance = round((completed_tasks / total_tasks) * 100) if total_tasks else 0
 
     if total_tasks and total_registers:
@@ -1157,6 +1175,8 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
             'onTimeCompleteTasks': on_time_tasks,
             'completedAfterDueTasks': late_tasks,
             'pendingTasks': pending_tasks,
+            'inProgressTasks': in_progress_tasks,
+            'escalatedTasks': escalated_tasks,
             'taskPerformance': task_performance,
         },
         'finalPerformance': final_performance,
@@ -1228,7 +1248,7 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
         out.append(f'<tr>{spacer}{"".join(cells)}</tr>')
         return out
 
-    head_label = head if head and head.upper() != 'ALL' else 'All heads'
+    head_label = _head_display(head)
     cycle_label = cycle if cycle and cycle.upper() != 'ALL' else 'All cycles'
     status_label = status if status and status.upper() != 'ALL' else 'All statuses'
     filters = (
@@ -1251,9 +1271,9 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     rows.append(gap())
 
     legend_label = {
-        CAT_ON_TIME: 'Green = On Time Complete',
-        CAT_LATE: 'Yellow = Complete After Due Date',
-        CAT_PENDING: 'Red = Pending',
+        CAT_ON_TIME: f'Green = {LABEL_ON_TIME_CHECKED}',
+        CAT_LATE: f'Yellow = {LABEL_CHECKED_AFTER_DUE}',
+        CAT_PENDING: f'Red = {LABEL_PENDING}',
     }
     legend_cells = ''.join(
         f'<td bgcolor="{ROW_STYLES[c]["bg"]}" colspan="{span}" style="background:{ROW_STYLES[c]["bg"]};'
@@ -1271,20 +1291,22 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     t_on = sum(r['onTimeCompleteTasks'] for r in staff)
     t_late = sum(r['completedAfterDueTasks'] for r in staff)
     t_pend = sum(r['pendingTasks'] for r in staff)
+    t_prog = sum(r['inProgressTasks'] for r in staff)
+    t_esc = sum(r['escalatedTasks'] for r in staff)
     t_delayed = sum(r['delayedTasks'] for r in staff)
     t_delay_rate = round((t_delayed / t_total) * 100) if t_total else 0
     t_score = round(((t_done / t_total) * 100) * (1 - t_delay_rate / 100)) if t_total else 0
     rows.append(section_title('Task Performance'))
     rows.extend(table(
-        ['Role', 'Total Tasks', 'On Time Complete', 'Complete After Due Date', 'Pending',
-         'Delayed', 'Delay Rate %', 'Task Performance %'],
+        ['Role', 'Total Tasks', LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE, LABEL_PENDING,
+         LABEL_IN_PROGRESS, LABEL_DELAYED, 'Escalated', 'Task Performance %'],
         [
-            [ROLE_LABELS.get(r['role'], r['role']), r['totalTasks'], r['onTimeCompleteTasks'],
-             r['completedAfterDueTasks'], r['pendingTasks'], r['delayedTasks'],
-             f"{r['delayRate']}%", f"{r['performanceScore']}%"]
+            [r['roleName'], r['totalTasks'], r['onTimeCompleteTasks'],
+             r['completedAfterDueTasks'], r['pendingTasks'], r['inProgressTasks'],
+             r['delayedTasks'], r['escalatedTasks'], f"{r['performanceScore']}%"]
             for r in staff
         ],
-        ['Total', t_total, t_on, t_late, t_pend, t_delayed, f'{t_delay_rate}%', f'{t_score}%'],
+        ['Total', t_total, t_on, t_late, t_pend, t_prog, t_delayed, t_esc, f'{t_score}%'],
         {2: CAT_ON_TIME, 3: CAT_LATE, 4: CAT_PENDING},
     ))
     rows.append(gap())
@@ -1299,11 +1321,11 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     r_overall = _overall_performance(t_score, bool(t_total), r_perf, bool(r_total))
     rows.append(section_title('Register Performance'))
     rows.extend(table(
-        ['Role', 'Total Registers', 'Checking Cycle', 'On Time Complete',
-         'Complete After Due Date', 'Pending', 'Total Estimated Check',
+        ['Role', 'Total Registers', 'Checking Cycle', LABEL_ON_TIME_CHECKED,
+         LABEL_CHECKED_AFTER_DUE, LABEL_PENDING, 'Total Estimated Check',
          'Register Performance %', 'Overall Performance %'],
         [
-            [ROLE_LABELS.get(r['role'], r['role']), r['totalRegisters'],
+            [r['roleName'], r['totalRegisters'],
              ', '.join(r['checkingCycles']) or 'N/A', r['onTimeCompleteRegisters'],
              r['completedAfterDueRegisters'], r['pendingRegisters'],
              r['onTimeCompleteRegisters'] + r['completedAfterDueRegisters'] + r['pendingRegisters'],
@@ -1324,8 +1346,8 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     d_rate = round(((d_on + d_late) / d_total) * 100) if d_total else 0
     rows.append(section_title('Register Activity Report'))
     rows.extend(table(
-        ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', 'On Time Complete',
-         'Complete After Due Date', 'Pending', 'Total Checked', 'Completion %'],
+        ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', LABEL_ON_TIME_CHECKED,
+         LABEL_CHECKED_AFTER_DUE, LABEL_PENDING, 'Total Checked', 'Completion %'],
         [
             [s['register'].name, s['register'].register_no, s['headName'], s['register'].cycle,
              s['onTimeComplete'], s['completedAfterDue'], s['pending'], s['total'],
@@ -1362,7 +1384,7 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     output = io.StringIO()
     writer = csv_module.writer(output)
 
-    head_label = head if head and head.upper() != 'ALL' else 'All heads'
+    head_label = _head_display(head)
     cycle_label = cycle if cycle and cycle.upper() != 'ALL' else 'All cycles'
     status_label = status if status and status.upper() != 'ALL' else 'All statuses'
 
@@ -1428,14 +1450,15 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     writer.writerow([])
 
     writer.writerow(['Detailed Task Performance Records'])
-    writer.writerow(['Role', 'Total Tasks', 'Completed', 'Delayed', 'Delay Rate %', 'Task Performance %'])
+    writer.writerow(['Role', 'Total Tasks', 'Completed', LABEL_IN_PROGRESS, LABEL_PENDING, LABEL_DELAYED, 'Task Performance %'])
     for row in data['staffRows']:
         writer.writerow([
-            ROLE_LABELS.get(row['role'], row['role']),
+            row['roleName'],
             row['totalTasks'],
             row['completedTasks'],
+            row['inProgressTasks'],
+            row['pendingTasks'],
             row['delayedTasks'],
-            row['delayRate'],
             row['performanceScore']
         ])
 

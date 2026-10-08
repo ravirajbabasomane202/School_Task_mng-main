@@ -68,7 +68,7 @@ function AssignedTasks() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Department Tasks
             </p>
-            <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Assigned tasks</h2>
+            <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Assigned Tasks</h2>
             <p className="mt-2 text-sm leading-6 text-[#5B6E8C]">
               Review your queue, update task status, and upload proof when completing tasks.
             </p>

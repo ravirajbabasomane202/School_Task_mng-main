@@ -154,7 +154,7 @@ function ChairmanOverview() {
 
   const statCards = [
     {
-      label: 'Total tasks',
+      label: 'Total Tasks',
       tone: 'text-blue-600',
       value: dashboardData.totalTasks,
       statusFilter: 'ALL'
@@ -172,7 +172,7 @@ function ChairmanOverview() {
       statusFilter: 'DELAYED'
     },
     {
-      label: 'Pending approvals',
+      label: 'Pending Approvals',
       tone: 'text-amber-600',
       value: dashboardData.pendingApprovals,
       statusFilter: null  // navigate to approvals page
@@ -188,7 +188,7 @@ function ChairmanOverview() {
               Master View
             </p>
             <h1 className="mt-2 text-2xl font-semibold text-[#1E293B]">
-              School status and leadership control
+              School Status And Leadership Control
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5B6E8C]">
               Review task health, staff productivity, approvals, and
@@ -197,12 +197,12 @@ function ChairmanOverview() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button onClick={() => navigate('/chairman/task-assignment')}>Assign task</Button>
+            <Button onClick={() => navigate('/chairman/task-assignment')}>Assign Task</Button>
             <Button onClick={() => navigate('/chairman/meetings')} variant="ghost">
-              Schedule meeting
+              Schedule Meeting
             </Button>
             <Button onClick={() => navigate('/chairman/task-monitor')} variant="ghost">
-              Monitor tasks
+              Monitor Tasks
             </Button>
           </div>
         </div>
@@ -235,9 +235,9 @@ function ChairmanOverview() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Recent task assignments</h3>
+            <h3 className="text-lg font-semibold">Recent Task Assignments</h3>
             <Button onClick={() => navigate('/chairman/task-assignment')} size="sm">
-              Assign task +
+              Assign Task +
             </Button>
           </div>
           <TaskTable
@@ -252,9 +252,9 @@ function ChairmanOverview() {
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold">Active alerts</h3>
+            <h3 className="text-lg font-semibold">Active Alerts</h3>
             <Button onClick={() => navigate('/chairman/alerts')} size="sm" variant="ghost">
-              Open alerts
+              Open Alerts
             </Button>
           </div>
           <div className="mt-4 space-y-3">
@@ -284,9 +284,9 @@ function ChairmanOverview() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
                 Staff Productivity
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Top performers</h2>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Top Performers</h2>
             </div>
-            <Badge variant="gray">{topPerformers.length} people</Badge>
+            <Badge variant="gray">{topPerformers.length} People</Badge>
           </div>
 
           <div className="mt-5 space-y-3">
@@ -310,9 +310,9 @@ function ChairmanOverview() {
 
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-lg font-semibold">Pending approvals</h3>
+            <h3 className="text-lg font-semibold">Pending Approvals</h3>
             <Button onClick={() => navigate('/chairman/approvals')} size="sm" variant="ghost">
-              View all
+              View All
             </Button>
           </div>
           <div className="mt-4 space-y-3">
@@ -372,9 +372,9 @@ function ChairmanOverview() {
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
                 Leadership Performance Panel
               </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Leadership performance</h2>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Leadership Performance</h2>
             </div>
-            <Badge variant="blue">{performanceData.length} profiles</Badge>
+            <Badge variant="blue">{performanceData.length} Profiles</Badge>
           </div>
 
           <div className="mt-5 space-y-3">

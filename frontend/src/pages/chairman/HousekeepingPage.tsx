@@ -194,7 +194,7 @@ export default function HousekeepingPage() {
               Manage cleaning, maintenance, inspection, and repair tasks across school premises.
             </p>
           </div>
-          <Button onClick={openCreate}>+ Add task</Button>
+          <Button onClick={openCreate}>+ Add Task</Button>
         </div>
       </div>
 
@@ -248,7 +248,7 @@ export default function HousekeepingPage() {
 
       {/* Tasks list */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-        <h2 className="mb-4 text-lg font-semibold text-[#1E293B]">All housekeeping tasks</h2>
+        <h2 className="mb-4 text-lg font-semibold text-[#1E293B]">All Housekeeping Tasks</h2>
         {tasksQuery.isLoading ? (
           <p className="text-sm text-[#8A99B0]">Loading...</p>
         ) : tasks.length === 0 ? (
@@ -431,7 +431,7 @@ export default function HousekeepingPage() {
               loading={createMutation.isPending || updateMutation.isPending}
               onClick={handleSubmit}
             >
-              {editingTask ? 'Update task' : 'Add task'}
+              {editingTask ? 'Update Task' : 'Add Task'}
             </Button>
           </div>
         </div>

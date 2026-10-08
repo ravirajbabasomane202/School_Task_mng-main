@@ -17,10 +17,13 @@ from app.models.register import (
     fetch_occurrence_maps,
     next_period_start,
     period_bounds,
+    schedule_next_due_date,
+    scheduled_due_date,
     period_label,
     _add_months,
 )
-from app.models.user import User, DEPARTMENT_HEAD_ROLES
+from app.models.role import sync_roles
+from app.models.user import User
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
 
@@ -251,6 +254,8 @@ def calendar_events():
                 'occurrence_date': occ_date.isoformat(),
                 'period_start': occ['period_start'].isoformat(),
                 'period_end': occ['period_end'].isoformat(),
+                'due_date': occ['due_date'].isoformat(),
+                'checked_at': occ['completed_at'].isoformat() if occ.get('completed_at') else None,
                 'completed_at': occ['completed_at'].isoformat() if occ.get('completed_at') else None,
                 'title': f'{r.name} ({r.register_no})',
                 'date': occ_date.isoformat(),
@@ -456,11 +461,15 @@ def _record_period_check(register, new_status, user_id, today, requested_date=No
 
     occurrence.status = new_status
     occurrence.completed_by = user_id
+    # The actual check time goes in its own field ...
     occurrence.completed_at = datetime.now(timezone.utc)
+    # ... and the scheduled due date is written once and never replaced by it.
+    if occurrence.due_date is None:
+        occurrence.due_date = scheduled_due_date(register.cycle, p_start)
 
-    # Keep the register's own due-date bookkeeping in step: the next check
-    # is due in the next period.
-    register.next_due_date = next_period_start(register.cycle, today)
+    # The next due date follows the SCHEDULE (the period this check satisfied),
+    # not the day the check happened to be made.
+    register.next_due_date = schedule_next_due_date(register.cycle, p_start)
     if new_status == 'OK':
         register.last_completed_date = today
 
@@ -548,9 +557,12 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
 @jwt_required()
 def list_register_heads():
     """Active users eligible to be selected as a Register's Head Name."""
+    # Any active user except the school owner can head a register -- not a
+    # hard-coded list of roles, so a newly created role works immediately.
+    roles_by_key = sync_roles()
     query = User.query.filter(
         User.is_active.is_(True),
-        User.role.in_(DEPARTMENT_HEAD_ROLES),
+        User.role != 'CHAIRMAN',
     )
     users = query.order_by(User.name).all()
     return success([
@@ -558,6 +570,8 @@ def list_register_heads():
             'id': u.id,
             'name': u.name,
             'role': u.role,
+            'role_id': roles_by_key[u.role].id if u.role in roles_by_key else None,
+            'role_name': roles_by_key[u.role].name if u.role in roles_by_key else u.role,
             'department_id': u.department_id,
             'department_name': u.department.name if u.department else None,
         }

@@ -1,3 +1,5 @@
+import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
+import { latestEntries } from '../../utils/performanceUtils';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
@@ -134,12 +136,19 @@ function RegistryPerformancePanel() {
     queryFn: () => getStaffPerformance({ dateFrom, dateTo }),
   });
 
+  // Heads are identified by user id (the register's head_id), never by name
+  // text: names are free text and can differ between a register and the user,
+  // which is what made the filter drop tasks. Registers without a linked head
+  // fall back to their stored name so they can still be filtered.
   const headOptions = useMemo(() => {
-    const names = new Set<string>();
+    const options = new Map<string, string>();
     for (const register of registers) {
-      if (register.head_name) names.add(register.head_name);
+      if (register.head_id) options.set(String(register.head_id), register.head_name);
+      else if (register.head_name) options.set(`name:${register.head_name}`, register.head_name);
     }
-    return Array.from(names).sort((a, b) => a.localeCompare(b));
+    return Array.from(options, ([value, label]) => ({ value, label })).sort((a, b) =>
+      a.label.localeCompare(b.label)
+    );
   }, [registers]);
 
   const summaries = useMemo<RegisterSummary[]>(() => {
@@ -173,8 +182,11 @@ function RegistryPerformancePanel() {
         summary.completed += 1;
         // On time unless the check was recorded after the period's due date
         // (no due date / no recorded time counts as on time).
+        // checked_at <= due_date -> on time; checked_at > due_date -> after due date.
+        // due_date is the stored scheduled date (falls back to the period end).
         const done = event.completed_at ? event.completed_at.slice(0, 10) : null;
-        if (event.period_end && done && done > event.period_end) summary.late += 1;
+        const due = event.due_date ?? event.period_end;
+        if (due && done && done > due) summary.late += 1;
         else summary.onTime += 1;
       } else if (event.computed_status === 'FAILED') summary.rejected += 1;
       else if (event.computed_status === 'PENDING') summary.missed += 1;
@@ -184,8 +196,8 @@ function RegistryPerformancePanel() {
       summary.total = summary.completed + summary.missed + summary.rejected;
       summary.pending = summary.missed + summary.rejected;
       summary.completionRate = summary.total ? Math.round((summary.completed / summary.total) * 100) : 0;
-      summary.strip.sort((a, b) => a.date.localeCompare(b.date));
-      summary.strip = summary.strip.slice(-30);
+      // Newest first; only the latest 5 are rendered (see latestEntries).
+      summary.strip.sort((a, b) => b.date.localeCompare(a.date));
     }
 
     return Array.from(byRegister.values()).sort((a, b) => a.completionRate - b.completionRate);
@@ -197,7 +209,12 @@ function RegistryPerformancePanel() {
   const filteredSummaries = useMemo(() => {
     return summaries.filter((s) => {
       if (cycleFilter !== 'ALL' && s.register.checking_cycle !== cycleFilter) return false;
-      if (headFilter !== 'ALL' && s.register.head_name !== headFilter) return false;
+      if (headFilter !== 'ALL') {
+        const matches = headFilter.startsWith('name:')
+          ? s.register.head_name === headFilter.slice(5)
+          : s.register.head_id === Number(headFilter);
+        if (!matches) return false;
+      }
       if (statusFilter !== 'ALL' && s.register.status !== statusFilter) return false;
       return true;
     });
@@ -209,7 +226,10 @@ function RegistryPerformancePanel() {
   // from the same user).
   const filteredStaffPerformance = useMemo(() => {
     if (headFilter === 'ALL') return staffPerformance;
-    return staffPerformance.filter((row) => row.name === headFilter);
+    if (headFilter.startsWith('name:')) {
+      return staffPerformance.filter((row) => row.name === headFilter.slice(5));
+    }
+    return staffPerformance.filter((row) => row.userId === Number(headFilter));
   }, [staffPerformance, headFilter]);
 
   // Overall performance: how much activity was "changed" (completed on time)
@@ -306,7 +326,7 @@ function RegistryPerformancePanel() {
   if (registers.length === 0) {
     return (
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register performance</h2>
+        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register Performance</h2>
         <p className="text-sm text-[#8A99B0]">No registers have been created yet.</p>
       </div>
     );
@@ -361,9 +381,9 @@ function RegistryPerformancePanel() {
               className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
             >
               <option value="ALL">All heads</option>
-              {headOptions.map((name) => (
-                <option key={name} value={name}>
-                  {name}
+              {headOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
                 </option>
               ))}
             </select>
@@ -401,7 +421,7 @@ function RegistryPerformancePanel() {
         <KpiBox color="blue" label="Total Task" value={taskTotals.totalTasks} />
         <KpiBox color="green" label="Completed" value={taskTotals.completedTasks} />
         <KpiBox color="yellow" label="Not Completed" value={taskTotals.notCompletedTasks} />
-        <KpiBox color="red" label="Delayed" value={taskTotals.delayedTasks} />
+        <KpiBox color="red" label={L.delayed} value={taskTotals.delayedTasks} />
         <KpiBox color="purple" label="Performance" value={`${taskTotals.taskPerformance}%`} />
       </div>
 
@@ -412,8 +432,8 @@ function RegistryPerformancePanel() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
         <KpiBox color="cyan" label="Total Register" value={registerTotals.totalRegisters} />
         <KpiBox color="green" label="Checked" value={registerTotals.checked} />
-        <KpiBox color="yellow" label="Not Checked" value={registerTotals.notChecked} />
-        <KpiBox color="orange" label="Delayed" value={registerTotals.delayed} />
+        <KpiBox color="yellow" label={L.notChecked} value={registerTotals.notChecked} />
+        <KpiBox color="orange" label={L.delayed} value={registerTotals.delayed} />
         <KpiBox color="indigo" label="Performance" value={`${overall.completionRate}%`} />
       </div>
 
@@ -428,7 +448,7 @@ function RegistryPerformancePanel() {
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register activity report</h2>
+        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register Activity Report</h2>
         <p className="mb-4 text-sm text-[#8A99B0]">
           Every register, however it's assigned (daily, weekly, monthly…), with its own recent activity.
         </p>
@@ -440,10 +460,10 @@ function RegistryPerformancePanel() {
                 <th className="px-4 py-3 text-left font-semibold">Register No</th>
                 <th className="px-4 py-3 text-left font-semibold">Head Name</th>
                 <th className="px-4 py-3 text-left font-semibold">Checking Cycle</th>
-                <th className="px-4 py-3 text-left font-semibold">Recent activity</th>
-                <th className="px-4 py-3 text-center font-semibold">On Time Complete</th>
-                <th className="px-4 py-3 text-center font-semibold">Complete After Due Date</th>
-                <th className="px-4 py-3 text-center font-semibold">Pending</th>
+                <th className="px-4 py-3 text-left font-semibold">Recent Activity</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.pending}</th>
                 <th className="px-4 py-3 text-center font-semibold">Total Checked</th>
                 <th className="px-4 py-3 text-center font-semibold">Completion%</th>
               </tr>
@@ -466,14 +486,19 @@ function RegistryPerformancePanel() {
                     </td>
                     <td className="px-4 py-3">
                       {s.strip.length ? (
-                        <div className="flex items-center gap-[3px]" title="Oldest → most recent">
-                          {s.strip.map((entry) => (
+                        <div className="flex items-center gap-[3px]" title="Latest 5, Newest First">
+                          {latestEntries(s.strip, 5).shown.map((entry) => (
                             <span
                               key={entry.date}
                               className={['h-2.5 w-2.5 rounded-sm', DOT_CLASS[entry.color]].join(' ')}
                               title={entry.date}
                             />
                           ))}
+                          {latestEntries(s.strip, 5).more > 0 && (
+                            <span className="ml-1 text-xs text-[#8A99B0]">
+                              +{latestEntries(s.strip, 5).more} more
+                            </span>
+                          )}
                         </div>
                       ) : (
                         <span className="text-xs text-[#C3CCDA]">No activity yet</span>

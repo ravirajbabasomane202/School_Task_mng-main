@@ -20,7 +20,7 @@ export default function UnauthorizedPage() {
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl">
           🔒
         </div>
-        <h1 className="mb-2 text-xl font-semibold text-[#1E293B]">Access denied</h1>
+        <h1 className="mb-2 text-xl font-semibold text-[#1E293B]">Access Denied</h1>
         <p className="mb-1 text-sm text-[#5B6E8C]">
           You don't have permission to view this page.
         </p>

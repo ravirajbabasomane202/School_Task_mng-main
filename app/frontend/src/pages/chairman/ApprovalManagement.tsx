@@ -378,7 +378,7 @@ function ApprovalManagement() {
             Task Assignment Overview
           </p>
           <h2 className="mt-1 text-lg font-semibold text-[#1E293B]">
-            Module / Head Wise Task Assigned by Chairman
+            Module / Head Wise Task Assigned By Chairman
           </h2>
           <p className="mt-1 text-sm text-[#5B6E8C]">
             Click a department head to expand task-level completion status.
@@ -408,8 +408,8 @@ function ApprovalManagement() {
                   </div>
                   <div className="flex items-center gap-4 shrink-0">
                     <span className="text-xs text-[#8A99B0]">{module.tasks.length} tasks</span>
-                    <span className="text-xs font-semibold text-green-600">{completed} done</span>
-                    <span className="text-xs font-semibold text-amber-600">{pending} pending</span>
+                    <span className="text-xs font-semibold text-green-600">{completed} Done</span>
+                    <span className="text-xs font-semibold text-amber-600">{pending} Pending</span>
                     <div className="hidden sm:flex items-center gap-2 w-24">
                       <div className="flex-1 h-1.5 rounded-full bg-[#E4EAF2]">
                         <div

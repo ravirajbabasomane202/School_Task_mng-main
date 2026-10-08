@@ -1,34 +1,12 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import RegistryPerformancePanel from '../../components/registers/RegistryPerformancePanel';
-import { ROLE_LABELS } from '../../constants/roles';
-import { getRoleLabel } from '../../utils/roleUtils';
-import { getStaffPerformance } from '../../services/dashboardService';
+import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
+import { useRoles } from '../../hooks/useRoles';
+import { getStaffPerformance, type StaffPerformance } from '../../services/dashboardService';
 import { REGISTER_CYCLES, type RegisterCycle } from '../../types/register.types';
-
-interface PerformanceData {
-  userId: number;
-  name: string;
-  role: keyof typeof ROLE_LABELS;
-  totalTasks: number;
-  completedTasks: number;
-  onTimeCompleteTasks: number;
-  completedAfterDueTasks: number;
-  pendingTasks: number;
-  delayedTasks: number;
-  performanceScore: number;
-  delayRate: number;
-  totalRegisters: number;
-  checkingCycles: string[];
-  completedRegisters: number;
-  onTimeCompleteRegisters: number;
-  completedAfterDueRegisters: number;
-  pendingRegisters: number;
-  missedRegisters: number;
-  rejectedRegisters: number;
-  registerPerformance: number;
-  overallPerformance: number;
-}
+import { aggregateByRole, buildRoleOptions, filterRowsByRole } from '../../utils/performanceUtils';
 
 // Reuse the same Daily/Weekly/... labels the Register screens already use,
 // so "Estimated checking cycle" reads the same way everywhere in the app.
@@ -66,33 +44,66 @@ const CATEGORY_CELL = {
 };
 
 function PerformanceAnalytics() {
+  const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const { roles, getRoleName } = useRoles();
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['staffPerformance'],
-    queryFn: getStaffPerformance
+    queryFn: () => getStaffPerformance()
   });
 
-  const staffRows = (performanceData ?? []) as PerformanceData[];
+  const allRows = (performanceData ?? []) as StaffPerformance[];
 
   if (performanceLoading) {
     return <div className="p-6">Loading...</div>;
   }
 
-  const totalTasks = staffRows.reduce((sum, user) => sum + user.totalTasks, 0);
-  const totalCompleted = staffRows.reduce((sum, user) => sum + user.completedTasks, 0);
-  const totalDelayed = staffRows.reduce((sum, user) => sum + user.delayedTasks, 0);
+  // Role list comes from the backend; the filter value is the role KEY, so
+  // renaming a role changes only its label.
+  const roleOptions = buildRoleOptions(roles, allRows);
+  const staffRows = filterRowsByRole(allRows, roleFilter);
+  const roleRows = aggregateByRole(staffRows, roles);
+
+  const sum = (pick: (row: (typeof roleRows)[number]) => number) =>
+    roleRows.reduce((acc, row) => acc + pick(row), 0);
+  const totalTasks = sum((r) => r.totalTasks);
+  const totalCompleted = sum((r) => r.completedTasks);
+  const totalOnTimeChecked = sum((r) => r.onTimeCompleteRegisters);
+  const totalCheckedAfterDue = sum((r) => r.completedAfterDueRegisters);
+  const totalNotChecked = sum((r) => r.pendingRegisters);
+  const totalDelayed = sum((r) => r.delayedTasks);
   const schoolAverage = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
-  const delayRate = totalTasks ? Math.round((totalDelayed / totalTasks) * 100) : 0;
-  const topPerformer = [...staffRows].sort(
+  const topPerformer = [...roleRows].sort(
     (left, right) => right.overallPerformance - left.overallPerformance
   )[0];
 
   return (
     <div className="space-y-6 p-6">
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <label htmlFor="performance-role-filter" className="text-xs font-medium text-[#5B6E8C]">
+            Role
+          </label>
+          <select
+            id="performance-role-filter"
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+          >
+            <option value="ALL">All Roles</option>
+            {roleOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
       <div className="grid gap-6 md:grid-cols-3">
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
           <p className="text-sm text-[#5B6E8C]">Top performer</p>
           <p className="mt-3 text-xl font-semibold text-[#1E293B]">
-            {topPerformer ? getRoleLabel(topPerformer.role) : 'N/A'}
+            {topPerformer ? getRoleName(topPerformer.role, topPerformer.roleName) : 'N/A'}
           </p>
           <p className="mt-2 text-sm text-[#8A99B0]">
             {topPerformer ? `${topPerformer.overallPerformance}% performance` : 'No task data yet'}
@@ -106,10 +117,26 @@ function PerformanceAnalytics() {
         </div>
 
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-          <p className="text-sm text-[#5B6E8C]">Delay rate</p>
-          <p className="mt-3 text-xl font-semibold text-[#1E293B]">{delayRate}%</p>
-          <p className="mt-2 text-sm text-[#8A99B0]">Share of tasks currently delayed.</p>
+          <p className="text-sm text-[#5B6E8C]">{L.totalTasks}</p>
+          <p className="mt-3 text-xl font-semibold text-[#1E293B]">{totalTasks}</p>
+          <p className="mt-2 text-sm text-[#8A99B0]">Same total as the table below.</p>
         </div>
+      </div>
+
+      {/* Summary cards use the SAME label constants and the SAME totals as the
+          table columns, so a card and its column always match. */}
+      <div className="grid gap-4 md:grid-cols-4">
+        {[
+          { label: L.onTimeChecked, value: totalOnTimeChecked, cls: CATEGORY_CELL.onTime },
+          { label: L.checkedAfterDueDate, value: totalCheckedAfterDue, cls: CATEGORY_CELL.late },
+          { label: L.notChecked, value: totalNotChecked, cls: CATEGORY_CELL.pending },
+          { label: L.delayed, value: totalDelayed, cls: CATEGORY_CELL.pending }
+        ].map((card) => (
+          <div key={card.label} className={`rounded-[16px] p-4 ${card.cls}`}>
+            <h3 className="text-sm font-semibold">{card.label}</h3>
+            <p className="mt-2 text-2xl font-semibold">{card.value}</p>
+          </div>
+        ))}
       </div>
 
       {/* Task performance — its own table, separate from Register
@@ -117,47 +144,51 @@ function PerformanceAnalytics() {
           of one wide combined row. */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#1E293B]">Task performance</h2>
+          <h2 className="text-xl font-semibold text-[#1E293B]">Task Performance</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#EFF2F6]">
-                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">Role</th>
+                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">{L.role}</th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.blue.header}`}>
-                  Total tasks
+                  {L.totalTasks}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  On Time Complete
+                  {L.onTimeChecked}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  Complete After Due Date
+                  {L.checkedAfterDueDate}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Pending
+                  {L.pending}
+                </th>
+                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
+                  {L.inProgress}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Delayed
+                  {L.delayed}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Delay rate
+                  {L.escalated}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.purple.header}`}>
-                  Task performance
+                  {L.taskPerformance}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {staffRows.map((user) => (
-                <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{user.totalTasks}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{user.onTimeCompleteTasks}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{user.completedAfterDueTasks}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.pendingTasks}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayedTasks}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{user.delayRate}%</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.purple.text}`}>{user.performanceScore}%</td>
+              {roleRows.map((row) => (
+                <tr key={row.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{row.roleName}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{row.totalTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{row.onTimeCompleteTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{row.completedAfterDueTasks}</td>
+                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{row.pendingTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{row.inProgressTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{row.delayedTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.red.text}`}>{row.escalatedTasks}</td>
+                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.purple.text}`}>{row.performanceScore}%</td>
                 </tr>
               ))}
             </tbody>
@@ -171,43 +202,43 @@ function PerformanceAnalytics() {
           combined into the Task performance table above. */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#1E293B]">Register performance</h2>
+          <h2 className="text-xl font-semibold text-[#1E293B]">Register Performance</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#EFF2F6]">
-                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">Role</th>
+                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">{L.role}</th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
-                  Total registers
+                  {L.totalRegisters}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.blue.header}`}>
-                  checking cycle
+                  {L.checkingCycle}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  On Time Complete
+                  {L.onTimeChecked}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  Complete After Due Date
+                  {L.checkedAfterDueDate}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  Pending
+                  {L.pending}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
-                  Total Estimated check
+                  {L.totalEstimatedCheck}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.indigo.header}`}>
-                  Register performance
+                  {L.registerPerformance}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.teal.header}`}>
-                  Overall performance
+                  {L.overallPerformance}
                 </th>
               </tr>
             </thead>
             <tbody>
-              {staffRows.map((user) => (
-                <tr key={user.userId} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{getRoleLabel(user.role)}</td>
+              {roleRows.map((user) => (
+                <tr key={user.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{user.roleName}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>
                     {formatCheckingCycles(user.checkingCycles)}

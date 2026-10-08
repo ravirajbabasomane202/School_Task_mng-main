@@ -229,9 +229,9 @@ function LandingPage() {
               ✨ Next-Gen School Operations
             </div>
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
-              Build a smarter school operation with{" "}
+              Build A Smarter School Operation With{" "}
               <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                centralized task management
+                Centralized Task Management
               </span>
             </h1>
             <p className="mt-6 text-lg leading-relaxed text-slate-600 max-w-2xl">
@@ -314,7 +314,7 @@ function LandingPage() {
       <Section id="how-it-works" className="py-20">
         <div className="text-center max-w-2xl mx-auto mb-12">
           <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">Simple Workflow</span>
-          <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">From assignment to completion in three steps</h2>
+          <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">From Assignment To Completion In Three Steps</h2>
         </div>
         <div className="grid gap-8 md:grid-cols-3">
           {[
@@ -341,7 +341,7 @@ function LandingPage() {
         <div className="grid gap-12 lg:grid-cols-2">
           <div>
             <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">Why EduTask Pro</span>
-            <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">Built for educational excellence</h2>
+            <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">Built For Educational Excellence</h2>
             <p className="mt-6 text-slate-600">Unlike generic project tools, we understand school hierarchies, approval flows, and the need for role-based clarity across departments.</p>
             <div className="mt-8 space-y-4">
               {["Role-specific dashboards (Chairman → Director → Department)", "Automated delay detection & escalation", "Mobile-responsive for teachers on the go", "Enterprise-grade security & data privacy"].map((item) => (
@@ -354,7 +354,7 @@ function LandingPage() {
           </div>
           <div className="relative">
             <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-50 p-8 shadow-xl">
-              <p className="font-semibold text-slate-800">"EduTask Pro reduced our task overdue rate by 74% within the first semester."</p>
+              <p className="font-semibold text-slate-800">"EduTask Pro Reduced Our Task Overdue Rate By 74% Within The First Semester."</p>
               <div className="mt-6 flex items-center gap-3">
                 <div className="h-10 w-10 rounded-full bg-blue-200" />
                 <div><p className="text-sm font-semibold">Navnath Dhawale</p><p className="text-xs text-slate-500">Chairperson, Adhira International School</p></div>
@@ -369,7 +369,7 @@ function LandingPage() {
         <div className="rounded-3xl bg-white/40 backdrop-blur-sm border border-white/50 p-8 shadow-xl">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">Powerful Features</span>
-            <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">Everything you need to manage school operations</h2>
+            <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">Everything You Need To Manage School Operations</h2>
           </div>
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {[
@@ -412,8 +412,8 @@ function LandingPage() {
       {/* Testimonials Section */}
       <Section id="testimonials" className="py-20">
         <div className="text-center max-w-2xl mx-auto mb-12">
-          <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">Trusted by Leaders</span>
-          <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">What education leaders say</h2>
+          <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">Trusted By Leaders</span>
+          <h2 className="mt-4 text-3xl font-bold text-slate-900 sm:text-4xl">What Education Leaders Say</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {[
@@ -454,14 +454,14 @@ function LandingPage() {
         <div className="rounded-3xl bg-white/60 backdrop-blur-sm p-8 shadow-xl">
           <div className="text-center max-w-2xl mx-auto mb-8">
             <span className="text-sm font-semibold uppercase tracking-wider text-blue-600">FAQ</span>
-            <h2 className="mt-2 text-3xl font-bold text-slate-900">Common questions answered</h2>
+            <h2 className="mt-2 text-3xl font-bold text-slate-900">Common Questions Answered</h2>
           </div>
           <div className="mx-auto max-w-3xl">
             {[
-              { q: "How does role-based access work?", a: "Chairman sees all tasks across departments, Director sees department-specific, and Department heads see only their team." },
-              { q: "Can we customize task categories?", a: "Yes, administrators can define custom task types, priority levels, and department labels." },
-              { q: "Is there a mobile app?", a: "We offer a fully responsive web app and native iOS/Android apps coming in Q3 2026." },
-              { q: "What about data security?", a: "End-to-end encryption, SOC2 Type II compliance, and regular security audits." },
+              { q: "How Does Role-Based Access Work?", a: "Chairman sees all tasks across departments, Director sees department-specific, and Department heads see only their team." },
+              { q: "Can We Customize Task Categories?", a: "Yes, administrators can define custom task types, priority levels, and department labels." },
+              { q: "Is There A Mobile App?", a: "We offer a fully responsive web app and native iOS/Android apps coming in Q3 2026." },
+              { q: "What About Data Security?", a: "End-to-end encryption, SOC2 Type II compliance, and regular security audits." },
             ].map((faq, i) => (
               <FAQItem key={i} question={faq.q} answer={faq.a} />
             ))}
@@ -472,7 +472,7 @@ function LandingPage() {
       {/* CTA Banner Before Footer */}
       <Section id="cta" className="py-20">
         <div className="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-12 text-center text-white shadow-2xl">
-          <h2 className="text-3xl font-bold">Ready to transform your school operations?</h2>
+          <h2 className="text-3xl font-bold">Ready To Transform Your School Operations?</h2>
           <p className="mt-3 text-blue-100">Join 500+ schools already streamlining tasks with EduTask Pro.</p>
           <motion.button whileHover={{ scale: 1.05 }} onClick={() => navigate('/login')} className="mt-6 rounded-full bg-white px-8 py-3 font-semibold text-blue-600 shadow-lg hover:shadow-xl transition-all">
             Start Free Trial →

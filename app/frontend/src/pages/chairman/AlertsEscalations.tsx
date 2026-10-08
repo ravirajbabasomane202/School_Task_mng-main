@@ -169,17 +169,17 @@ function AlertsEscalations() {
     <section className="space-y-5 p-5">
       <div className="grid gap-4 md:grid-cols-3">
         <article className="rounded-[20px] border border-[#F2D1CF] bg-white p-5">
-          <p className="text-sm font-semibold text-[#C13F3A]">Critical alerts</p>
+          <p className="text-sm font-semibold text-[#C13F3A]">Critical Alerts</p>
           <p className="mt-4 text-3xl font-semibold text-[#1E293B]">{metrics.critical}</p>
           <p className="mt-2 text-sm text-[#8A99B0]">Escalated or overdue high-priority tasks.</p>
         </article>
         <article className="rounded-[20px] border border-[#F6E0AF] bg-white p-5">
-          <p className="text-sm font-semibold text-[#A86A00]">Delay alerts</p>
+          <p className="text-sm font-semibold text-[#A86A00]">Delay Alerts</p>
           <p className="mt-4 text-3xl font-semibold text-[#1E293B]">{metrics.warnings}</p>
           <p className="mt-2 text-sm text-[#8A99B0]">Tasks already marked delayed by staff.</p>
         </article>
         <article className="rounded-[20px] border border-[#D7E7F7] bg-white p-5">
-          <p className="text-sm font-semibold text-[#185FA5]">No update alerts</p>
+          <p className="text-sm font-semibold text-[#185FA5]">No Update Alerts</p>
           <p className="mt-4 text-3xl font-semibold text-[#1E293B]">{metrics.noUpdate}</p>
           <p className="mt-2 text-sm text-[#8A99B0]">
             Tasks with no movement for {STALE_DAYS}+ days.
@@ -193,13 +193,13 @@ function AlertsEscalations() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Alerts Module
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Alert & escalation feed</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Alert & Escalation Feed</h2>
             <p className="mt-2 text-sm text-[#5B6E8C]">
               Delay alerts, no-update signals, critical tasks, and the escalation path are all
               tracked here.
             </p>
           </div>
-          <Badge variant="gray">{alerts.length} live alerts</Badge>
+          <Badge variant="gray">{alerts.length} Live Alerts</Badge>
         </div>
 
         <div className="mt-5 space-y-3">

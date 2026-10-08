@@ -1,15 +1,21 @@
 import { API_ENDPOINTS } from '../constants/apiEndpoints';
 import api from './api';
 
-interface PerformanceData {
+export interface StaffPerformance {
   userId: number;
   name: string;
+  /** Stable role key (identity). */
   role: string;
+  roleId?: number | null;
+  /** Role display name from the backend roles table. */
+  roleName?: string;
   totalTasks: number;
   completedTasks: number;
   onTimeCompleteTasks: number;
   completedAfterDueTasks: number;
   pendingTasks: number;
+  inProgressTasks: number;
+  escalatedTasks: number;
   delayedTasks: number;
   performanceScore: number;
   delayRate: number;
@@ -62,8 +68,8 @@ interface ApiResponse<T> {
   success: boolean;
 }
 
-export const getStaffPerformance = async (range?: { dateFrom?: string; dateTo?: string }): Promise<PerformanceData[]> => {
-  const response = await api.get<ApiResponse<PerformanceData[]>>(API_ENDPOINTS.dashboard.performance, {
+export const getStaffPerformance = async (range?: { dateFrom?: string; dateTo?: string }): Promise<StaffPerformance[]> => {
+  const response = await api.get<ApiResponse<StaffPerformance[]>>(API_ENDPOINTS.dashboard.performance, {
     params: range && {
       date_from: range.dateFrom,
       date_to: range.dateTo

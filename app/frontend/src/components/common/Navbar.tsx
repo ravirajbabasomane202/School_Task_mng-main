@@ -95,8 +95,8 @@ function Navbar({ actions, title }: NavbarProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        <Badge variant="red">{unreadCount} alerts</Badge>
-        <Badge variant="amber">{pendingApprovals} pending approvals</Badge>
+        <Badge variant="red">{unreadCount} Alerts</Badge>
+        <Badge variant="amber">{pendingApprovals} Pending Approvals</Badge>
         {actions}
         <Button
           className="hidden sm:inline-flex"
@@ -104,7 +104,7 @@ function Navbar({ actions, title }: NavbarProps) {
           size="sm"
           variant="ghost"
         >
-          Change password
+          Change Password
         </Button>
         <Button loading={isLoggingOut} onClick={() => void handleLogout()} size="sm" variant="danger">
           Logout

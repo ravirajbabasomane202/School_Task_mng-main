@@ -28,12 +28,12 @@ function NotificationsPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Activity Center
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">All notifications</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">All Notifications</h2>
             <p className="mt-2 text-sm leading-6 text-[#5B6E8C]">
               Review task alerts, announcement updates, and live workflow events in one place.
             </p>
           </div>
-          <Button onClick={() => void markAllAsRead()}>{`Mark all read (${unreadCount})`}</Button>
+          <Button onClick={() => void markAllAsRead()}>{`Mark All Read (${unreadCount})`}</Button>
         </div>
       </div>
 
@@ -61,7 +61,7 @@ function NotificationsPage() {
                 <div className="shrink-0 text-right">
                   <p className="text-xs text-[#8A99B0]">{formatTimestamp(notification.created_at)}</p>
                   <p className="mt-2 text-xs font-semibold text-[#185FA5]">
-                    {notification.is_read ? 'Read' : 'Mark as read'}
+                    {notification.is_read ? 'Read' : 'Mark As Read'}
                   </p>
                 </div>
               </button>

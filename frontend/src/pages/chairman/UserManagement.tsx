@@ -176,7 +176,7 @@ const UserManagement: React.FC = () => {
     <div className="space-y-6 p-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">User Management</h1>
-        <Button onClick={() => setIsAddModalOpen(true)}>Add new user</Button>
+        <Button onClick={() => setIsAddModalOpen(true)}>Add New User</Button>
       </div>
 
       <UserTable

@@ -94,6 +94,8 @@ export interface RegisterHead {
   id: number;
   name: string;
   role: string;
+  role_id?: number | null;
+  role_name?: string;
   department_id?: number | null;
   department_name?: string | null;
 }
@@ -137,6 +139,10 @@ export interface RegisterCalendarEvent {
   /** The checking period this entry represents (inclusive). `date` is its start. */
   period_start?: string;
   period_end?: string;
+  /** Scheduled due date of the period (never replaced by the actual check date). */
+  due_date?: string;
+  /** Actual check time (same value as completed_at). */
+  checked_at?: string | null;
   /** When the check was recorded (ISO), or null if unchecked. */
   completed_at?: string | null;
   title: string;

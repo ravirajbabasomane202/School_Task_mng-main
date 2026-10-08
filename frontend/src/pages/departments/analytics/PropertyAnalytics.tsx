@@ -114,7 +114,7 @@ const PropertyAnalytics: React.FC = () => {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Assets by category */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
-          <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Assets by Category</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Assets By Category</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
               <Pie data={assetByCategory} cx="50%" cy="50%" outerRadius={70} dataKey="count"
@@ -142,7 +142,7 @@ const PropertyAnalytics: React.FC = () => {
 
         {/* Housekeeping by type */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
-          <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Housekeeping by Type</h3>
+          <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Housekeeping By Type</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={hkByType} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />

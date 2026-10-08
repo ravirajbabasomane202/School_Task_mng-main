@@ -118,9 +118,9 @@ function AnnouncementsPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Comms Module
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Broadcast message</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Broadcast Message</h2>
           </div>
-          <Badge variant="blue">Chairman control</Badge>
+          <Badge variant="blue">Chairman Control</Badge>
         </div>
 
         <form className="mt-6 space-y-5" onSubmit={(event) => void handleSubmit(event)}>
@@ -166,7 +166,7 @@ function AnnouncementsPage() {
 
           <div className="flex justify-end">
             <Button loading={createAnnouncementMutation.isPending} type="submit">
-              Broadcast now
+              Broadcast Now
             </Button>
           </div>
         </form>
@@ -178,9 +178,9 @@ function AnnouncementsPage() {
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Comms Log
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Recent announcements</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Recent Announcements</h2>
           </div>
-          <Badge variant="gray">{announcementsQuery.data?.length ?? 0} items</Badge>
+          <Badge variant="gray">{announcementsQuery.data?.length ?? 0} Items</Badge>
         </div>
 
         <div className="mt-6 space-y-3">
@@ -199,7 +199,7 @@ function AnnouncementsPage() {
                   </div>
                   <Badge variant={announcement.target === 'ALL' ? 'blue' : 'amber'}>
                     {announcement.target === 'ALL'
-                      ? 'All staff'
+                      ? 'All Staff'
                       : announcement.department?.name ?? 'Department'}
                   </Badge>
                 </div>
