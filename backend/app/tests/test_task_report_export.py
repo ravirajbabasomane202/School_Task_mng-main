@@ -247,8 +247,10 @@ def test_performance_pdf_restyled_same_data(app, client, auth_headers):
     with pdfplumber.open(io.BytesIO(resp.data)) as pdf:
         page = pdf.pages[0]
         text = page.extract_text()
-        for col in ('Department', 'Date', 'Task Performance', 'Registry Performance', 'Final Performance'):
+        for col in ('Department', 'Date', 'Registry Performance'):
             assert col in text
+        # registers only: no task data in the performance PDF
+        assert 'Task Performance' not in text and 'Final Performance' not in text
         assert 'Performance Report' in text
         assert min(w['x0'] for w in page.extract_words()) >= 36
         fills = {tuple(round(c, 2) for c in r['non_stroking_color'])
@@ -260,7 +262,42 @@ def test_performance_excel_restyled_same_columns(app, client, auth_headers):
     resp = client.get('/api/reports/performance-export?format=excel', headers=auth_headers['chairman'])
     assert resp.status_code == 200
     html = resp.get_data(as_text=True)
-    cols = ['Department', 'Date', 'Task Performance', 'Registry Performance', 'Final Performance']
+    cols = ['Department', 'Date', 'Registry Performance']
     pos = [html.index(f'>{c}</th>') for c in cols]
     assert pos == sorted(pos)
+    assert 'Task Performance' not in html and 'Final Performance' not in html
     assert '#2E75B6' in html and '#1E3A5F' in html and 'width:24px' in html
+
+
+def test_performance_report_works_with_registers_and_has_no_task_data(app, client, auth_headers):
+    """Regression: the department report used a method that does not exist
+    (Register.computed_status), so it crashed as soon as a department had a register."""
+    import uuid
+    from datetime import date
+    from app.extensions import db
+    from app.models.department import Department
+    from app.models.register import Register
+    from app.models.user import User
+
+    with app.app_context():
+        dept = Department(name='Reg Dept ' + uuid.uuid4().hex[:4])
+        db.session.add(dept)
+        db.session.commit()
+        head = User(name='Dept Head', email=uuid.uuid4().hex[:6] + '@s.test', role='HR', is_active=True,
+                    department_id=dept.id)
+        head.set_password('x' * 12)
+        db.session.add(head)
+        db.session.commit()
+        db.session.add(Register(name='R', register_no='R-' + uuid.uuid4().hex[:5], head_name='Dept Head',
+                                head_id=head.id, cycle='WEEKLY', priority='HIGH',
+                                start_date=date(2026, 9, 1), next_due_date=date(2026, 10, 12)))
+        db.session.commit()
+        dept_name = dept.name
+
+    for fmt in ('excel', 'pdf'):
+        resp = client.get(f'/api/reports/performance-export?format={fmt}', headers=auth_headers['chairman'])
+        assert resp.status_code == 200, fmt
+    html = client.get('/api/reports/performance-export?format=excel',
+                      headers=auth_headers['chairman']).get_data(as_text=True)
+    assert dept_name in html and 'Registry Performance' in html
+    assert 'Task Performance' not in html and 'Final Performance' not in html

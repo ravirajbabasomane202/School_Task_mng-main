@@ -9,6 +9,7 @@ import {
   filterRowsByRole,
   latestEntries,
   taskBucketTotal,
+  toHeadLabel,
 } from '../utils/performanceUtils';
 
 const row = (over: Partial<StaffPerformance>): StaffPerformance => ({
@@ -48,14 +49,27 @@ describe('role grouping (Admission Head shows 2 tasks, not 1)', () => {
 describe('roles come from the backend', () => {
   it('a new role appears in options and rows with no code change', () => {
     const rows = [row({ role: 'Librarian', roleId: 9, roleName: 'Library Head', totalTasks: 3 })];
-    expect(buildRoleOptions(roles, rows)).toEqual([{ key: 'Librarian', label: 'Library Head' }]);
+    // EVERY backend role is offered, with " Head" added once; the value is the role key.
+    expect(buildRoleOptions(roles, rows)).toEqual([
+      { key: 'ADMISSION', label: 'Admission Head' },
+      { key: 'Librarian', label: 'Library Head' },
+    ]);
     expect(aggregateByRole(rows, roles)[0].roleName).toBe('Library Head');
+  });
+
+  it('lists roles that have no performance rows yet', () => {
+    const withTransport = [...roles, { id: 11, key: 'TRANSPORT', name: 'Transport' }];
+    expect(buildRoleOptions(withTransport, []).map((o) => o.label)).toEqual([
+      'Admission Head', 'Library Head', 'Transport Head',
+    ]);
   });
 
   it('a renamed role keeps working and shows the new name', () => {
     const renamed = roles.map((r) => (r.id === 9 ? { ...r, name: 'Knowledge Centre Head' } : r));
     const rows = [row({ role: 'Librarian', roleId: 9, roleName: 'Library Head', totalTasks: 3 })];
-    expect(buildRoleOptions(renamed, rows)[0]).toEqual({ key: 'Librarian', label: 'Knowledge Centre Head' });
+    expect(buildRoleOptions(renamed, rows).find((o) => o.key === 'Librarian')).toEqual({
+      key: 'Librarian', label: 'Knowledge Centre Head',
+    });
     expect(filterRowsByRole(rows, 'Librarian')).toHaveLength(1);
   });
 
@@ -87,5 +101,33 @@ describe('latestEntries (Recent Activity)', () => {
   });
   it('shows no indicator when there are 5 or fewer', () => {
     expect(latestEntries(entries.slice(0, 5), 5).more).toBe(0);
+  });
+});
+
+
+describe('toHeadLabel', () => {
+  it('adds " Head" to the end of a role name', () => {
+    expect(toHeadLabel('Admission')).toBe('Admission Head');
+    expect(toHeadLabel('Front Desk / Reception')).toBe('Front Desk / Reception Head');
+    expect(toHeadLabel('HR')).toBe('HR Head');
+    expect(toHeadLabel('Headmaster')).toBe('Headmaster Head'); // only a trailing word "Head" counts
+  });
+
+  it('never adds it twice (any case)', () => {
+    expect(toHeadLabel('Admission Head')).toBe('Admission Head');
+    expect(toHeadLabel('admission head')).toBe('Admission Head');
+    expect(toHeadLabel('Admin HEAD')).toBe('Admin HEAD');
+    expect(toHeadLabel('Head')).toBe('Head');
+  });
+
+  it('is display only: it does not change the role key', () => {
+    const [option] = buildRoleOptions([{ id: 1, key: 'ADMISSION', name: 'Admission' }], []);
+    expect(option).toEqual({ key: 'ADMISSION', label: 'Admission Head' });
+  });
+
+  it('handles blanks and extra spaces', () => {
+    expect(toHeadLabel('')).toBe('');
+    expect(toHeadLabel(null)).toBe('');
+    expect(toHeadLabel('  Principal  ')).toBe('Principal Head');
   });
 });

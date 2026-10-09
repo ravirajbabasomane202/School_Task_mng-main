@@ -12,7 +12,7 @@ from app.models.register import (
     Register, RegisterOccurrence, schedule_next_due_date, scheduled_due_date,
 )
 from app.utils.completion import (
-    CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_UPCOMING, register_check_outcome,
+    CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_OPEN, CHECK_UPCOMING, register_check_outcome,
 )
 
 D = date
@@ -48,7 +48,8 @@ def test_late_check():
 def test_never_checked():
     due, end = D(2026, 10, 5), D(2026, 10, 11)
     assert register_check_outcome(due, None, D(2026, 10, 12), end) == CHECK_DELAYED
-    assert register_check_outcome(due, None, D(2026, 10, 8), end) == CHECK_UPCOMING
+    assert register_check_outcome(due, None, D(2026, 10, 8), end) == CHECK_OPEN        # window open
+    assert register_check_outcome(due, None, D(2026, 10, 4), end) == CHECK_UPCOMING    # not due yet
 
 
 def test_next_due_is_calculated_from_schedule_not_check_date():

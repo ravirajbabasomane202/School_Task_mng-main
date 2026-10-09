@@ -72,8 +72,10 @@ def register_completion_category(occ_status, due_date, completed_at):
 #   checked_at <= due_date                -> ON_TIME     "On Time Checked"        green
 #   checked_at >  due_date                -> LATE        "Checked After Due Date" yellow
 #   rejected check                        -> REJECTED                              red
-#   not checked and today > window_end    -> DELAYED     "Not Checked"            grey outline
-#   not checked and today <= window_end   -> UPCOMING    open / not started       grey
+#   not checked, today <= window_end      -> OPEN        "Not Checked" (window open) grey
+#   not checked and today > window_end    -> DELAYED     "Delayed"                 grey outline
+#   not checked and today < due_date      -> UPCOMING    not started (not due yet) grey
+#   rejected check                        -> REJECTED    counted as "Not Checked"  red
 #
 # Everything (calendar, register list, dashboard performance, reports and
 # exports) calls classify_register_period; nothing else compares these dates.
@@ -81,7 +83,8 @@ def register_completion_category(occ_status, due_date, completed_at):
 CHECK_ON_TIME = 'ON_TIME'
 CHECK_LATE = 'LATE'
 CHECK_DELAYED = 'DELAYED'
-CHECK_UPCOMING = 'UPCOMING'
+CHECK_UPCOMING = 'UPCOMING'   # not started: due date is still in the future
+CHECK_OPEN = 'OPEN'           # due date reached, window still open, not checked yet
 CHECK_REJECTED = 'REJECTED'
 
 
@@ -93,9 +96,12 @@ def register_check_outcome(due_date, checked_at, today, window_end=None):
             return CHECK_ON_TIME
         return CHECK_LATE
     end = as_school_date(window_end) if window_end is not None else due
-    if end is not None and as_school_date(today) is not None and as_school_date(today) > end:
+    now = as_school_date(today)
+    if end is not None and now is not None and now > end:
         return CHECK_DELAYED
-    return CHECK_UPCOMING
+    if due is not None and now is not None and now < due:
+        return CHECK_UPCOMING
+    return CHECK_OPEN
 
 
 def classify_register_period(status, due_date, window_end, checked_at, today):
@@ -103,7 +109,7 @@ def classify_register_period(status, due_date, window_end, checked_at, today):
 
     `status` is the STORED occurrence status ('OK', 'REJECTED', anything else
     or None = not checked). Returns a dict:
-      outcome            ON_TIME | LATE | REJECTED | DELAYED | UPCOMING
+      outcome            ON_TIME | LATE | REJECTED | DELAYED | OPEN | UPCOMING
       computed_status    COMPLETED | FAILED | PENDING | UPCOMING (API enum, unchanged)
       dot_color          green | yellow | red | outline | gray
       check_timing       'ON_TIME' | 'LATE' | None (only for completed periods)
@@ -128,5 +134,6 @@ def classify_register_period(status, due_date, window_end, checked_at, today):
     if outcome == CHECK_DELAYED:
         return {'outcome': CHECK_DELAYED, 'computed_status': 'PENDING', 'dot_color': 'outline',
                 'check_timing': None, 'checked_at_unknown': False}
-    return {'outcome': CHECK_UPCOMING, 'computed_status': 'UPCOMING', 'dot_color': 'gray',
+    # OPEN / UPCOMING: the API status enum stays UPCOMING; only the outcome differs.
+    return {'outcome': outcome, 'computed_status': 'UPCOMING', 'dot_color': 'gray',
             'check_timing': None, 'checked_at_unknown': False}

@@ -154,7 +154,7 @@ export interface RegisterCalendarEvent {
   checked_at?: string | null;
   checked_at_unknown?: boolean;
   check_timing?: RegisterCheckTiming | null;
-  outcome?: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'UPCOMING';
+  outcome?: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'OPEN' | 'UPCOMING';
   /** When the check was recorded (ISO), or null if unchecked. */
   completed_at?: string | null;
   title: string;
@@ -181,7 +181,7 @@ export interface RegisterCalendarEntry {
   checked_at?: string | null;
   checked_at_unknown?: boolean;
   check_timing?: RegisterCheckTiming | null;
-  outcome?: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'UPCOMING';
+  outcome?: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'OPEN' | 'UPCOMING';
 }
 
 export interface RegisterCalendarResponse {

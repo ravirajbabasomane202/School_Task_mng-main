@@ -9,6 +9,7 @@ would.
 import uuid
 from datetime import date, timedelta
 
+from app.models.register import period_bounds
 from app.utils.timezone import school_today
 
 import pytest
@@ -59,9 +60,12 @@ def test_performance_export_returns_csv(app, client, auth_headers):
     body = resp.get_data(as_text=True)
     assert 'Performance Export' in body
     assert 'Registration Performance' in body
-    assert 'Task Performance' in body
-    assert 'Performance Metrics' in body
+    assert 'Register Performance' in body            # per-role register table
     assert 'Detailed Register Records' in body
+    # the export is registers only: no task data anywhere
+    for task_text in ('Task Performance', 'Total Tasks', 'In Progress', 'Escalated', 'Performance Metrics',
+                      'Detailed Task Performance Records', 'Final Performance'):
+        assert task_text not in body
     assert 'Attendance Register' in body
     assert 'Fee Register' in body
 
@@ -126,12 +130,13 @@ def test_register_report_columns_are_renamed_and_status_removed(app, client, aut
 
     assert header == [
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
-        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Periods Due', 'Completion %',
+        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Periods Due',
+        'Completion %',
     ]
     assert 'Status' not in header
     body = resp.get_data(as_text=True)
     for old in ('Completed (Changed)', 'Missed (Not Changed)', 'On time Checked', 'Missed Checking', 'Total Delayed'):
-        assert old not in body.split('Detailed Task Performance Records')[0].split('Detailed Register Records')[1]
+        assert old not in body.split('Detailed Register Records')[1]
 
 
 def test_register_report_counts_follow_checking_periods(app, client, auth_headers):
@@ -146,6 +151,7 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
 
     chairman = auth_headers['chairman']
     today = school_today()
+    period_start = period_bounds('WEEKLY', today)[0]
     assert client.patch(
         f'/api/registers/{register_id}/occurrences/{today.isoformat()}/status',
         json={'status': 'OK'}, headers=chairman,
@@ -158,7 +164,7 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
     resp = client.get(
         '/api/reports/performance/export',
         # a period belongs to the range by its due date (the period's first day)
-        query_string={'date_from': (today - timedelta(days=7)).isoformat(), 'date_to': today.isoformat(),
+        query_string={'date_from': period_start.isoformat(), 'date_to': today.isoformat(),
                       'cycle': 'WEEKLY'},
         headers=chairman,
     )
@@ -166,5 +172,6 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
     row = dict(zip(header, next(r for r in data if r[0] == 'Weekly Count Register')))
     assert int(row['On Time Checked']) + int(row['Checked After Due Date']) == 1
     assert row['Not Checked'] == '0'
+    assert row['Delayed'] == '0'
     assert row['Total Periods Due'] == '1'
     assert row['Completion %'] == '100'

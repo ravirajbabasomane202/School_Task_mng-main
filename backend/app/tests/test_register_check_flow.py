@@ -132,7 +132,7 @@ def test_never_checked_after_window_is_not_checked_outline(app, client, auth_hea
     assert ev['outcome'] == CHECK_DELAYED and ev['dot_color'] == 'outline' and ev['checked_at'] is None
     monkeypatch.setattr('app.routes.registers._today', lambda: D(2026, 10, 8))  # window still open
     ev = _event(client, h, reg, D(2026, 10, 5))
-    assert ev['outcome'] == 'UPCOMING' and ev['dot_color'] == 'gray'
+    assert ev['outcome'] == 'OPEN' and ev['dot_color'] == 'gray'
 
 
 # --- time zone edge cases ----------------------------------------------------
@@ -227,23 +227,62 @@ def test_ok_row_without_check_time_is_on_time_and_not_invented(app, client, auth
 
 
 def test_performance_registers_endpoint_adds_up_and_matches_by_head_id(app, client, auth_headers):
+    """Four buckets, counted per checking period, all computed by the backend:
+    On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
+    Not Checked = unchecked period whose window is still open + rejected checks.
+    Delayed     = unchecked period whose window has ended."""
     h = auth_headers['chairman']
     head, other = _head(app), _head(app)
-    p1, p2, p3 = _periods(3)
+    p1, p2, p3, p4 = _periods(4)
+    current = period_bounds('WEEKLY', school_today())[0]
     at = lambda d, hh=10: datetime(d.year, d.month, d.day, hh, 0, tzinfo=IST)
     mine = _make(client, h, head_id=head, start=p1)
-    _seed(app, mine, p1, 'OK', at(p1))
-    _seed(app, mine, p2, 'OK', at(p2 + timedelta(days=2)))      # p3 never checked
+    _seed(app, mine, p1, 'OK', at(p1))                              # On Time Checked
+    _seed(app, mine, p2, 'OK', at(p2 + timedelta(days=2)))          # Checked After Due Date
+    _seed(app, mine, p3, 'REJECTED', at(p3))                        # rejected -> Not Checked
+    #                                                              # p4 never checked, ended -> Delayed
+    #                                                              # current period unchecked, open -> Not Checked
     theirs = _make(client, h, head_id=other, start=p1)
     _seed(app, theirs, p1, 'OK', at(p1))
 
     resp = client.get('/api/reports/performance/registers', headers=h, query_string={
-        'date_from': p1.isoformat(), 'date_to': (p3 + timedelta(days=6)).isoformat(), 'head': str(head)})
+        'date_from': p1.isoformat(), 'date_to': school_today().isoformat(), 'head': str(head)})
     data = resp.get_json()['data']
     assert [s['register_id'] for s in data['summaries']] == [mine]
     t = data['totals']
-    assert (t['onTimeChecked'], t['checkedAfterDueDate'], t['notChecked']) == (1, 1, 1)
-    assert t['onTimeChecked'] + t['checkedAfterDueDate'] + t['notChecked'] == t['totalPeriodsDue'] == 3
-    late = next(p for p in data['summaries'][0]['periods'] if p['date'] == p2.isoformat())
-    assert late['check_timing'] == 'LATE' and late['due_date'] == p2.isoformat()
-    assert late['checked_at'] is not None and late['dot_color'] == 'yellow'
+    assert (t['onTimeChecked'], t['checkedAfterDueDate'], t['notChecked'], t['delayed']) == (1, 1, 2, 1)
+    assert t['onTimeChecked'] + t['checkedAfterDueDate'] + t['notChecked'] + t['delayed'] == t['totalPeriodsDue'] == 5
+    by_date = {p['date']: p for p in data['summaries'][0]['periods']}
+    assert by_date[p2.isoformat()]['check_timing'] == 'LATE' and by_date[p2.isoformat()]['dot_color'] == 'yellow'
+    assert by_date[p2.isoformat()]['checked_at'] is not None
+    assert by_date[p4.isoformat()]['outcome'] == 'DELAYED'
+    assert by_date[current.isoformat()]['outcome'] == 'OPEN'
+
+
+def test_future_periods_are_not_due_yet(app, client, auth_headers):
+    h = auth_headers['chairman']
+    head = _head(app)
+    reg = _make(client, h, head_id=head, start=_periods(1)[0])
+    resp = client.get('/api/reports/performance/registers', headers=h, query_string={
+        'date_from': school_today().isoformat(),
+        'date_to': (school_today() + timedelta(days=60)).isoformat(), 'head': str(head)})
+    summary = resp.get_json()['data']['summaries'][0]
+    assert all(p['date'] <= school_today().isoformat() for p in summary['periods'])  # nothing in the future
+    assert summary['totalPeriodsDue'] == summary['notChecked'] + summary['delayed'] + summary['onTimeChecked'] \
+        + summary['checkedAfterDueDate']
+
+
+def test_dashboard_rows_carry_the_four_buckets(app, client, auth_headers):
+    h = auth_headers['chairman']
+    head = _head(app)
+    p1, p2, p3, p4 = _periods(4)
+    reg = _make(client, h, head_id=head, start=p1)
+    at = lambda d, hh=10: datetime(d.year, d.month, d.day, hh, 0, tzinfo=IST)
+    _seed(app, reg, p1, 'OK', at(p1))
+    _seed(app, reg, p2, 'OK', at(p2 + timedelta(days=2)))
+    _seed(app, reg, p3, 'REJECTED', at(p3))
+    row = _row(app, head, p1, school_today())
+    assert (row['onTimeCompleteRegisters'], row['completedAfterDueRegisters'],
+            row['notCheckedRegisters'], row['delayedRegisters']) == (1, 1, 2, 1)
+    assert row['totalPeriodsDue'] == 5
+    assert row['pendingRegisters'] == 2   # unchanged legacy field: delayed + rejected (open periods excluded)

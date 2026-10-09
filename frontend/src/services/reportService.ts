@@ -235,7 +235,7 @@ export interface RegisterPerformancePeriod {
   date: string;
   due_date: string;
   period_end: string;
-  outcome: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'UPCOMING';
+  outcome: 'ON_TIME' | 'LATE' | 'REJECTED' | 'DELAYED' | 'OPEN' | 'UPCOMING';
   dot_color: 'green' | 'yellow' | 'red' | 'gray' | 'outline';
   check_timing: 'ON_TIME' | 'LATE' | null;
   checked_at: string | null;
@@ -252,7 +252,10 @@ export interface RegisterPerformanceSummary {
   status: string;
   onTimeChecked: number;
   checkedAfterDueDate: number;
+  /** Unchecked period whose window is still open, plus rejected checks. */
   notChecked: number;
+  /** Unchecked period whose window has ended. */
+  delayed: number;
   totalPeriodsDue: number;
   open: number;
   completionRate: number;
@@ -265,6 +268,7 @@ export interface RegisterPerformanceData {
     onTimeChecked: number;
     checkedAfterDueDate: number;
     notChecked: number;
+    delayed: number;
     totalPeriodsDue: number;
     open: number;
     totalRegisters: number;
@@ -273,7 +277,7 @@ export interface RegisterPerformanceData {
 
 /**
  * Per-register performance, classified by the backend (one source of truth):
- * On Time Checked + Checked After Due Date + Not Checked = Total Periods Due.
+ * On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
  */
 export const getRegisterPerformance = async (range: {
   dateFrom: string;

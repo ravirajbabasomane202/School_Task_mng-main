@@ -6,7 +6,7 @@ import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { useRoles } from '../../hooks/useRoles';
 import { getStaffPerformance, type StaffPerformance } from '../../services/dashboardService';
 import { REGISTER_CYCLES, type RegisterCycle } from '../../types/register.types';
-import { aggregateByRole, buildRoleOptions, filterRowsByRole } from '../../utils/performanceUtils';
+import { aggregateByRole, buildRoleOptions, filterRowsByRole, toHeadLabel } from '../../utils/performanceUtils';
 
 // Reuse the same Daily/Weekly/... labels the Register screens already use,
 // so "Estimated checking cycle" reads the same way everywhere in the app.
@@ -46,6 +46,8 @@ const CATEGORY_CELL = {
 function PerformanceAnalytics() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const { roles, getRoleName } = useRoles();
+  // ONE label for a role everywhere on this page (dropdown, both tables, top performer).
+  const roleLabel = (key: string, rowName?: string | null) => toHeadLabel(getRoleName(key, rowName));
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['staffPerformance'],
     queryFn: () => getStaffPerformance()
@@ -67,18 +69,6 @@ function PerformanceAnalytics() {
     roleRows.reduce((acc, row) => acc + pick(row), 0);
   const totalTasks = sum((r) => r.totalTasks);
   const totalCompleted = sum((r) => r.completedTasks);
-  // Register checks (periods): On Time Checked + Checked After Due Date + Not Checked = Total Periods Due.
-  const regOnTime = sum((r) => r.onTimeCompleteRegisters);
-  const regLate = sum((r) => r.completedAfterDueRegisters);
-  const regNotChecked = sum((r) => r.pendingRegisters);
-  const regDue = regOnTime + regLate + regNotChecked;
-  // Tasks: Completed (on time + after due) + In Progress + Pending + Delayed + Escalated = Total Tasks.
-  const taskOnTime = sum((r) => r.onTimeCompleteTasks);
-  const taskLate = sum((r) => r.completedAfterDueTasks);
-  const taskPending = sum((r) => r.pendingTasks);
-  const taskInProgress = sum((r) => r.inProgressTasks);
-  const taskDelayed = sum((r) => r.delayedTasks);
-  const taskEscalated = sum((r) => r.escalatedTasks);
   const schoolAverage = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
   const topPerformer = [...roleRows].sort(
     (left, right) => right.overallPerformance - left.overallPerformance
@@ -111,7 +101,7 @@ function PerformanceAnalytics() {
         <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
           <p className="text-sm text-[#5B6E8C]">Top performer</p>
           <p className="mt-3 text-xl font-semibold text-[#1E293B]">
-            {topPerformer ? getRoleName(topPerformer.role, topPerformer.roleName) : 'N/A'}
+            {topPerformer ? roleLabel(topPerformer.role, topPerformer.roleName) : 'N/A'}
           </p>
           <p className="mt-2 text-sm text-[#8A99B0]">
             {topPerformer ? `${topPerformer.overallPerformance}% performance` : 'No task data yet'}
@@ -130,43 +120,6 @@ function PerformanceAnalytics() {
           <p className="mt-2 text-sm text-[#8A99B0]">Same total as the table below.</p>
         </div>
       </div>
-
-      {/* Summary cards use the SAME label constants and the SAME totals as the
-          table columns right below them, so a card and its column always match. */}
-      {[
-        {
-          caption: 'Register Checks',
-          cards: [
-            { label: L.onTimeChecked, value: regOnTime, cls: CATEGORY_CELL.onTime },
-            { label: L.checkedAfterDueDate, value: regLate, cls: CATEGORY_CELL.late },
-            { label: L.notChecked, value: regNotChecked, cls: CATEGORY_CELL.pending },
-            { label: L.totalPeriodsDue, value: regDue, cls: STAFF_COLUMN_COLOR.blue.text }
-          ]
-        },
-        {
-          caption: 'Task Status',
-          cards: [
-            { label: L.onTimeChecked, value: taskOnTime, cls: CATEGORY_CELL.onTime },
-            { label: L.checkedAfterDueDate, value: taskLate, cls: CATEGORY_CELL.late },
-            { label: L.pending, value: taskPending, cls: CATEGORY_CELL.pending },
-            { label: L.inProgress, value: taskInProgress, cls: STAFF_COLUMN_COLOR.cyan.text },
-            { label: L.delayed, value: taskDelayed, cls: STAFF_COLUMN_COLOR.red.text },
-            { label: L.escalated, value: taskEscalated, cls: STAFF_COLUMN_COLOR.red.text }
-          ]
-        }
-      ].map((group) => (
-        <div key={group.caption}>
-          <h2 className="mb-2 text-sm font-semibold text-[#5B6E8C]">{group.caption}</h2>
-          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
-            {group.cards.map((card) => (
-              <div key={card.label} className={`rounded-[16px] p-4 ${card.cls}`}>
-                <h3 className="text-sm font-semibold">{card.label}</h3>
-                <p className="mt-2 text-2xl font-semibold">{card.value}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
 
       {/* Task performance — its own table, separate from Register
           performance below, so each metric reads as its own report instead
@@ -209,7 +162,7 @@ function PerformanceAnalytics() {
             <tbody>
               {roleRows.map((row) => (
                 <tr key={row.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{row.roleName}</td>
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{roleLabel(row.role, row.roleName)}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{row.totalTasks}</td>
                   <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{row.onTimeCompleteTasks}</td>
                   <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{row.completedAfterDueTasks}</td>
@@ -267,7 +220,7 @@ function PerformanceAnalytics() {
             <tbody>
               {roleRows.map((user) => (
                 <tr key={user.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{user.roleName}</td>
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{roleLabel(user.role, user.roleName)}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>
                     {formatCheckingCycles(user.checkingCycles)}

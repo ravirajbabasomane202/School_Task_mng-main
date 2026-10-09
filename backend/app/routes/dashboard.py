@@ -14,7 +14,7 @@ from app.models.role import sync_roles
 from app.utils.timezone import school_today
 from app.models.user import User
 from app.utils.completion import (
-    CAT_LATE, CAT_ON_TIME, CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_REJECTED,
+    CAT_LATE, CAT_ON_TIME, CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_OPEN, CHECK_REJECTED,
     task_completion_category
 )
 from app.utils.response import success, error
@@ -389,12 +389,17 @@ def _staff_performance_rows(date_from=None, date_to=None):
                     rejected_registers += 1
                 elif outcome == CHECK_DELAYED:
                     missed_registers += 1
-                else:
-                    open_registers += 1  # still open / not started: not counted in the total
+                elif outcome == CHECK_OPEN:
+                    open_registers += 1
+                # CHECK_UPCOMING: due date still in the future, not due yet: not counted
 
         registers_due = completed_registers + missed_registers + rejected_registers
         # Not completed = missed + rejected (the three buckets sum to registers_due).
         pending_registers = missed_registers + rejected_registers
+        # Same four buckets as the Register Activity report / export:
+        # On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
+        not_checked_registers = open_registers + rejected_registers
+        total_periods_due = completed_registers + not_checked_registers + missed_registers
         register_performance = (
             round((completed_registers / registers_due) * 100) if registers_due else 0
         )
@@ -429,6 +434,9 @@ def _staff_performance_rows(date_from=None, date_to=None):
                 # Periods due in the range = onTime + afterDue + notChecked (pendingRegisters).
                 'registersDue': registers_due,
                 'openRegisters': open_registers,
+                'notCheckedRegisters': not_checked_registers,
+                'delayedRegisters': missed_registers,
+                'totalPeriodsDue': total_periods_due,
                 'missedRegisters': missed_registers,
                 'rejectedRegisters': rejected_registers,
                 'registerPerformance': register_performance,

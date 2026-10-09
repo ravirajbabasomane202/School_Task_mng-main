@@ -9,7 +9,6 @@ import Button from '../common/Button';
 import { getRegisters } from '../../services/registerService';
 import { DOT_CLASS } from '../../constants/registerDots';
 import { markerTooltip } from '../../utils/registerCheckUtils';
-import { getStaffPerformance } from '../../services/dashboardService';
 import { exportPerformanceReportFiltered, getRegisterPerformance } from '../../services/reportService';
 import { todayISO } from '../../utils/dateUtils';
 import type { RegisterCycle, RegisterDotColor } from '../../types/register.types';
@@ -26,31 +25,22 @@ const CYCLE_LABEL: Record<RegisterCycle, string> = {
 
 const CYCLE_ORDER: RegisterCycle[] = ['DAILY', 'WEEKLY', '15_DAYS', 'MONTHLY', 'QUARTERLY', 'HALF_YEARLY', 'YEARLY'];
 
-/** Light, professional color variants for the Task/Register/Final
- * Performance KPI boxes below. Each variant is a subtle tinted
- * background + matching border + a readable, higher-contrast value
- * color — kept separate from DOT_CLASS (which colors the daily
- * activity dots, not these summary boxes). Centralizing the classes
- * here keeps the 11 KPI boxes visually consistent and avoids
- * repeating the same Tailwind class strings at every call site. */
-type KpiColor = 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'cyan' | 'orange' | 'indigo' | 'teal';
+/** Light, professional color variants for the register KPI cards below. Each
+ * variant is a subtle tinted background + matching border + a readable value
+ * color. */
+type KpiColor = 'green' | 'yellow' | 'red' | 'cyan' | 'orange';
 
 const KPI_COLOR_CLASS: Record<KpiColor, { box: string; value: string }> = {
-  blue: { box: 'border-blue-100 bg-blue-50', value: 'text-blue-700' },
   green: { box: 'border-emerald-100 bg-emerald-50', value: 'text-emerald-700' },
   yellow: { box: 'border-amber-100 bg-amber-50', value: 'text-amber-700' },
   red: { box: 'border-red-100 bg-red-50', value: 'text-red-700' },
-  purple: { box: 'border-purple-100 bg-purple-50', value: 'text-purple-700' },
   cyan: { box: 'border-cyan-100 bg-cyan-50', value: 'text-cyan-700' },
   orange: { box: 'border-orange-100 bg-orange-50', value: 'text-orange-700' },
-  indigo: { box: 'border-indigo-100 bg-indigo-50', value: 'text-indigo-700' },
-  teal: { box: 'border-teal-100 bg-teal-50', value: 'text-teal-700' },
 };
 
 /** A single KPI summary box (label + value) with a light, color-coded
- * background. Used for the Task Performance / Register Performance /
- * Final Performance rows so every box shares the same markup and
- * only the color variant differs. */
+ * background. Every register card shares the same markup; only the color
+ * variant differs. */
 function KpiBox({
   label,
   value,
@@ -88,10 +78,11 @@ interface RegisterSummary {
     checking_cycle: RegisterCycle;
     status: string;
   };
-  /** onTime + late + pending === total (Total Periods Due). */
+  /** onTime + late + notChecked + delayed === total (Total Periods Due). */
   onTime: number;
   late: number;
-  pending: number;
+  notChecked: number;
+  delayed: number;
   total: number;
   completionRate: number;
   /** Periods in the range, newest first (only the latest 5 are rendered). */
@@ -124,17 +115,6 @@ function RegistryPerformancePanel() {
     queryFn: () => getRegisterPerformance({ dateFrom, dateTo }),
   });
 
-  // Task Performance data (same source the Staff Performance table above
-  // uses) — pulled in here too so the Performance screen's KPI summary and
-  // its export can report Task Performance alongside Register Performance
-  // without a second, disconnected fetch/filter path. Scoped to the same
-  // Date Range filter as the Register Performance half above, so both
-  // halves of the panel respect the same date range consistently.
-  const { data: staffPerformance = [] } = useQuery({
-    queryKey: ['staffPerformance', 'performance-panel', dateFrom, dateTo],
-    queryFn: () => getStaffPerformance({ dateFrom, dateTo }),
-  });
-
   // Heads are identified by user id (the register's head_id), never by name
   // text: names are free text and can differ between a register and the user,
   // which is what made the filter drop tasks. Registers without a linked head
@@ -163,7 +143,8 @@ function RegistryPerformancePanel() {
       },
       onTime: item.onTimeChecked,
       late: item.checkedAfterDueDate,
-      pending: item.notChecked,
+      notChecked: item.notChecked,
+      delayed: item.delayed,
       total: item.totalPeriodsDue,
       completionRate: item.completionRate,
       strip: [...item.periods]
@@ -194,68 +175,19 @@ function RegistryPerformancePanel() {
     });
   }, [summaries, cycleFilter, headFilter, statusFilter]);
 
-  // Task Performance rows, scoped to the same Head filter as the register
-  // data above (matched on name, since the performance API returns each
-  // user's name/role but registers store head_name as free text/derived
-  // from the same user).
-  const filteredStaffPerformance = useMemo(() => {
-    if (headFilter === 'ALL') return staffPerformance;
-    if (headFilter.startsWith('name:')) {
-      return staffPerformance.filter((row) => row.name === headFilter.slice(5));
-    }
-    return staffPerformance.filter((row) => row.userId === Number(headFilter));
-  }, [staffPerformance, headFilter]);
-
-  // Totals are plain sums of the backend numbers above, so every card equals
-  // its table column: On Time Checked + Checked After Due Date + Not Checked
-  // = Total Periods Due.
-  const registerTotals = useMemo(() => {
-    const onTimeChecked = filteredSummaries.reduce((sum, s) => sum + s.onTime, 0);
-    const checkedAfterDueDate = filteredSummaries.reduce((sum, s) => sum + s.late, 0);
-    const notChecked = filteredSummaries.reduce((sum, s) => sum + s.pending, 0);
-    const totalPeriodsDue = onTimeChecked + checkedAfterDueDate + notChecked;
-    const completionRate = totalPeriodsDue
-      ? Math.round(((onTimeChecked + checkedAfterDueDate) / totalPeriodsDue) * 100)
-      : 0;
-    return {
+  // Plain sums of the backend numbers above, so every card equals its table
+  // column: On Time Checked + Checked After Due Date + Not Checked + Delayed
+  // = Total Periods Due. The browser never re-classifies a period.
+  const registerTotals = useMemo(
+    () => ({
       totalRegisters: filteredSummaries.length,
-      onTimeChecked,
-      checkedAfterDueDate,
-      notChecked,
-      totalPeriodsDue,
-      completionRate,
-    };
-  }, [filteredSummaries]);
-  const overall = { completionRate: registerTotals.completionRate };
-
-  // Task Performance KPI (requirement: Total Task / Completed / Not
-  // Completed / Delayed / Performance) — aggregated from the same Task
-  // Performance rows shown (and filterable by Head) above. "Not Completed"
-  // covers every task that isn't COMPLETED yet (missed/pending/in
-  // progress/escalated/delayed); "Delayed" is the subset of those that are
-  // specifically overdue (status DELAYED).
-  const taskTotals = useMemo(() => {
-    const totalTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.totalTasks, 0);
-    const completedTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.completedTasks, 0);
-    const delayedTasks = filteredStaffPerformance.reduce((sum, row) => sum + row.delayedTasks, 0);
-    const notCompletedTasks = totalTasks - completedTasks;
-    const taskPerformance = totalTasks ? Math.round((completedTasks / totalTasks) * 100) : 0;
-    return { totalTasks, completedTasks, delayedTasks, notCompletedTasks, taskPerformance };
-  }, [filteredStaffPerformance]);
-
-  // Final Performance: same 50/50 Task + Register blend the backend uses
-  // for each staff member's Overall Performance, applied here at the
-  // aggregate (currently filtered) level.
-  const finalPerformance = useMemo(() => {
-    const hasTasks = taskTotals.totalTasks > 0;
-    const hasRegisters = registerTotals.totalRegisters > 0;
-    if (hasTasks && hasRegisters) {
-      return Math.round(taskTotals.taskPerformance * 0.5 + overall.completionRate * 0.5);
-    }
-    if (hasTasks) return taskTotals.taskPerformance;
-    if (hasRegisters) return overall.completionRate;
-    return 0;
-  }, [taskTotals, overall, registerTotals]);
+      onTimeChecked: filteredSummaries.reduce((sum, s) => sum + s.onTime, 0),
+      checkedAfterDueDate: filteredSummaries.reduce((sum, s) => sum + s.late, 0),
+      notChecked: filteredSummaries.reduce((sum, s) => sum + s.notChecked, 0),
+      delayed: filteredSummaries.reduce((sum, s) => sum + s.delayed, 0),
+    }),
+    [filteredSummaries]
+  );
 
   const [isExporting, setIsExporting] = useState(false);
 
@@ -326,8 +258,9 @@ function RegistryPerformancePanel() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[#5B6E8C]">Cycle</label>
+            <label htmlFor="register-cycle-filter" className="text-xs font-medium text-[#5B6E8C]">Cycle</label>
             <select
+              id="register-cycle-filter"
               value={cycleFilter}
               onChange={(e) => setCycleFilter(e.target.value as RegisterCycle | 'ALL')}
               className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
@@ -341,8 +274,9 @@ function RegistryPerformancePanel() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[#5B6E8C]">Head</label>
+            <label htmlFor="register-head-filter" className="text-xs font-medium text-[#5B6E8C]">Head</label>
             <select
+              id="register-head-filter"
               value={headFilter}
               onChange={(e) => setHeadFilter(e.target.value)}
               className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
@@ -356,8 +290,9 @@ function RegistryPerformancePanel() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-[#5B6E8C]">Status</label>
+            <label htmlFor="register-status-filter" className="text-xs font-medium text-[#5B6E8C]">Status</label>
             <select
+              id="register-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'IDLE' | 'OK' | 'REJECTED')}
               className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
@@ -380,39 +315,15 @@ function RegistryPerformancePanel() {
         </Button>
       </div>
 
-      {/* Task Performance row: Total Task / Completed / Not Completed /
-          Delayed / Performance — all respecting the filters above. Each
-          box uses a distinct light color so the five figures are easy
-          to tell apart at a glance (see KPI_COLOR_CLASS above). */}
+      {/* Register cards, directly below the filters. Names come from the shared
+          label constants and the numbers are the backend's per-period counts,
+          the same ones the table columns and the export show. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-        <KpiBox color="blue" label="Total Task" value={taskTotals.totalTasks} />
-        <KpiBox color="green" label="Completed" value={taskTotals.completedTasks} />
-        <KpiBox color="yellow" label="Not Completed" value={taskTotals.notCompletedTasks} />
-        <KpiBox color="red" label={L.delayed} value={taskTotals.delayedTasks} />
-        <KpiBox color="purple" label="Performance" value={`${taskTotals.taskPerformance}%`} />
-      </div>
-
-      {/* Register Performance row: Total Register / Checked / Not Checked /
-          Delayed / Performance — mirrors the Task row above, same filters.
-          Delayed/Performance use their own shades (orange/indigo) so this
-          row stays visually distinct from the Task Performance row. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        <KpiBox color="cyan" label="Total Registers" value={registerTotals.totalRegisters} />
         <KpiBox color="green" label={L.onTimeChecked} value={registerTotals.onTimeChecked} />
         <KpiBox color="yellow" label={L.checkedAfterDueDate} value={registerTotals.checkedAfterDueDate} />
         <KpiBox color="orange" label={L.notChecked} value={registerTotals.notChecked} />
-        <KpiBox color="blue" label={L.totalPeriodsDue} value={registerTotals.totalPeriodsDue} />
-        <KpiBox color="indigo" label="Performance" value={`${overall.completionRate}%`} />
-      </div>
-
-      {/* Final Performance: the combined (50/50) Task + Register score. */}
-      <div className="flex justify-center">
-        <KpiBox
-          className="w-full max-w-xs text-center"
-          color="teal"
-          label="Final Performance"
-          value={`${finalPerformance}%`}
-        />
+        <KpiBox color="red" label={L.delayed} value={registerTotals.delayed} />
+        <KpiBox color="cyan" label={L.totalRegisters} value={registerTotals.totalRegisters} />
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
@@ -432,6 +343,7 @@ function RegistryPerformancePanel() {
                 <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.delayed}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
                 <th className="px-4 py-3 text-center font-semibold">Completion %</th>
               </tr>
@@ -439,7 +351,7 @@ function RegistryPerformancePanel() {
             <tbody>
               {filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
+                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
                     No registers match the selected filters.
                   </td>
                 </tr>
@@ -474,7 +386,8 @@ function RegistryPerformancePanel() {
                     </td>
                     <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
                     <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
-                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.pending}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.notChecked}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.delayed}</td>
                     <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">

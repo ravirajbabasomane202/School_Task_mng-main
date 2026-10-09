@@ -1,4 +1,5 @@
 import type { RoleOption } from '../services/roleService';
+import { toTitleCase } from './formatUtils';
 import type { StaffPerformance } from '../services/dashboardService';
 
 /** Readable fallback when a role is missing from the roles list: "FRONT_DESK" -> "Front Desk". */
@@ -8,6 +9,18 @@ export function fallbackRoleLabel(key: string | null | undefined): string {
     .replace(/_/g, ' ')
     .toLowerCase()
     .replace(/(^|[\s/-])([a-z])/g, (_m, b: string, c: string) => b + c.toUpperCase());
+}
+
+/**
+ * Display label for a role on the Performance page: the role name with " Head"
+ * added at the end ("Admission" -> "Admission Head"). A name that already ends
+ * with "Head" (any case) is left as it is, so it is never added twice.
+ * Display only: roles are never renamed, and identity stays the role key/id.
+ */
+export function toHeadLabel(name: string | null | undefined): string {
+  const base = (name ?? '').trim().replace(/\s+/g, ' ');
+  if (!base) return '';
+  return toTitleCase(/\bhead$/i.test(base) ? base : `${base} Head`);
 }
 
 /** Display name for a role key: roles list (backend) -> name the row carried -> fallback. */
@@ -25,20 +38,20 @@ export interface RoleFilterOption {
 }
 
 /**
- * Filter options come from the backend roles list; any role that appears in the
- * performance rows but not in the list is still offered (with a fallback label).
- * Identity is the role key, never the display name.
+ * Filter options: EVERY role from the backend roles list (so a role with no
+ * performance rows yet is still selectable), plus any role present in the rows
+ * but missing from the list (shown with a fallback label). The value is the role
+ * KEY; the label is the display name with " Head" added (toHeadLabel).
  */
 export function buildRoleOptions(roles: RoleOption[], rows: StaffPerformance[]): RoleFilterOption[] {
-  const options = new Map<string, string>();
-  for (const role of roles) options.set(role.key, role.name);
+  const names = new Map<string, string>();
+  for (const role of roles) names.set(role.key, role.name);
   for (const row of rows) {
-    if (!options.has(row.role)) options.set(row.role, row.roleName ?? fallbackRoleLabel(row.role));
+    if (!names.has(row.role)) names.set(row.role, row.roleName ?? fallbackRoleLabel(row.role));
   }
-  const present = new Set(rows.map((r) => r.role));
-  return Array.from(options, ([key, label]) => ({ key, label }))
-    .filter((o) => present.has(o.key))
-    .sort((a, b) => a.label.localeCompare(b.label));
+  return Array.from(names, ([key, name]) => ({ key, label: toHeadLabel(name) })).sort((a, b) =>
+    a.label.localeCompare(b.label)
+  );
 }
 
 export function filterRowsByRole(rows: StaffPerformance[], roleKey: string): StaffPerformance[] {
