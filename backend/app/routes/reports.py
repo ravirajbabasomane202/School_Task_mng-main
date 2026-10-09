@@ -21,7 +21,8 @@ from app.models.register import _iso_utc
 from app.utils.timezone import school_today
 from app.utils.completion import CHECK_DELAYED, CHECK_LATE, CHECK_ON_TIME, CHECK_OPEN, CHECK_REJECTED
 from app.utils.labels import (
-    LABEL_CHECKED_AFTER_DUE, LABEL_DELAYED, LABEL_NOT_CHECKED, LABEL_ON_TIME_CHECKED,
+    LABEL_CHECKED_AFTER_DUE, LABEL_COMPLETED_AFTER_DUE, LABEL_DELAYED, LABEL_NOT_CHECKED,
+    LABEL_NOT_COMPLETED, LABEL_ON_TIME_CHECKED, LABEL_ON_TIME_COMPLETE, LABEL_TOTAL_REQUIRED_DUE,
 )
 from app.utils.completion import (
     CAT_LATE, CAT_ON_TIME, CAT_PENDING, as_utc_date, task_completion_category
@@ -353,13 +354,13 @@ BAND_COLOR = '#1E3A5F'      # main heading band
 HEADER_COLOR = '#2E75B6'    # table header row
 ROW_STYLES = {
     # soft background tint, dark readable text
-    CAT_ON_TIME: {'bg': '#E3F6E8', 'fg': '#14532D', 'label': 'On Time Complete'},
-    CAT_LATE: {'bg': '#FEF3C7', 'fg': '#78350F', 'label': 'Complete After Due Date'},
+    CAT_ON_TIME: {'bg': '#E3F6E8', 'fg': '#14532D', 'label': LABEL_ON_TIME_COMPLETE},
+    CAT_LATE: {'bg': '#FEF3C7', 'fg': '#78350F', 'label': LABEL_COMPLETED_AFTER_DUE},
     CAT_PENDING: {'bg': '#FDE2E2', 'fg': '#7F1D1D', 'label': 'Pending'},
 }
 TASK_COLUMNS = [
     'Task', 'Assigned To', 'Priority', 'Status', 'Due Date', 'Department',
-    'On Time Complete', 'Complete After Due Date', 'Pending'
+    LABEL_ON_TIME_COMPLETE, LABEL_COMPLETED_AFTER_DUE, 'Pending'
 ]
 CATEGORY_COLUMN = {CAT_ON_TIME: 6, CAT_LATE: 7, CAT_PENDING: 8}
 
@@ -597,8 +598,8 @@ def _generate_pdf(title, tasks, summary=None, period=None):
         meta = ROW_STYLES[cat]
         cell = ParagraphStyle(f'Legend{idx}', parent=legend_style, textColor=_hex(meta['fg']))
         label = {
-            CAT_ON_TIME: 'Green = On Time Complete',
-            CAT_LATE: 'Yellow = Complete After Due Date',
+            CAT_ON_TIME: f'Green = {LABEL_ON_TIME_COMPLETE}',
+            CAT_LATE: f'Yellow = {LABEL_COMPLETED_AFTER_DUE}',
             CAT_PENDING: 'Red = Pending',
         }[cat]
         legend_cells.append(Paragraph(f'<b>{label}</b>', cell))
@@ -609,7 +610,7 @@ def _generate_pdf(title, tasks, summary=None, period=None):
     # ---- summary ----------------------------------------------------------
     if summary:
         summary_header = [
-            'Total', 'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
+            'Total', LABEL_ON_TIME_COMPLETE, LABEL_COMPLETED_AFTER_DUE, f'Pending ({LABEL_NOT_COMPLETED})'
         ]
         summary_values = [
             str(len(tasks)),
@@ -733,8 +734,8 @@ def _generate_excel(title, tasks, summary=None, period=None):
 
     # legend
     legend_label = {
-        CAT_ON_TIME: 'Green = On Time Complete',
-        CAT_LATE: 'Yellow = Complete After Due Date',
+        CAT_ON_TIME: f'Green = {LABEL_ON_TIME_COMPLETE}',
+        CAT_LATE: f'Yellow = {LABEL_COMPLETED_AFTER_DUE}',
         CAT_PENDING: 'Red = Pending',
     }
     legend_cells = ''.join(
@@ -748,7 +749,7 @@ def _generate_excel(title, tasks, summary=None, period=None):
     # summary / totals
     if summary:
         labels = [
-            'Total', 'On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'
+            'Total', LABEL_ON_TIME_COMPLETE, LABEL_COMPLETED_AFTER_DUE, f'Pending ({LABEL_NOT_COMPLETED})'
         ]
         values = [len(tasks), counts[CAT_ON_TIME], counts[CAT_LATE], counts[CAT_PENDING]]
         tints = [None, ROW_STYLES[CAT_ON_TIME], ROW_STYLES[CAT_LATE], ROW_STYLES[CAT_PENDING]]
@@ -1108,7 +1109,7 @@ def _json_summary(s):
 def performance_registers_json():
     """Per-register performance for the Performance screen, from the SAME
     function the exports use. A period belongs to the range by its due date;
-    On Time Checked + Checked After Due Date + Not Checked + Delayed == Total Periods Due.
+    On Time Checked + Checked After Due Date + Not Checked + Delayed == Total Required Due.
     The browser only displays these numbers, it never re-classifies a period."""
     user = db.session.get(User, int(get_jwt_identity()))
     if not user:
@@ -1189,7 +1190,7 @@ def _performance_export_data(user, date_from, date_to, head, cycle, status):
     can never disagree with what is shown.
 
     On Time Checked + Checked After Due Date + Not Checked + Delayed
-    = Total Periods Due, in every table.
+    = Total Required Due, in every table.
     """
     summaries = _registry_performance_summaries(user, date_from, date_to, cycle=cycle, status=status)
     if head and head.upper() != 'ALL':
@@ -1326,7 +1327,7 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     rows.append(section_title('Register Performance'))
     rows.extend(table(
         ['Role', 'Total Registers', 'Checking Cycle', LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE,
-         LABEL_NOT_CHECKED, LABEL_DELAYED, 'Total Periods Due', 'Register Performance %'],
+         LABEL_NOT_CHECKED, LABEL_DELAYED, LABEL_TOTAL_REQUIRED_DUE, 'Register Performance %'],
         [
             [r['roleName'], r['totalRegisters'], ', '.join(r['checkingCycles']) or 'N/A',
              r['onTimeChecked'], r['checkedAfterDueDate'], r['notChecked'], r['delayed'],
@@ -1346,7 +1347,7 @@ def _performance_excel(data, date_from, date_to, head, cycle, status):
     rows.append(section_title('Register Activity Report'))
     rows.extend(table(
         ['Register Name', 'Register No', 'Head Name', 'Checking Cycle', LABEL_ON_TIME_CHECKED,
-         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_DELAYED, 'Total Periods Due', 'Completion %'],
+         LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_DELAYED, LABEL_TOTAL_REQUIRED_DUE, 'Completion %'],
         [
             [s['register'].name, s['register'].register_no, s['headName'], s['register'].cycle,
              s['onTimeComplete'], s['completedAfterDue'], s['notChecked'], s['delayed'], s['total'],
@@ -1395,9 +1396,9 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
 
     totals = data['registerTotals']
     writer.writerow(['Registration Performance'])
-    # On Time Checked + Checked After Due Date + Not Checked + Delayed == Total Periods Due
+    # On Time Checked + Checked After Due Date + Not Checked + Delayed == Total Required Due
     writer.writerow(['Total Registers', LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE,
-                     LABEL_NOT_CHECKED, LABEL_DELAYED, 'Total Periods Due', 'Performance'])
+                     LABEL_NOT_CHECKED, LABEL_DELAYED, LABEL_TOTAL_REQUIRED_DUE, 'Performance'])
     writer.writerow([
         totals['totalRegisters'], totals['onTimeChecked'], totals['checkedAfterDueDate'],
         totals['notChecked'], totals['delayed'], totals['totalPeriodsDue'], f"{totals['performance']}%",
@@ -1406,7 +1407,7 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
 
     writer.writerow(['Register Performance'])
     writer.writerow(['Role', 'Total Registers', 'Checking Cycle', LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE,
-                     LABEL_NOT_CHECKED, LABEL_DELAYED, 'Total Periods Due', 'Register Performance %'])
+                     LABEL_NOT_CHECKED, LABEL_DELAYED, LABEL_TOTAL_REQUIRED_DUE, 'Register Performance %'])
     for r in data['roleRows']:
         writer.writerow([
             r['roleName'], r['totalRegisters'], ', '.join(r['checkingCycles']) or 'N/A',
@@ -1419,7 +1420,7 @@ def _performance_export_csv(data, date_from, date_to, head, cycle, status):
     writer.writerow([
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
         LABEL_ON_TIME_CHECKED, LABEL_CHECKED_AFTER_DUE, LABEL_NOT_CHECKED, LABEL_DELAYED,
-        'Total Periods Due', 'Completion %'
+        LABEL_TOTAL_REQUIRED_DUE, 'Completion %'
     ])
     for s in data['summaries']:
         register = s['register']

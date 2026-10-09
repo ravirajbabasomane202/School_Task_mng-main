@@ -126,12 +126,12 @@ def test_excel_rows_colours_columns_and_totals(app, client, auth_headers):
     html = resp.get_data(as_text=True)
 
     assert 'Finance Head Task Report' in html
-    for col in ('On Time Complete', 'Complete After Due Date', '<th'):
+    for col in ('On Time Complete', 'Completed After Due Date', '<th'):
         assert col in html
     # existing columns still present, in order, new ones after them
     task_header = html[html.index('>Task</th>'):]
     order = ['>Task</th>', '>Assigned To</th>', '>Priority</th>', '>Status</th>', '>Due Date</th>',
-             '>Department</th>', '>On Time Complete</th>', '>Complete After Due Date</th>', '>Pending</th>']
+             '>Department</th>', '>On Time Complete</th>', '>Completed After Due Date</th>', '>Pending</th>']
     positions = [task_header.index(c) for c in order]
     assert positions == sorted(positions)
 
@@ -157,7 +157,7 @@ def test_excel_rows_colours_columns_and_totals(app, client, auth_headers):
 
     # legend + spacing
     assert 'Green = On Time Complete' in html
-    assert 'Yellow = Complete After Due Date' in html
+    assert 'Yellow = Completed After Due Date' in html
     assert 'Red = Pending' in html
     assert 'width:24px' in html  # left spacer column
 
@@ -183,8 +183,8 @@ def test_pdf_has_colours_columns_legend_and_margins(app, client, auth_headers):
     with pdfplumber.open(io.BytesIO(resp.data)) as pdf:
         page = pdf.pages[0]
         text = page.extract_text()
-        for needle in ('Finance Head Task Report', 'On Time Complete', 'Complete After Due Date',
-                       'Green = On Time Complete', 'Yellow = Complete After Due Date', 'Red = Pending'):
+        for needle in ('Finance Head Task Report', 'On Time Complete', 'Completed After Due Date',
+                       'Green = On Time Complete', 'Yellow = Completed After Due Date', 'Red = Pending'):
             assert needle in text
 
         fills = {tuple(round(c, 2) for c in r['non_stroking_color'])

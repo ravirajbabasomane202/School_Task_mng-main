@@ -1,3 +1,4 @@
+import { REGISTER_LABELS } from '../../constants/performanceLabels';
 import type { RegisterDotColor } from '../../types/register.types';
 
 /**
@@ -16,9 +17,9 @@ export const MARKER_CLASS: Record<RegisterDotColor, string> = {
 };
 
 export const MARKER_LEGEND: { color: RegisterDotColor; label: string }[] = [
-  { color: 'green', label: 'On Time Checked' },
-  { color: 'yellow', label: 'Checked After Due Date' },
-  { color: 'missed', label: 'Not Checked' },
+  { color: 'green', label: REGISTER_LABELS.onTimeChecked },
+  { color: 'yellow', label: REGISTER_LABELS.checkedAfterDueDate },
+  { color: 'missed', label: REGISTER_LABELS.notChecked },
   { color: 'red', label: 'Rejected' },
   { color: 'gray', label: 'Open / Future' },
 ];

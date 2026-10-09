@@ -64,17 +64,17 @@ describe('Registry performance panel', () => {
     renderPanel();
     await screen.findByText('Fire Register', { selector: 'td' });
     for (const label of ['Total Task', 'Total Tasks', 'Completed', 'Not Completed', 'Performance', 'Final Performance',
-      'Total Periods Due', 'Checked']) {
+      'Total Required Due', 'Checked']) {
       expect(screen.queryAllByText(label, { selector: 'p' })).toHaveLength(0);
     }
     expect(dashboardService.getStaffPerformance).not.toHaveBeenCalled();
   });
 
-  it('cards equal the table columns and the four buckets add up to Total Periods Due', async () => {
+  it('cards equal the table columns and the four buckets add up to Total Required Due', async () => {
     renderPanel();
     const row = (await screen.findByText('Fire Register', { selector: 'td' })).closest('tr') as HTMLElement;
     const cells = within(row).getAllByRole('cell').map((c) => c.textContent);
-    // ... On Time Checked | Checked After Due Date | Not Checked | Delayed | Total Periods Due
+    // ... On Time Checked | Checked After Due Date | Not Checked | Delayed | Total Required Due
     expect(cells.slice(5, 10)).toEqual(['3', '2', '1', '1', '7']);
     expect(3 + 2 + 1 + 1).toBe(7);
 

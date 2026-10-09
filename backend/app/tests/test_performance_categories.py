@@ -126,10 +126,10 @@ def test_performance_excel_export(app, client, auth_headers):
     assert resp.headers['Content-Disposition'].endswith('.xls')
     body = resp.get_data(as_text=True)
 
-    for label in ('On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Periods Due'):
+    for label in ('On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Required Due'):
         assert label in body
     # registers only: no task section or task column in the export
-    for gone in ('On Time Complete', 'Complete After Due Date', 'Delay Rate', 'Missed Checking', 'Total Delayed',
+    for gone in ('On Time Complete', 'Completed After Due Date', 'Delay Rate', 'Missed Checking', 'Total Delayed',
                  '>Completed<', 'Task Performance', 'Total Tasks', 'In Progress', 'Escalated', 'Pending',
                  'Final Performance'):
         assert gone not in body
@@ -165,7 +165,7 @@ def test_task_monitor_excel_summary_simplified(app, client, auth_headers):
     assert resp.status_code == 200
     body = resp.get_data(as_text=True)
     summary = body[body.index('>Total<'):body.index('>Task<')]
-    for label in ('On Time Complete', 'Complete After Due Date', 'Pending (Not Completed)'):
+    for label in ('On Time Complete', 'Completed After Due Date', 'Pending (Not Completed)'):
         assert label in summary
     for gone in ('>Completed<', '>Delayed<', '>Pending<'):
         assert gone not in summary

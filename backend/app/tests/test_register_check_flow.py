@@ -228,7 +228,7 @@ def test_ok_row_without_check_time_is_on_time_and_not_invented(app, client, auth
 
 def test_performance_registers_endpoint_adds_up_and_matches_by_head_id(app, client, auth_headers):
     """Four buckets, counted per checking period, all computed by the backend:
-    On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
+    On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Required Due.
     Not Checked = unchecked period whose window is still open + rejected checks.
     Delayed     = unchecked period whose window has ended."""
     h = auth_headers['chairman']

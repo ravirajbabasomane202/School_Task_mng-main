@@ -24,10 +24,9 @@ const AdmissionAnalytics: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
-    queryKey: ['analytics', 'admission', user?.department_id],
+    queryKey: ['analytics', 'admission', user?.id],
     queryFn: async () => {
-      const params = user?.department_id ? { department_id: user.department_id } : {};
-      const res = await api.get('/dashboard/analytics/admission', { params });
+      const res = await api.get('/dashboard/analytics/admission');
       return res.data.data ?? res.data;
     },
   });
@@ -63,7 +62,7 @@ const AdmissionAnalytics: React.FC = () => {
     <div className="space-y-6 p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-indigo-600">Admissions</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">Admission Department Analytics</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Application pipeline, task performance, and monthly progress</p>
       </div>
 
