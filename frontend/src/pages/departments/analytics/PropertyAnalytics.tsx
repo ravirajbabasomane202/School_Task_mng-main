@@ -31,9 +31,10 @@ const PropertyAnalytics: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
-    queryKey: ['analytics', 'property', user?.id],
+    queryKey: ['analytics', 'property', user?.department_id],
     queryFn: async () => {
-      const res = await api.get('/dashboard/analytics/property');
+      const params = user?.department_id ? { department_id: user.department_id } : {};
+      const res = await api.get('/dashboard/analytics/property', { params });
       return res.data.data ?? res.data;
     },
   });
@@ -98,7 +99,7 @@ const PropertyAnalytics: React.FC = () => {
     <div className="space-y-6 p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">Property &amp; Maintenance</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">Property Department Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Asset inventory, housekeeping tasks, and procurement overview</p>
       </div>
 

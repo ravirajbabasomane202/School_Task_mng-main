@@ -1,5 +1,5 @@
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
-import { defaultRegisterRange, latestEntries, summarizeRegisterTotals } from '../../utils/performanceUtils';
+import { latestEntries } from '../../utils/performanceUtils';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
@@ -61,6 +61,12 @@ function KpiBox({
   );
 }
 
+function daysAgoISO(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().split('T')[0];
+}
+
 /** One register's row, exactly as classified by the backend. */
 interface RegisterSummary {
   register: {
@@ -72,7 +78,7 @@ interface RegisterSummary {
     checking_cycle: RegisterCycle;
     status: string;
   };
-  /** onTime + late + notChecked + delayed === total (Total Required Due). */
+  /** onTime + late + notChecked + delayed === total (Total Periods Due). */
   onTime: number;
   late: number;
   notChecked: number;
@@ -85,7 +91,7 @@ interface RegisterSummary {
 
 function RegistryPerformancePanel() {
   const today = todayISO();
-  const defaultRangeStart = defaultRegisterRange().dateFrom;
+  const defaultRangeStart = daysAgoISO(90);
 
   const [cycleFilter, setCycleFilter] = useState<RegisterCycle | 'ALL'>('ALL');
   const [headFilter, setHeadFilter] = useState<string>('ALL');
@@ -171,18 +177,15 @@ function RegistryPerformancePanel() {
 
   // Plain sums of the backend numbers above, so every card equals its table
   // column: On Time Checked + Checked After Due Date + Not Checked + Delayed
-  // = Total Required Due. The browser never re-classifies a period. The same
-  // helper feeds the Dashboard's Register cards, so both screens match.
+  // = Total Periods Due. The browser never re-classifies a period.
   const registerTotals = useMemo(
-    () =>
-      summarizeRegisterTotals(
-        filteredSummaries.map((s) => ({
-          onTimeChecked: s.onTime,
-          checkedAfterDueDate: s.late,
-          notChecked: s.notChecked,
-          delayed: s.delayed,
-        }))
-      ),
+    () => ({
+      totalRegisters: filteredSummaries.length,
+      onTimeChecked: filteredSummaries.reduce((sum, s) => sum + s.onTime, 0),
+      checkedAfterDueDate: filteredSummaries.reduce((sum, s) => sum + s.late, 0),
+      notChecked: filteredSummaries.reduce((sum, s) => sum + s.notChecked, 0),
+      delayed: filteredSummaries.reduce((sum, s) => sum + s.delayed, 0),
+    }),
     [filteredSummaries]
   );
 
@@ -232,14 +235,10 @@ function RegistryPerformancePanel() {
     <div className="space-y-6">
       {/* Filters + export */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-[#EFF2F6] bg-white p-4">
-        <div className="w-full">
-          <h2 className="text-base font-semibold text-[#1E293B]">Filter Registers</h2>
-        </div>
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-col gap-1">
-            <label htmlFor="register-date-from" className="text-xs font-medium text-[#5B6E8C]">From</label>
+            <label className="text-xs font-medium text-[#5B6E8C]">From</label>
             <input
-              id="register-date-from"
               type="date"
               value={dateFrom}
               max={dateTo}
@@ -248,9 +247,8 @@ function RegistryPerformancePanel() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label htmlFor="register-date-to" className="text-xs font-medium text-[#5B6E8C]">To</label>
+            <label className="text-xs font-medium text-[#5B6E8C]">To</label>
             <input
-              id="register-date-to"
               type="date"
               value={dateTo}
               min={dateFrom}

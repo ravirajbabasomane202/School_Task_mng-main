@@ -51,18 +51,17 @@ describe('Performance page', () => {
   it('shows backend roles, the new column names and no Delay Rate', async () => {
     renderPage();
     expect((await screen.findAllByText('Library Head', { selector: 'td' })).length).toBeGreaterThan(0);
-    // Task table says Complete..., Register table keeps Checked...
-    for (const header of ['In Progress', 'On Time Complete', 'Completed After Due Date',
-      'On Time Checked', 'Checked After Due Date']) {
+    for (const header of ['In Progress', 'On Time Checked', 'Checked After Due Date']) {
       expect(screen.getAllByText(header, { selector: 'th' }).length).toBeGreaterThan(0);
     }
     expect(screen.queryByText(/Delay Rate/i)).toBeNull();
-    expect(screen.queryByText('On Time Checked Tasks')).toBeNull();
+    expect(screen.queryByText('On Time Complete')).toBeNull();
+    expect(screen.queryByText('Complete After Due Date')).toBeNull();
   });
 
   it('role dropdown lists ALL backend roles with " Head" added once', async () => {
     renderPage();
-    const select = await screen.findByLabelText('Filter Tasks and Registers by Role');
+    const select = await screen.findByLabelText('Role');
     const labels = within(select).getAllByRole('option').map((o) => o.textContent);
     expect(labels).toEqual(['All Roles', 'Admission Head', 'Library Head', 'Transport Head']);
     // the value is the role key, not the name
@@ -83,7 +82,7 @@ describe('Performance page', () => {
     expect(screen.queryByText('Register Checks')).toBeNull();
     expect(screen.queryByText('Task Status')).toBeNull();
     // none of their cards: the labels now only appear as table headers
-    for (const label of ['On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Required Due',
+    for (const label of ['On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Periods Due',
       'Pending', 'In Progress', 'Delayed', 'Escalated']) {
       expect(screen.queryAllByText(label, { selector: 'h3' })).toHaveLength(0);
     }
@@ -93,21 +92,10 @@ describe('Performance page', () => {
     renderPage();
     await screen.findAllByText('Library Head', { selector: 'td' });
     for (const header of ['Total Tasks', 'Task Performance', 'Pending', 'In Progress', 'Delayed', 'Escalated',
-      'Total Registers', 'Checking Cycle', 'Not Checked', 'Total Required Due', 'Register Performance']) {
+      'Total Registers', 'Checking Cycle', 'Not Checked', 'Total Periods Due', 'Register Performance',
+      'Overall Performance']) {
       expect(screen.getAllByText(header, { selector: 'th' }).length).toBeGreaterThan(0);
     }
-    expect(screen.queryByText('Overall Performance')).toBeNull();
-    expect(screen.queryByText('Total Periods Due')).toBeNull();
-  });
-
-  it('task table never says Checked and the role filter label is tied to its select', async () => {
-    renderPage();
-    await screen.findAllByText('Library Head', { selector: 'td' });
-    const taskTable = screen.getByRole('heading', { name: 'Task Performance' }).closest('div')!.parentElement!;
-    expect(within(taskTable).queryByText(/Check/)).toBeNull();
-    const label = screen.getByText('Filter Tasks and Registers by Role');
-    expect(label.getAttribute('for')).toBe('performance-role-filter');
-    expect(document.getElementById('performance-role-filter')?.tagName).toBe('SELECT');
   });
 
   it('groups by role so two Admission Head tasks total 2', async () => {
@@ -119,7 +107,7 @@ describe('Performance page', () => {
 
   it('role filter filters by key', async () => {
     renderPage();
-    const select = await screen.findByLabelText('Filter Tasks and Registers by Role');
+    const select = await screen.findByLabelText('Role');
     await userEvent.selectOptions(select, 'Librarian');
     expect(screen.queryAllByText('Admission Head', { selector: 'td' })).toHaveLength(0);
     expect(screen.getAllByText('Library Head', { selector: 'td' }).length).toBeGreaterThan(0);

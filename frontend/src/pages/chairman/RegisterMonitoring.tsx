@@ -281,6 +281,7 @@ function RegisterMonitoring() {
         L.delayed,
         L.totalRegisters,
         'Completed Registers',
+        L.overallPerformance,
       ],
       ...filteredStaffPerformance.map((p) => [
         getRoleName(p.role, p.roleName),
@@ -291,6 +292,7 @@ function RegisterMonitoring() {
         p.delayedTasks,
         p.totalRegisters,
         p.onTimeCompleteRegisters + p.completedAfterDueRegisters,
+        `${p.overallPerformance}%`,
       ]),
     ];
     downloadCsv(`registers_${todayISO()}.csv`, rows);

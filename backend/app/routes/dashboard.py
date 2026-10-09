@@ -397,7 +397,7 @@ def _staff_performance_rows(date_from=None, date_to=None):
         # Not completed = missed + rejected (the three buckets sum to registers_due).
         pending_registers = missed_registers + rejected_registers
         # Same four buckets as the Register Activity report / export:
-        # On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Required Due.
+        # On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
         not_checked_registers = open_registers + rejected_registers
         total_periods_due = completed_registers + not_checked_registers + missed_registers
         register_performance = (
@@ -530,10 +530,7 @@ def director_dashboard():
 @dashboard_bp.route('/analytics/<string:role>', methods=['GET'])
 @jwt_required()
 def role_analytics(role):
-    """Generic analytics endpoint used by all department roles.
-
-    Personal for non-elevated roles (only the caller's own tasks, same rule as
-    the Dashboard); school-wide or per-department for CHAIRMAN/DIRECTOR."""
+    """Generic analytics endpoint used by all department roles."""
     Task.mark_overdue_delayed()
     user = db.session.get(User, int(get_jwt_identity()))
     if not user:
@@ -556,23 +553,10 @@ def role_analytics(role):
         if resolved_dept_id != user.department_id:
             return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
 
-    # ROOT CAUSE (Dashboard "1 task" vs Analytics "3"): this used to count
-    # `Task.query.filter_by(department_id=...)` -- every task in the
-    # department -- for everybody. The Dashboard (`dept_dashboard`) and My
-    # Tasks count only tasks assigned to the logged-in user, so the two screens
-    # disagreed whenever a teammate also had tasks in that department.
-    #
-    # Non-elevated users now get exactly the Dashboard's definition
-    # (`assigned_to == current user`), whatever department_id was sent (it is
-    # still validated above). CHAIRMAN/DIRECTOR keep the school-wide view, and
-    # may narrow it with department_id.
-    if user.role in ('CHAIRMAN', 'DIRECTOR'):
-        if dept_id:
-            tasks = Task.query.filter_by(department_id=dept_id).all()
-        else:
-            tasks = Task.query.all()
+    if dept_id:
+        tasks = Task.query.filter_by(department_id=dept_id).all()
     else:
-        tasks = Task.query.filter_by(assigned_to=user.id).all()
+        tasks = Task.query.all()
 
     total, completed, delayed, pending, in_progress, escalated, completion_pct = _task_stats(tasks)
 

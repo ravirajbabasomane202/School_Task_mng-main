@@ -1,4 +1,4 @@
-"""Shared completion-category logic (On Time Complete / Completed After Due
+"""Shared completion-category logic (On Time Complete / Complete After Due
 Date / Pending) for tasks and register checks.
 
 Lives in `utils` (not `routes/reports.py`) so both `routes/dashboard.py` and

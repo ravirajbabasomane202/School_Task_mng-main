@@ -277,7 +277,7 @@ export interface RegisterPerformanceData {
 
 /**
  * Per-register performance, classified by the backend (one source of truth):
- * On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Required Due.
+ * On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Periods Due.
  */
 export const getRegisterPerformance = async (range: {
   dateFrom: string;

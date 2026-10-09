@@ -1,7 +1,6 @@
 import type { RoleOption } from '../services/roleService';
 import { toTitleCase } from './formatUtils';
 import type { StaffPerformance } from '../services/dashboardService';
-import { todayISO } from './dateUtils';
 
 /** Readable fallback when a role is missing from the roles list: "FRONT_DESK" -> "Front Desk". */
 export function fallbackRoleLabel(key: string | null | undefined): string {
@@ -12,20 +11,15 @@ export function fallbackRoleLabel(key: string | null | undefined): string {
     .replace(/(^|[\s/-])([a-z])/g, (_m, b: string, c: string) => b + c.toUpperCase());
 }
 
-/** Leadership roles are shown by their plain name, with no " Head" added. */
-const PLAIN_ROLE_NAMES = new Set(['chairman', 'director', 'principal']);
-
 /**
- * Display label for a role on the Performance page. Department roles get " Head"
- * added at the end ("Admission" -> "Admission Head"); a name that already ends
+ * Display label for a role on the Performance page: the role name with " Head"
+ * added at the end ("Admission" -> "Admission Head"). A name that already ends
  * with "Head" (any case) is left as it is, so it is never added twice.
- * Chairman, Director and Principal stay plain ("Chairman", "Director", "Principal").
  * Display only: roles are never renamed, and identity stays the role key/id.
  */
 export function toHeadLabel(name: string | null | undefined): string {
   const base = (name ?? '').trim().replace(/\s+/g, ' ');
   if (!base) return '';
-  if (PLAIN_ROLE_NAMES.has(base.toLowerCase())) return toTitleCase(base);
   return toTitleCase(/\bhead$/i.test(base) ? base : `${base} Head`);
 }
 
@@ -47,8 +41,7 @@ export interface RoleFilterOption {
  * Filter options: EVERY role from the backend roles list (so a role with no
  * performance rows yet is still selectable), plus any role present in the rows
  * but missing from the list (shown with a fallback label). The value is the role
- * KEY; the label is the display name from toHeadLabel (department roles get " Head";
- * Chairman, Director and Principal stay plain).
+ * KEY; the label is the display name with " Head" added (toHeadLabel).
  */
 export function buildRoleOptions(roles: RoleOption[], rows: StaffPerformance[]): RoleFilterOption[] {
   const names = new Map<string, string>();
@@ -159,57 +152,4 @@ export function taskBucketTotal(row: Pick<RoleRow, 'completedTasks' | 'inProgres
 export function latestEntries<T extends { date: string }>(entries: T[], limit = 5): { shown: T[]; more: number } {
   const sorted = [...entries].sort((a, b) => b.date.localeCompare(a.date));
   return { shown: sorted.slice(0, limit), more: Math.max(0, sorted.length - limit) };
-}
-
-/** The five summary numbers shown for Tasks (Performance screen and Dashboard). */
-export interface TaskTotals {
-  totalTasks: number;
-  onTimeComplete: number;
-  completedAfterDueDate: number;
-  /** Every task that is not completed (a delayed task is also not completed). */
-  notCompleted: number;
-  delayed: number;
-}
-
-/** The five summary numbers shown for Registers (Performance screen and Dashboard). */
-export interface RegisterTotals {
-  totalRegisters: number;
-  onTimeChecked: number;
-  checkedAfterDueDate: number;
-  notChecked: number;
-  delayed: number;
-}
-
-/** Plain sums of the per-person performance rows, so every screen shows the same task numbers. */
-export function summarizeTaskTotals(rows: StaffPerformance[]): TaskTotals {
-  const sum = (pick: (r: StaffPerformance) => number) => rows.reduce((acc, r) => acc + (pick(r) || 0), 0);
-  const totalTasks = sum((r) => r.totalTasks);
-  return {
-    totalTasks,
-    onTimeComplete: sum((r) => r.onTimeCompleteTasks),
-    completedAfterDueDate: sum((r) => r.completedAfterDueTasks),
-    notCompleted: totalTasks - sum((r) => r.completedTasks),
-    delayed: sum((r) => r.delayedTasks),
-  };
-}
-
-/** Plain sums of the backend's per-register numbers (the browser never re-classifies a period). */
-export function summarizeRegisterTotals(
-  summaries: { onTimeChecked: number; checkedAfterDueDate: number; notChecked: number; delayed: number }[]
-): RegisterTotals {
-  const sum = (pick: (s: (typeof summaries)[number]) => number) => summaries.reduce((acc, s) => acc + pick(s), 0);
-  return {
-    totalRegisters: summaries.length,
-    onTimeChecked: sum((s) => s.onTimeChecked),
-    checkedAfterDueDate: sum((s) => s.checkedAfterDueDate),
-    notChecked: sum((s) => s.notChecked),
-    delayed: sum((s) => s.delayed),
-  };
-}
-
-/** Default date range of the Register numbers: the last 90 days up to today. */
-export function defaultRegisterRange(): { dateFrom: string; dateTo: string } {
-  const from = new Date();
-  from.setDate(from.getDate() - 90);
-  return { dateFrom: from.toISOString().split('T')[0], dateTo: todayISO() };
 }

@@ -26,9 +26,10 @@ const ITAnalytics: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const { data, isLoading } = useQuery({
-    queryKey: ['analytics', 'it', user?.id],
+    queryKey: ['analytics', 'it', user?.department_id],
     queryFn: async () => {
-      const res = await api.get('/dashboard/analytics/it');
+      const params = user?.department_id ? { department_id: user.department_id } : {};
+      const res = await api.get('/dashboard/analytics/it', { params });
       return res.data.data ?? res.data;
     },
   });
@@ -56,7 +57,7 @@ const ITAnalytics: React.FC = () => {
     <div className="space-y-6 p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-cyan-600">IT &amp; ERP</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">IT Department Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Asset management, task performance, and infrastructure overview</p>
       </div>
 

@@ -83,16 +83,9 @@ describe('roles come from the backend', () => {
 
 describe('labels', () => {
   it('uses the agreed names, all Title Case', () => {
-    // Tasks are completed ...
-    expect(PERFORMANCE_LABELS.onTimeComplete).toBe('On Time Complete');
-    expect(PERFORMANCE_LABELS.completedAfterDueDate).toBe('Completed After Due Date');
-    expect(PERFORMANCE_LABELS.notCompleted).toBe('Not Completed');
-    // ... registers are checked
     expect(PERFORMANCE_LABELS.onTimeChecked).toBe('On Time Checked');
     expect(PERFORMANCE_LABELS.checkedAfterDueDate).toBe('Checked After Due Date');
     expect(PERFORMANCE_LABELS.notChecked).toBe('Not Checked');
-    expect(PERFORMANCE_LABELS.totalPeriodsDue).toBe('Total Required Due');
-    expect('overallPerformance' in PERFORMANCE_LABELS).toBe(false);
     for (const label of Object.values(PERFORMANCE_LABELS)) {
       expect(label.split(' ').every((w) => /^[A-Z]/.test(w))).toBe(true);
     }
@@ -135,23 +128,6 @@ describe('toHeadLabel', () => {
   it('handles blanks and extra spaces', () => {
     expect(toHeadLabel('')).toBe('');
     expect(toHeadLabel(null)).toBe('');
-    expect(toHeadLabel('  HR  ')).toBe('HR Head');
-  });
-
-  it('keeps Chairman, Director and Principal plain', () => {
-    expect(toHeadLabel('Chairman')).toBe('Chairman');
-    expect(toHeadLabel('director')).toBe('Director');
-    expect(toHeadLabel('  Principal  ')).toBe('Principal');
-    expect(toHeadLabel('Vice Principal')).toBe('Vice Principal Head'); // only the exact leadership names are plain
-    const options = buildRoleOptions(
-      [
-        { id: 1, key: 'CHAIRMAN', name: 'Chairman' },
-        { id: 2, key: 'DIRECTOR', name: 'Director' },
-        { id: 3, key: 'PRINCIPAL', name: 'Principal' },
-        { id: 4, key: 'HR', name: 'HR' },
-      ],
-      []
-    );
-    expect(options.map((o) => o.label)).toEqual(['Chairman', 'Director', 'HR Head', 'Principal']);
+    expect(toHeadLabel('  Principal  ')).toBe('Principal Head');
   });
 });

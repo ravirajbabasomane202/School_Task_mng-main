@@ -30,9 +30,10 @@ const HRAnalytics: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
-    queryKey: ['analytics', 'hr', user?.id],
+    queryKey: ['analytics', 'hr', user?.department_id],
     queryFn: async () => {
-      const res = await api.get('/dashboard/analytics/hr');
+      const params = user?.department_id ? { department_id: user.department_id } : {};
+      const res = await api.get('/dashboard/analytics/hr', { params });
       return res.data.data ?? res.data;
     },
   });
@@ -106,7 +107,7 @@ const HRAnalytics: React.FC = () => {
     <div className="space-y-6 p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-pink-600">Human Resources</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">HR Department Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Leave management, recruitment pipeline, and payroll insights</p>
       </div>
 

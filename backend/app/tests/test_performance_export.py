@@ -130,7 +130,7 @@ def test_register_report_columns_are_renamed_and_status_removed(app, client, aut
 
     assert header == [
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
-        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Required Due',
+        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Periods Due',
         'Completion %',
     ]
     assert 'Status' not in header
@@ -173,5 +173,5 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
     assert int(row['On Time Checked']) + int(row['Checked After Due Date']) == 1
     assert row['Not Checked'] == '0'
     assert row['Delayed'] == '0'
-    assert row['Total Required Due'] == '1'
+    assert row['Total Periods Due'] == '1'
     assert row['Completion %'] == '100'
