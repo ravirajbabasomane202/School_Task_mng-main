@@ -90,11 +90,16 @@ describe('Chairman dashboard', () => {
   it('orders Top Performers (Tasks), the pie chart, then Top Performers (Registers); no Leadership panel', async () => {
     renderPage();
     const a = await screen.findByText('Top Performers (Tasks)');
-    const pie = await screen.findByTestId('pie');
+    await screen.findAllByTestId('pie');
+    // two pie charts: Tasks and Registers
+    const pies = screen.getAllByTestId('pie');
+    expect(pies).toHaveLength(2);
+    expect(screen.getByText('Task Status Distribution')).toBeInTheDocument();
+    expect(screen.getByText('Register Status Distribution')).toBeInTheDocument();
     const b = screen.getByText('Top Performers (Registers)');
     const follows = (x: Node, y: Node) => !!(x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING);
-    expect(follows(a, pie)).toBe(true);
-    expect(follows(pie, b)).toBe(true);
+    expect(follows(a, pies[0])).toBe(true);
+    expect(follows(pies[1], b)).toBe(true);
     expect(screen.queryByText(/Leadership Performance/)).toBeNull();
   });
 });

@@ -55,12 +55,16 @@ function ApprovalManagement() {
     rejected: allApprovals.filter((a) => a.status === 'REJECTED').length,
   };
 
-  // Per-type pending counts
-  const perTypeCounts: Record<string, number> = {};
+  // Per-type counts. The big number is EVERY request of that type (so one
+  // approved Purchase Order shows 1, not 0); the line under it says how many
+  // of them are still pending.
+  const perTypeCounts: Record<string, { total: number; pending: number }> = {};
   for (const key of Object.keys(APPROVAL_TYPE_META) as Approval['type'][]) {
-    perTypeCounts[key] = allApprovals.filter(
-      (a) => a.type === key && a.status === 'PENDING'
-    ).length;
+    const ofType = allApprovals.filter((a) => a.type === key);
+    perTypeCounts[key] = {
+      total: ofType.length,
+      pending: ofType.filter((a) => a.status === 'PENDING').length,
+    };
   }
 
   const formatAmount = (amount?: string | number) => {
@@ -77,13 +81,13 @@ function ApprovalManagement() {
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {Object.entries(APPROVAL_TYPE_META).map(([key, meta]) => {
           const k = key as Approval['type'];
-          const pendingCount = perTypeCounts[k] ?? 0;
+          const { total, pending } = perTypeCounts[k] ?? { total: 0, pending: 0 };
           const textColor = meta.bg.split(' ').find((c: string) => c.startsWith('text-'));
           return (
             <div key={k} className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 text-center">
-              <div className={`text-2xl font-bold ${textColor}`}>{pendingCount}</div>
+              <div className={`text-2xl font-bold ${textColor}`}>{total}</div>
               <div className="text-xs text-[#5B6E8C] mt-1">{meta.label}</div>
-              <div className="text-[10px] text-[#A2AEC1] mt-0.5 uppercase tracking-wide">pending</div>
+              <div className="text-[10px] text-[#A2AEC1] mt-0.5 uppercase tracking-wide">{pending} pending</div>
             </div>
           );
         })}

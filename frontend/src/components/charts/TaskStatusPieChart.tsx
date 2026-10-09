@@ -9,6 +9,10 @@ interface TaskStatusData {
 
 interface TaskStatusPieChartProps {
   data: TaskStatusData[];
+  /** Caption under the centre number (default "Total Tasks"). */
+  totalLabel?: string;
+  /** Shown when every value is 0 (default "No task data available yet."). */
+  emptyMessage?: string;
 }
 
 interface LegendEntry {
@@ -46,7 +50,11 @@ const renderLegend = (props?: { payload?: LegendEntry[] }) => {
   );
 };
 
-const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({ data }) => {
+const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
+  data,
+  totalLabel = 'Total Tasks',
+  emptyMessage = 'No task data available yet.'
+}) => {
   // Dashboard responses can temporarily omit chart data during an API rollout
   // or after a cached response. A chart should render its empty state, not
   // take down the entire dashboard in that case.
@@ -86,12 +94,12 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({ data }) => {
           dominantBaseline="middle"
           className="text-sm text-gray-600"
         >
-          Total Tasks
+          {totalLabel}
         </text>
       </PieChart>
       <Legend content={renderLegend} />
       {totalTasks === 0 ? (
-        <p className="mt-2 text-sm text-gray-500">No task data available yet.</p>
+        <p className="mt-2 text-sm text-gray-500">{emptyMessage}</p>
       ) : null}
     </div>
   );

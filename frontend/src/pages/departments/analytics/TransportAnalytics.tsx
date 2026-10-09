@@ -24,10 +24,9 @@ const TransportAnalytics: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
-    queryKey: ['analytics', 'transport', user?.department_id],
+    queryKey: ['analytics', 'transport', user?.id],
     queryFn: async () => {
-      const params = user?.department_id ? { department_id: user.department_id } : {};
-      const res = await api.get('/dashboard/analytics/transport', { params });
+      const res = await api.get('/dashboard/analytics/transport');
       return res.data.data ?? res.data;
     },
   });
@@ -80,7 +79,7 @@ const TransportAnalytics: React.FC = () => {
     <div className="space-y-6 p-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-widest text-orange-600">Transport</p>
-        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">Transport Department Analytics</h1>
+        <h1 className="mt-1 text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Fleet health, maintenance tasks, and operational performance</p>
       </div>
 

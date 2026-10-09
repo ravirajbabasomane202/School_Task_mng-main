@@ -38,10 +38,9 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
   const slug = roleSlug ?? user?.role?.toLowerCase() ?? 'dept';
 
   const { data, isLoading } = useQuery<AnalyticsData>({
-    queryKey: ['dept-analytics', slug, user?.department_id],
+    queryKey: ['dept-analytics', slug, user?.id],
     queryFn: async () => {
-      const params = user?.department_id ? { department_id: user.department_id } : {};
-      const res = await api.get(`/dashboard/analytics/${slug}`, { params });
+      const res = await api.get(`/dashboard/analytics/${slug}`);
       return res.data.data ?? res.data;
     }
   });
@@ -59,8 +58,8 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
   return (
     <div className="space-y-6 p-6">
       <div>
-        <h1 className="text-2xl font-semibold text-[#1E293B]">Department Analytics</h1>
-        <p className="mt-1 text-sm text-[#5B6E8C]">Performance overview for your department</p>
+        <h1 className="text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
+        <p className="mt-1 text-sm text-[#5B6E8C]">Your own task performance overview</p>
       </div>
 
       {/* Summary Cards */}

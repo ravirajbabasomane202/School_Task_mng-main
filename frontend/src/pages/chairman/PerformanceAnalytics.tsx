@@ -6,7 +6,13 @@ import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { useRoles } from '../../hooks/useRoles';
 import { getStaffPerformance, type StaffPerformance } from '../../services/dashboardService';
 import { REGISTER_CYCLES, type RegisterCycle } from '../../types/register.types';
-import { aggregateByRole, buildRoleOptions, filterRowsByRole, toHeadLabel } from '../../utils/performanceUtils';
+import {
+  aggregateByRole,
+  buildRoleOptions,
+  filterRowsByRole,
+  summarizeTaskTotals,
+  toHeadLabel
+} from '../../utils/performanceUtils';
 
 // Reuse the same Daily/Weekly/... labels the Register screens already use,
 // so "Estimated checking cycle" reads the same way everywhere in the app.
@@ -24,7 +30,7 @@ function formatCheckingCycles(cycles: string[]): string {
  * (which painted every column the same color regardless of what it
  * measured). Each column keeps its own subtle tint so figures stay easy to
  * tell apart without being loud or reducing contrast. */
-type StaffColumnColor = 'blue' | 'green' | 'red' | 'cyan' | 'purple' | 'indigo' | 'teal';
+type StaffColumnColor = 'blue' | 'green' | 'red' | 'cyan' | 'purple' | 'indigo';
 
 const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: string }> = {
   blue: { header: 'bg-[#2E75B6] text-white', text: 'text-blue-700' },
@@ -32,8 +38,7 @@ const STAFF_COLUMN_COLOR: Record<StaffColumnColor, { header: string; text: strin
   red: { header: 'bg-[#2E75B6] text-white', text: 'text-red-700' },
   cyan: { header: 'bg-[#2E75B6] text-white', text: 'text-cyan-700' },
   purple: { header: 'bg-[#2E75B6] text-white', text: 'text-purple-700' },
-  indigo: { header: 'bg-[#2E75B6] text-white', text: 'text-indigo-700' },
-  teal: { header: 'bg-[#2E75B6] text-white', text: 'text-teal-700' }
+  indigo: { header: 'bg-[#2E75B6] text-white', text: 'text-indigo-700' }
 };
 
 /** Soft tints for the three completion categories (same palette as the exports). */
@@ -47,6 +52,7 @@ function PerformanceAnalytics() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const { roles, getRoleName } = useRoles();
   // ONE label for a role everywhere on this page (dropdown, both tables, top performer).
+  // Department roles read "<Name> Head"; Chairman, Director and Principal stay plain.
   const roleLabel = (key: string, rowName?: string | null) => toHeadLabel(getRoleName(key, rowName));
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['staffPerformance'],
@@ -67,7 +73,8 @@ function PerformanceAnalytics() {
 
   const sum = (pick: (row: (typeof roleRows)[number]) => number) =>
     roleRows.reduce((acc, row) => acc + pick(row), 0);
-  const totalTasks = sum((r) => r.totalTasks);
+  // Same helper the Dashboard's Task cards use, so both screens show the same numbers.
+  const { totalTasks } = summarizeTaskTotals(staffRows);
   const totalCompleted = sum((r) => r.completedTasks);
   const schoolAverage = totalTasks ? Math.round((totalCompleted / totalTasks) * 100) : 0;
   const topPerformer = [...roleRows].sort(
@@ -78,8 +85,8 @@ function PerformanceAnalytics() {
     <div className="space-y-6 p-6">
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex flex-col gap-1">
-          <label htmlFor="performance-role-filter" className="text-xs font-medium text-[#5B6E8C]">
-            Role
+          <label htmlFor="performance-role-filter" className="text-sm font-semibold text-[#1E293B]">
+            Filter Tasks and Registers by Role
           </label>
           <select
             id="performance-role-filter"
@@ -137,10 +144,10 @@ function PerformanceAnalytics() {
                   {L.totalTasks}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  {L.onTimeChecked}
+                  {L.onTimeComplete}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  {L.checkedAfterDueDate}
+                  {L.completedAfterDueDate}
                 </th>
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
                   {L.pending}
@@ -179,9 +186,8 @@ function PerformanceAnalytics() {
       </div>
 
       {/* Register performance — separate table, with its own Total/Completed/
-          Missed/Rejected/Estimated checking cycle/Performance columns plus
-          Overall performance (which blends both halves), instead of being
-          combined into the Task performance table above. */}
+          Missed/Rejected/Estimated checking cycle/Performance columns,
+          instead of being combined into the Task performance table above. */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-xl font-semibold text-[#1E293B]">Register Performance</h2>
@@ -212,9 +218,6 @@ function PerformanceAnalytics() {
                 <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.indigo.header}`}>
                   {L.registerPerformance}
                 </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.teal.header}`}>
-                  {L.overallPerformance}
-                </th>
               </tr>
             </thead>
             <tbody>
@@ -232,19 +235,6 @@ function PerformanceAnalytics() {
                     {user.onTimeCompleteRegisters + user.completedAfterDueRegisters + user.pendingRegisters}
                   </td>
                   <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-16 rounded-full bg-gray-200">
-                        <div
-                          className="h-2 rounded-full bg-teal-500"
-                          style={{ width: `${user.overallPerformance}%` }}
-                        />
-                      </div>
-                      <span className={`text-sm font-medium ${STAFF_COLUMN_COLOR.teal.text}`}>
-                        {user.overallPerformance}%
-                      </span>
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>

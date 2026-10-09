@@ -5,15 +5,20 @@ import toast from 'react-hot-toast';
 
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
+import TaskStatusPieChart from '../../components/charts/TaskStatusPieChart';
 import TaskTable from '../../components/tables/TaskTable';
+import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { approveApproval, rejectApproval } from '../../services/approvalService';
 import api from '../../services/api';
 import { getStaffPerformance } from '../../services/dashboardService';
+import { getRegisterPerformance } from '../../services/reportService';
 import * as taskService from '../../services/taskService';
 import { useAppSelector } from '../../store/hooks';
+import { defaultRegisterRange, summarizeRegisterTotals, summarizeTaskTotals } from '../../utils/performanceUtils';
 import { getStatusErrorMessage } from '../../utils/taskStatus';
+import type { StaffPerformance } from '../../services/dashboardService';
 import type { Task, TaskStatus } from '../../types/task.types';
 
 interface DashboardAlert {
@@ -51,11 +56,10 @@ interface PerformanceRow {
   userId: number;
   name: string;
   role: keyof typeof ROLE_LABELS;
-  totalTasks: number;
-  completedTasks: number;
   delayedTasks: number;
   performanceScore: number;
-  delayRate: number;
+  totalRegisters: number;
+  registerPerformance: number;
 }
 
 const asArray = <T,>(value: T[] | undefined | null): T[] =>
@@ -105,9 +109,17 @@ function ChairmanOverview() {
     refetchInterval: 30000
   });
 
+  // Same query keys and fetchers as the Performance screen, so both screens
+  // read the same data and show the same numbers.
   const performanceQuery = useQuery({
-    queryKey: ['chairman-performance-overview'],
-    queryFn: getStaffPerformance
+    queryKey: ['staffPerformance'],
+    queryFn: () => getStaffPerformance()
+  });
+
+  const registerRange = defaultRegisterRange();
+  const registerPerformanceQuery = useQuery({
+    queryKey: ['register-performance', registerRange.dateFrom, registerRange.dateTo],
+    queryFn: () => getRegisterPerformance(registerRange)
   });
 
   const approvalMutation = useMutation({
@@ -132,7 +144,7 @@ function ChairmanOverview() {
 
   const dashboardData = dashboardQuery.data;
   const performanceData = useMemo(() => {
-    return asArray(performanceQuery.data as PerformanceRow[] | undefined)
+    return [...asArray(performanceQuery.data as PerformanceRow[] | undefined)]
       .sort((left, right) => {
         const leftIndex = TASK_ASSIGNABLE_ROLES.indexOf(left.role);
         const rightIndex = TASK_ASSIGNABLE_ROLES.indexOf(right.role);
@@ -148,36 +160,89 @@ function ChairmanOverview() {
     [performanceData]
   );
 
+  const taskTotals = useMemo(
+    () => summarizeTaskTotals(asArray(performanceQuery.data as StaffPerformance[] | undefined)),
+    [performanceQuery.data]
+  );
+  const registerTotals = useMemo(
+    () => summarizeRegisterTotals(registerPerformanceQuery.data?.summaries ?? []),
+    [registerPerformanceQuery.data]
+  );
+
+  // Pie chart: the same task rows as the Task cards above, split by status.
+  const taskStatusData = useMemo(() => {
+    const rows = asArray(performanceQuery.data as StaffPerformance[] | undefined);
+    const sum = (pick: (row: StaffPerformance) => number) =>
+      rows.reduce((acc, row) => acc + (pick(row) || 0), 0);
+    return [
+      { name: 'Pending', value: sum((r) => r.pendingTasks), color: '#3B82F6' },
+      { name: 'In Progress', value: sum((r) => r.inProgressTasks), color: '#F59E0B' },
+      { name: 'Completed', value: sum((r) => r.completedTasks), color: '#22C55E' },
+      { name: 'Delayed', value: sum((r) => r.delayedTasks), color: '#EF4444' },
+      { name: 'Escalated', value: sum((r) => r.escalatedTasks), color: '#8B5CF6' }
+    ];
+  }, [performanceQuery.data]);
+
+  // Register pie: the same register numbers as the Register cards above.
+  const registerStatusData = useMemo(
+    () => [
+      { name: L.onTimeChecked, value: registerTotals.onTimeChecked, color: '#22C55E' },
+      { name: L.checkedAfterDueDate, value: registerTotals.checkedAfterDueDate, color: '#F59E0B' },
+      { name: L.notChecked, value: registerTotals.notChecked, color: '#F97316' },
+      { name: L.delayed, value: registerTotals.delayed, color: '#EF4444' }
+    ],
+    [registerTotals]
+  );
+
+  // Register leaderboard: same per-person register numbers the Performance screen uses.
+  const topRegisterPerformers = useMemo(
+    () =>
+      performanceData
+        .filter((user) => user.totalRegisters > 0)
+        .sort((left, right) => right.registerPerformance - left.registerPerformance)
+        .slice(0, 5),
+    [performanceData]
+  );
+
   if (dashboardQuery.isLoading || !dashboardData) {
     return <div className="p-6">Loading...</div>;
   }
 
-  const statCards = [
-    {
-      label: 'Total Tasks',
-      tone: 'text-blue-600',
-      value: dashboardData.totalTasks,
-      statusFilter: 'ALL'
-    },
-    {
-      label: 'Completed',
-      tone: 'text-green-600',
-      value: dashboardData.completedTasks,
-      statusFilter: 'COMPLETED'
-    },
-    {
-      label: 'Delayed',
-      tone: 'text-red-600',
-      value: dashboardData.delayedTasks,
-      statusFilter: 'DELAYED'
-    },
-    {
-      label: 'Pending Approvals',
-      tone: 'text-amber-600',
-      value: dashboardData.pendingApprovals,
-      statusFilter: null  // navigate to approvals page
-    }
+  // Same labels, same order and same numbers as the Performance screen.
+  const taskCards = [
+    { label: L.totalTasks, tone: 'text-blue-600', value: taskTotals.totalTasks, to: '/chairman/task-monitor' },
+    { label: L.onTimeComplete, tone: 'text-green-600', value: taskTotals.onTimeComplete, to: '/chairman/task-monitor?status=COMPLETED' },
+    { label: L.completedAfterDueDate, tone: 'text-amber-600', value: taskTotals.completedAfterDueDate, to: '/chairman/task-monitor?status=COMPLETED' },
+    { label: L.notCompleted, tone: 'text-orange-600', value: taskTotals.notCompleted, to: '/chairman/task-monitor' },
+    { label: L.delayed, tone: 'text-red-600', value: taskTotals.delayed, to: '/chairman/task-monitor?status=DELAYED' }
   ];
+  const registerCards = [
+    { label: L.totalRegisters, tone: 'text-cyan-600', value: registerTotals.totalRegisters },
+    { label: L.onTimeChecked, tone: 'text-green-600', value: registerTotals.onTimeChecked },
+    { label: L.checkedAfterDueDate, tone: 'text-amber-600', value: registerTotals.checkedAfterDueDate },
+    { label: L.notChecked, tone: 'text-orange-600', value: registerTotals.notChecked },
+    { label: L.delayed, tone: 'text-red-600', value: registerTotals.delayed }
+  ].map((card) => ({ ...card, to: '/chairman/register-monitoring' }));
+
+  const renderCardGroup = (title: string, cards: { label: string; tone: string; value: number; to: string }[]) => (
+    <section aria-label={title}>
+      <h2 className="mb-3 text-lg font-semibold text-[#1E293B]">{title}</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        {cards.map((card) => (
+          <button
+            className="cursor-pointer rounded-lg bg-gray-50 p-4 text-left transition hover:bg-gray-100 hover:shadow-sm"
+            key={card.label}
+            onClick={() => navigate(card.to)}
+            type="button"
+          >
+            <h3 className="text-sm font-medium text-gray-500">{card.label}</h3>
+            <p className={`text-2xl font-bold ${card.tone}`}>{card.value}</p>
+            <p className="mt-1 text-[11px] text-[#8A99B0]">Click to view →</p>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -208,27 +273,92 @@ function ChairmanOverview() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {statCards.map((card) => (
-          <button
-            className="rounded-lg bg-gray-50 p-4 text-left transition hover:bg-gray-100 hover:shadow-sm cursor-pointer"
-            key={card.label}
-            onClick={() => {
-              if (card.statusFilter === null) {
-                navigate('/chairman/approvals');
-              } else if (card.statusFilter === 'ALL') {
-                navigate('/chairman/task-monitor');
-              } else {
-                navigate(`/chairman/task-monitor?status=${card.statusFilter}`);
-              }
-            }}
-            type="button"
-          >
-            <h3 className="text-sm font-medium text-gray-500">{card.label}</h3>
-            <p className={`text-2xl font-bold ${card.tone}`}>{card.value}</p>
-            <p className="mt-1 text-[11px] text-[#8A99B0]">Click to view →</p>
-          </button>
-        ))}
+      <div className="space-y-6">
+        {renderCardGroup('Tasks', taskCards)}
+        {renderCardGroup('Registers', registerCards)}
+      </div>
+
+      {/* Top Performers (Tasks) -> Pie Charts (Tasks + Registers) -> Top Performers (Registers) */}
+      <div className="space-y-6">
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
+                Staff Productivity
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Top Performers (Tasks)</h2>
+            </div>
+            <Badge variant="gray">{topPerformers.length} People</Badge>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {topPerformers.map((user) => (
+              <div
+                className="flex items-center justify-between rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
+                key={user.userId}
+              >
+                <div>
+                  <p className="text-sm font-semibold text-[#1E293B]">{user.name}</p>
+                  <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-[#1E293B]">{user.performanceScore}%</p>
+                  <p className="text-xs text-[#8A99B0]">{user.delayedTasks} delayed</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+            <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Task Status Distribution</h2>
+            <TaskStatusPieChart data={taskStatusData} />
+          </div>
+
+          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+            <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Register Status Distribution</h2>
+            <TaskStatusPieChart
+              data={registerStatusData}
+              emptyMessage="No register data available yet."
+              totalLabel={L.totalPeriodsDue}
+            />
+          </div>
+        </div>
+
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
+                Staff Productivity
+              </p>
+              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Top Performers (Registers)</h2>
+            </div>
+            <Badge variant="gray">{topRegisterPerformers.length} People</Badge>
+          </div>
+
+          <div className="mt-5 space-y-3">
+            {topRegisterPerformers.length > 0 ? (
+              topRegisterPerformers.map((user) => (
+                <div
+                  className="flex items-center justify-between rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
+                  key={user.userId}
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[#1E293B]">{user.name}</p>
+                    <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-[#1E293B]">{user.registerPerformance}%</p>
+                    <p className="text-xs text-[#8A99B0]">{user.totalRegisters} registers</p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-[#8A99B0]">No register data yet.</p>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Row 1: Recent task assignments | Active alerts */}
@@ -276,38 +406,8 @@ function ChairmanOverview() {
         </div>
       </div>
 
-      {/* Row 2: Top performers | Pending approvals */}
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
-                Staff Productivity
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Top Performers</h2>
-            </div>
-            <Badge variant="gray">{topPerformers.length} People</Badge>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {topPerformers.map((user) => (
-              <div
-                className="flex items-center justify-between rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
-                key={user.userId}
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[#1E293B]">{user.name}</p>
-                  <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-[#1E293B]">{user.performanceScore}%</p>
-                  <p className="text-xs text-[#8A99B0]">{user.delayedTasks} delayed</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
+      {/* Pending approvals */}
+      <div className="grid grid-cols-1 gap-6">
         <div className="rounded-lg border border-gray-200 bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">Pending Approvals</h3>
@@ -360,47 +460,6 @@ function ChairmanOverview() {
             ) : (
               <p className="text-sm text-[#8A99B0]">No pending approvals at the moment.</p>
             )}
-          </div>
-        </div>
-      </div>
-
-      {/* Leadership performance panel (not part of the 4-widget layout spec; kept below, unmodified) */}
-      <div className="grid grid-cols-1 gap-6">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
-                Leadership Performance Panel
-              </p>
-              <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Leadership Performance</h2>
-            </div>
-            <Badge variant="blue">{performanceData.length} Profiles</Badge>
-          </div>
-
-          <div className="mt-5 space-y-3">
-            {performanceData.map((user) => (
-              <div
-                className="grid gap-2 rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4 md:grid-cols-[1.3fr,0.7fr,0.7fr,0.7fr]"
-                key={user.userId}
-              >
-                <div>
-                  <p className="text-sm font-semibold text-[#1E293B]">{getRoleLabel(user.role)}</p>
-                  <p className="text-sm text-[#5B6E8C]">{user.name}</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.completedTasks}/{user.totalTasks}</p>
-                  <p>Completed</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.performanceScore}%</p>
-                  <p>Score</p>
-                </div>
-                <div className="text-sm text-[#36506C]">
-                  <p className="font-medium text-[#1E293B]">{user.delayRate}%</p>
-                  <p>Delay rate</p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
