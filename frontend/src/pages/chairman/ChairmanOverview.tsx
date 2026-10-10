@@ -188,8 +188,7 @@ function ChairmanOverview() {
     () => [
       { name: L.onTimeChecked, value: registerTotals.onTimeChecked, color: '#22C55E' },
       { name: L.checkedAfterDueDate, value: registerTotals.checkedAfterDueDate, color: '#F59E0B' },
-      { name: L.notChecked, value: registerTotals.notChecked, color: '#F97316' },
-      { name: L.delayed, value: registerTotals.delayed, color: '#EF4444' }
+      { name: L.notChecked, value: registerTotals.notChecked, color: '#F97316' }
     ],
     [registerTotals]
   );
@@ -220,8 +219,7 @@ function ChairmanOverview() {
     { label: L.totalRegisters, tone: 'text-cyan-600', value: registerTotals.totalRegisters },
     { label: L.onTimeChecked, tone: 'text-green-600', value: registerTotals.onTimeChecked },
     { label: L.checkedAfterDueDate, tone: 'text-amber-600', value: registerTotals.checkedAfterDueDate },
-    { label: L.notChecked, tone: 'text-orange-600', value: registerTotals.notChecked },
-    { label: L.delayed, tone: 'text-red-600', value: registerTotals.delayed }
+    { label: L.notChecked, tone: 'text-orange-600', value: registerTotals.notChecked }
   ].map((card) => ({ ...card, to: '/chairman/register-monitoring' }));
 
   const renderCardGroup = (title: string, cards: { label: string; tone: string; value: number; to: string }[]) => (

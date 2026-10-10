@@ -1,5 +1,11 @@
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
-import { defaultRegisterRange, latestEntries, summarizeRegisterTotals } from '../../utils/performanceUtils';
+import {
+  aggregateRegistersByRole,
+  defaultRegisterRange,
+  latestEntries,
+  summarizeRegisterTotals,
+  toHeadLabel,
+} from '../../utils/performanceUtils';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Download } from 'lucide-react';
@@ -69,21 +75,24 @@ interface RegisterSummary {
     register_no: string;
     head_id: number | null;
     head_name: string;
+    role: string;
+    role_name: string;
     checking_cycle: RegisterCycle;
     status: string;
   };
-  /** onTime + late + notChecked + delayed === total (Total Required Due). */
+  /** onTime + late + notChecked === total (Total Required Due). */
   onTime: number;
   late: number;
   notChecked: number;
-  delayed: number;
   total: number;
   completionRate: number;
   /** Periods in the range, newest first (only the latest 5 are rendered). */
   strip: { date: string; color: RegisterDotColor; tooltip: string }[];
 }
 
-function RegistryPerformancePanel() {
+/** `roleFilter` is the page-level "Filter Tasks and Registers by Role" (a role KEY, or 'ALL').
+ * It narrows only the per-role Register Performance table, exactly as before. */
+function RegistryPerformancePanel({ roleFilter = 'ALL' }: { roleFilter?: string } = {}) {
   const today = todayISO();
   const defaultRangeStart = defaultRegisterRange().dateFrom;
 
@@ -132,13 +141,14 @@ function RegistryPerformancePanel() {
         register_no: item.register_no,
         head_id: item.head_id,
         head_name: item.head_name,
+        role: item.role,
+        role_name: item.roleName,
         checking_cycle: item.cycle as RegisterCycle,
         status: item.status,
       },
       onTime: item.onTimeChecked,
       late: item.checkedAfterDueDate,
       notChecked: item.notChecked,
-      delayed: item.delayed,
       total: item.totalPeriodsDue,
       completionRate: item.completionRate,
       strip: [...item.periods]
@@ -180,11 +190,46 @@ function RegistryPerformancePanel() {
           onTimeChecked: s.onTime,
           checkedAfterDueDate: s.late,
           notChecked: s.notChecked,
-          delayed: s.delayed,
         }))
       ),
     [filteredSummaries]
   );
+
+  // Per-role table: summed from the same filtered summaries as the cards and the
+  // Activity table, so its Total row equals the cards and the export.
+  const roleRows = useMemo(
+    () =>
+      aggregateRegistersByRole(
+        filteredSummaries
+          .filter((s) => roleFilter === 'ALL' || s.register.role === roleFilter)
+          .map((s) => ({
+            role: s.register.role,
+            roleName: s.register.role_name,
+            cycle: s.register.checking_cycle,
+            onTimeChecked: s.onTime,
+            checkedAfterDueDate: s.late,
+            notChecked: s.notChecked,
+          })),
+        CYCLE_ORDER
+      ),
+    [filteredSummaries, roleFilter]
+  );
+  const roleTotals = useMemo(() => {
+    const sum = (pick: (r: (typeof roleRows)[number]) => number) => roleRows.reduce((acc, r) => acc + pick(r), 0);
+    const onTimeChecked = sum((r) => r.onTimeChecked);
+    const checkedAfterDueDate = sum((r) => r.checkedAfterDueDate);
+    const totalPeriodsDue = sum((r) => r.totalPeriodsDue);
+    return {
+      totalRegisters: sum((r) => r.totalRegisters),
+      onTimeChecked,
+      checkedAfterDueDate,
+      notChecked: sum((r) => r.notChecked),
+      totalPeriodsDue,
+      registerPerformance: totalPeriodsDue
+        ? Math.round(((onTimeChecked + checkedAfterDueDate) / totalPeriodsDue) * 100)
+        : 0,
+    };
+  }, [roleRows]);
 
   const [isExporting, setIsExporting] = useState(false);
 
@@ -320,12 +365,59 @@ function RegistryPerformancePanel() {
       {/* Register cards, directly below the filters. Names come from the shared
           label constants and the numbers are the backend's per-period counts,
           the same ones the table columns and the export show. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <KpiBox color="green" label={L.onTimeChecked} value={registerTotals.onTimeChecked} />
         <KpiBox color="yellow" label={L.checkedAfterDueDate} value={registerTotals.checkedAfterDueDate} />
         <KpiBox color="orange" label={L.notChecked} value={registerTotals.notChecked} />
-        <KpiBox color="red" label={L.delayed} value={registerTotals.delayed} />
         <KpiBox color="cyan" label={L.totalRegisters} value={registerTotals.totalRegisters} />
+      </div>
+
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Register Performance</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
+                <th className="pl-6 pr-4 py-3 text-left font-semibold">{L.role}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.totalRegisters}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.checkingCycle}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
+                <th className="px-4 py-3 text-center font-semibold">{L.registerPerformance}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roleRows.map((row) => (
+                <tr key={row.role} className="border-b border-[#EFF2F6]">
+                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{toHeadLabel(row.roleName)}</td>
+                  <td className="px-4 py-3 text-center text-cyan-700">{row.totalRegisters}</td>
+                  <td className="px-4 py-3 text-center text-blue-700">
+                    {row.checkingCycles.map((c) => CYCLE_LABEL[c as RegisterCycle] ?? c).join(', ') || 'N/A'}
+                  </td>
+                  <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{row.onTimeChecked}</td>
+                  <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{row.checkedAfterDueDate}</td>
+                  <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{row.notChecked}</td>
+                  <td className="px-4 py-3 text-center text-cyan-700">{row.totalPeriodsDue}</td>
+                  <td className="px-4 py-3 text-center text-indigo-700">{row.registerPerformance}%</td>
+                </tr>
+              ))}
+              {roleRows.length > 0 && (
+                <tr className="bg-[#F1F5F9] font-semibold text-[#1E293B]" data-testid="register-performance-total">
+                  <td className="pl-6 pr-4 py-3 text-left">Total</td>
+                  <td className="px-4 py-3 text-center">{roleTotals.totalRegisters}</td>
+                  <td className="px-4 py-3" />
+                  <td className="px-4 py-3 text-center">{roleTotals.onTimeChecked}</td>
+                  <td className="px-4 py-3 text-center">{roleTotals.checkedAfterDueDate}</td>
+                  <td className="px-4 py-3 text-center">{roleTotals.notChecked}</td>
+                  <td className="px-4 py-3 text-center">{roleTotals.totalPeriodsDue}</td>
+                  <td className="px-4 py-3 text-center">{roleTotals.registerPerformance}%</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
@@ -345,7 +437,6 @@ function RegistryPerformancePanel() {
                 <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.delayed}</th>
                 <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
                 <th className="px-4 py-3 text-center font-semibold">Completion %</th>
               </tr>
@@ -353,7 +444,7 @@ function RegistryPerformancePanel() {
             <tbody>
               {filteredSummaries.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
+                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
                     No registers match the selected filters.
                   </td>
                 </tr>
@@ -389,7 +480,6 @@ function RegistryPerformancePanel() {
                     <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
                     <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
                     <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.notChecked}</td>
-                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.delayed}</td>
                     <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">

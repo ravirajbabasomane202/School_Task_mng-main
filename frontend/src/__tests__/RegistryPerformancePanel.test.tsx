@@ -25,7 +25,7 @@ beforeEach(() => {
   vi.mocked(reportService.getRegisterPerformance).mockResolvedValue(({
     summaries: [{
       register_id: 1, name: 'Fire Register', register_no: 'R-1', cycle: 'WEEKLY', head_id: 5,
-      head_name: 'Anita', status: 'OK', onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 1, delayed: 1,
+      head_name: 'Anita', role: 'ADMISSION', roleName: 'Admission', status: 'OK', onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 2,
       totalPeriodsDue: 7, open: 1, completionRate: 71,
       periods: [
         period(1), period(2), period(3, { outcome: 'LATE', dot_color: 'yellow', check_timing: 'LATE',
@@ -34,7 +34,7 @@ beforeEach(() => {
         period(7, { outcome: 'LATE', dot_color: 'yellow', check_timing: 'LATE', checked_at: '2026-09-09T05:12:00+00:00' }),
       ],
     }],
-    totals: { onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 1, delayed: 1, totalPeriodsDue: 7, open: 1, totalRegisters: 1 },
+    totals: { onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 2, totalPeriodsDue: 7, open: 1, totalRegisters: 1 },
   }) as never);
 });
 
@@ -48,14 +48,14 @@ describe('Registry performance panel', () => {
     renderPanel();
     await screen.findByText('Fire Register', { selector: 'td' });
     const labels = screen
-      .getAllByText(/^(On Time Checked|Checked After Due Date|Not Checked|Delayed|Total Registers)$/, { selector: 'p' })
+      .getAllByText(/^(On Time Checked|Checked After Due Date|Not Checked|Total Registers)$/, { selector: 'p' })
       .map((p) => p.textContent);
-    expect(labels).toEqual(['On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Registers']);
+    expect(labels).toEqual(['On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Registers']);
 
     // directly below the filters: the first card comes after the last filter and before the table
     const filter = screen.getByLabelText('Status');
     const firstCard = screen.getAllByText('On Time Checked', { selector: 'p' })[0];
-    const table = screen.getByRole('table');
+    const table = screen.getAllByRole('table')[0];
     expect(filter.compareDocumentPosition(firstCard) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(firstCard.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
@@ -74,12 +74,12 @@ describe('Registry performance panel', () => {
     renderPanel();
     const row = (await screen.findByText('Fire Register', { selector: 'td' })).closest('tr') as HTMLElement;
     const cells = within(row).getAllByRole('cell').map((c) => c.textContent);
-    // ... On Time Checked | Checked After Due Date | Not Checked | Delayed | Total Required Due
-    expect(cells.slice(5, 10)).toEqual(['3', '2', '1', '1', '7']);
-    expect(3 + 2 + 1 + 1).toBe(7);
+    // ... On Time Checked | Checked After Due Date | Not Checked | Total Required Due
+    expect(cells.slice(5, 9)).toEqual(['3', '2', '2', '7']);
+    expect(3 + 2 + 2).toBe(7);
 
     for (const [label, value] of [['On Time Checked', '3'], ['Checked After Due Date', '2'],
-      ['Not Checked', '1'], ['Delayed', '1'], ['Total Registers', '1']]) {
+      ['Not Checked', '2'], ['Total Registers', '1']]) {
       const card = screen.getAllByText(label, { selector: 'p' })[0].parentElement as HTMLElement;
       expect(within(card).getByText(value)).toBeInTheDocument();
     }
@@ -100,5 +100,42 @@ describe('Registry performance panel', () => {
     await screen.findByText('Fire Register', { selector: 'td' });
     expect(reportService.getRegisterPerformance).toHaveBeenCalled();
     expect(registerService.getRegisterCalendarEvents).not.toHaveBeenCalled();
+  });
+
+  it('has no Delayed column or card for registers', async () => {
+    renderPanel();
+    await screen.findByText('Fire Register', { selector: 'td' });
+    expect(screen.queryAllByText('Delayed')).toHaveLength(0);
+  });
+
+  it('Register Performance (per role) totals equal the cards and the Activity table, even for a head not linked to a user', async () => {
+    const extra = (over: Record<string, unknown>) => ({
+      register_id: 2, name: 'Book Issue Register', register_no: 'LIB-1', cycle: 'MONTHLY', head_id: null,
+      head_name: 'Librarian', role: 'name:Librarian', roleName: 'Librarian', status: 'OK',
+      onTimeChecked: 1, checkedAfterDueDate: 0, notChecked: 33, totalPeriodsDue: 34, open: 10,
+      completionRate: 3, periods: [], ...over,
+    });
+    const current = await reportService.getRegisterPerformance({ dateFrom: 'a', dateTo: 'b' });
+    vi.mocked(reportService.getRegisterPerformance).mockResolvedValue({
+      ...current, summaries: [...current.summaries, extra({})] as never,
+    });
+    renderPanel();
+    await screen.findByText('Book Issue Register', { selector: 'td' });
+
+    const total = screen.getByTestId('register-performance-total');
+    const cells = within(total).getAllByRole('cell').map((c) => c.textContent);
+    // Total | registers | cycle | on time | after due | not checked | total due | performance %
+    expect(cells).toEqual(['Total', '2', '', '4', '2', '35', '41', '15%']);
+    expect(4 + 2 + 35).toBe(41);
+
+    // the unlinked head is NOT dropped from the role table
+    expect(screen.getAllByText('Librarian Head', { selector: 'td' }).length).toBeGreaterThan(0);
+
+    // cards agree with the Total row
+    for (const [label, value] of [['On Time Checked', '4'], ['Checked After Due Date', '2'],
+      ['Not Checked', '35'], ['Total Registers', '2']]) {
+      const card = screen.getAllByText(label, { selector: 'p' })[0].parentElement as HTMLElement;
+      expect(within(card).getByText(value)).toBeInTheDocument();
+    }
   });
 });

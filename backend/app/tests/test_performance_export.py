@@ -130,7 +130,7 @@ def test_register_report_columns_are_renamed_and_status_removed(app, client, aut
 
     assert header == [
         'Register Name', 'Register No', 'Head Name', 'Checking Cycle',
-        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Required Due',
+        'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Required Due',
         'Completion %',
     ]
     assert 'Status' not in header
@@ -172,6 +172,102 @@ def test_register_report_counts_follow_checking_periods(app, client, auth_header
     row = dict(zip(header, next(r for r in data if r[0] == 'Weekly Count Register')))
     assert int(row['On Time Checked']) + int(row['Checked After Due Date']) == 1
     assert row['Not Checked'] == '0'
-    assert row['Delayed'] == '0'
     assert row['Total Required Due'] == '1'
     assert row['Completion %'] == '100'
+
+
+def test_role_table_totals_equal_activity_totals_even_without_a_linked_head(app, client, auth_headers):
+    """Regression: the per-role table used to be built from the dashboard's staff
+    rows (active users only), so a register whose head is not an active user
+    (e.g. a Librarian that is only a name on the register) was counted in the
+    Register Activity table / cards but missing from the role table, making the
+    two totals disagree. Both must now come from the same summaries."""
+    from app.extensions import db
+    from app.models.register import Register, calculate_next_due_date
+    from app.models.user import User
+    from app.routes.reports import _performance_export_data
+    from app.utils.timezone import school_today
+
+    with app.app_context():
+        head = User.query.filter_by(email='hr-test@school.test').first()
+        chairman = User.query.filter_by(role='CHAIRMAN').first()
+        start = date.today() - timedelta(days=40)
+        db.session.add(Register(
+            name='Orphan Register', register_no=f'REG-{uuid.uuid4().hex[:8]}',
+            head_id=None, head_name='Librarian',            # head not linked to any user
+            cycle='WEEKLY', priority='MEDIUM', status='IDLE', start_date=start,
+            next_due_date=calculate_next_due_date(start, 'WEEKLY'),
+        ))
+        db.session.commit()
+        head_id, head_name = head.id, head.name
+    _create_register(app, type('H', (), {'id': head_id, 'name': head_name}), 'Linked Register',
+                     cycle='WEEKLY', days_ago=40)
+
+    with app.app_context():
+        chairman = User.query.filter_by(role='CHAIRMAN').first()
+        today = school_today()
+        data = _performance_export_data(chairman, today - timedelta(days=30), today, 'ALL', 'ALL', 'ALL')
+
+    totals, roles = data['registerTotals'], data['roleRows']
+    names = [s['register'].name for s in data['summaries']]
+    assert 'Orphan Register' in names and 'Linked Register' in names
+    assert len(data['summaries']) == totals['totalRegisters']
+    # the unlinked head is not dropped from the role table
+    assert 'Librarian' in [r['roleName'] for r in roles]
+    # every column of the role table sums to the same number as the activity totals
+    for key in ('totalRegisters', 'onTimeChecked', 'checkedAfterDueDate', 'notChecked', 'totalPeriodsDue'):
+        assert sum(r[key] for r in roles) == totals[key], key
+    for r in roles:
+        assert r['onTimeChecked'] + r['checkedAfterDueDate'] + r['notChecked'] == r['totalPeriodsDue']
+    assert totals['totalPeriodsDue'] > 0
+
+
+def test_role_table_respects_cycle_filter(app, client, auth_headers):
+    """The role table used to ignore the Cycle/Status filters (only the activity
+    table honoured them), so a filtered export showed two different totals."""
+    from app.models.user import User
+    from app.routes.reports import _performance_export_data
+    from app.utils.timezone import school_today
+
+    with app.app_context():
+        head = User.query.filter_by(email='hr-test@school.test').first()
+    _create_register(app, head, 'Weekly One', cycle='WEEKLY', days_ago=40)
+    _create_register(app, head, 'Monthly One', cycle='MONTHLY', days_ago=80)
+
+    with app.app_context():
+        chairman = User.query.filter_by(role='CHAIRMAN').first()
+        today = school_today()
+        data = _performance_export_data(chairman, today - timedelta(days=60), today, 'ALL', 'WEEKLY', 'ALL')
+
+    names = [s['register'].name for s in data['summaries']]
+    assert 'Weekly One' in names and 'Monthly One' not in names
+    assert all(s['register'].cycle == 'WEEKLY' for s in data['summaries'])
+    assert sum(r['totalRegisters'] for r in data['roleRows']) == len(data['summaries'])
+    assert all(r['checkingCycles'] == ['WEEKLY'] for r in data['roleRows'])
+    assert sum(r['totalPeriodsDue'] for r in data['roleRows']) == data['registerTotals']['totalPeriodsDue']
+
+
+def test_register_exports_have_no_delayed_column(app, client, auth_headers):
+    """Delayed is not a register column anymore: unchecked periods past their
+    window are counted in Not Checked, and the remaining columns still add up."""
+    from app.models.user import User
+
+    with app.app_context():
+        head = User.query.filter_by(email='hr-test@school.test').first()
+    _create_register(app, head, 'Old Weekly', cycle='WEEKLY', days_ago=60)
+
+    csv_resp = client.get('/api/reports/performance/export', headers=auth_headers['chairman'])
+    assert csv_resp.status_code == 200
+    assert 'Delayed' not in csv_resp.get_data(as_text=True)
+
+    xls = client.get('/api/reports/performance/export', query_string={'format': 'excel'},
+                     headers=auth_headers['chairman'])
+    assert xls.status_code == 200
+    assert 'Delayed' not in xls.get_data(as_text=True)
+
+    api = client.get('/api/reports/performance/registers', headers=auth_headers['chairman'])
+    body = api.get_json()['data']
+    assert 'delayed' not in body['totals']
+    for item in body['summaries']:
+        assert 'delayed' not in item
+        assert item['onTimeChecked'] + item['checkedAfterDueDate'] + item['notChecked'] == item['totalPeriodsDue']

@@ -126,7 +126,7 @@ def test_performance_excel_export(app, client, auth_headers):
     assert resp.headers['Content-Disposition'].endswith('.xls')
     body = resp.get_data(as_text=True)
 
-    for label in ('On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed', 'Total Required Due'):
+    for label in ('On Time Checked', 'Checked After Due Date', 'Not Checked', 'Total Required Due'):
         assert label in body
     # registers only: no task section or task column in the export
     for gone in ('On Time Complete', 'Completed After Due Date', 'Delay Rate', 'Missed Checking', 'Total Delayed',
@@ -137,7 +137,7 @@ def test_performance_excel_export(app, client, auth_headers):
     assert 'Performance Report' in body
     assert '#1E3A5F' in body and '#2E75B6' in body                    # band + blue header
     assert GREEN_BG in body and YELLOW_BG in body and RED_BG in body  # tints + legend
-    assert 'Green = On Time Checked' in body and 'Red = Not Checked / Delayed' in body
+    assert 'Green = On Time Checked' in body and 'Red = Not Checked' in body and 'Delayed' not in body
     assert 'Register Performance' in body and 'Register Activity Report' in body
     assert body.count('>Total<') == 2                                  # totals row per register table
     assert name in body or 'All heads' not in body                     # head filter reflected

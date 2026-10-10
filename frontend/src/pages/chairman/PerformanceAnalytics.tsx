@@ -5,7 +5,6 @@ import RegistryPerformancePanel from '../../components/registers/RegistryPerform
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { useRoles } from '../../hooks/useRoles';
 import { getStaffPerformance, type StaffPerformance } from '../../services/dashboardService';
-import { REGISTER_CYCLES, type RegisterCycle } from '../../types/register.types';
 import {
   aggregateByRole,
   buildRoleOptions,
@@ -13,17 +12,6 @@ import {
   summarizeTaskTotals,
   toHeadLabel
 } from '../../utils/performanceUtils';
-
-// Reuse the same Daily/Weekly/... labels the Register screens already use,
-// so "Estimated checking cycle" reads the same way everywhere in the app.
-const CYCLE_LABEL: Record<string, string> = Object.fromEntries(
-  REGISTER_CYCLES.map(({ value, label }) => [value, label])
-);
-
-function formatCheckingCycles(cycles: string[]): string {
-  if (!cycles.length) return 'N/A';
-  return cycles.map((cycle) => CYCLE_LABEL[cycle as RegisterCycle] ?? cycle).join(', ');
-}
 
 /** Light, professional per-column colors for the Task performance / Register
  * performance tables below, replacing the old whole-row red/green highlight
@@ -185,64 +173,7 @@ function PerformanceAnalytics() {
         </div>
       </div>
 
-      {/* Register performance — separate table, with its own Total/Completed/
-          Missed/Rejected/Estimated checking cycle/Performance columns,
-          instead of being combined into the Task performance table above. */}
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold text-[#1E293B]">Register Performance</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#EFF2F6]">
-                <th className="pl-6 pr-4 py-3 text-left font-semibold bg-[#2E75B6] text-white">{L.role}</th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
-                  {L.totalRegisters}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.blue.header}`}>
-                  {L.checkingCycle}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  {L.onTimeChecked}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.green.header}`}>
-                  {L.checkedAfterDueDate}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.red.header}`}>
-                  {L.notChecked}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.cyan.header}`}>
-                  {L.totalPeriodsDue}
-                </th>
-                <th className={`px-4 py-3 text-center font-semibold ${STAFF_COLUMN_COLOR.indigo.header}`}>
-                  {L.registerPerformance}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {roleRows.map((user) => (
-                <tr key={user.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{roleLabel(user.role, user.roleName)}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>{user.totalRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>
-                    {formatCheckingCycles(user.checkingCycles)}
-                  </td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{user.onTimeCompleteRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.late}`}>{user.completedAfterDueRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${CATEGORY_CELL.pending}`}>{user.pendingRegisters}</td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.cyan.text}`}>
-                    {user.onTimeCompleteRegisters + user.completedAfterDueRegisters + user.pendingRegisters}
-                  </td>
-                  <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.indigo.text}`}>{user.registerPerformance}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <RegistryPerformancePanel />
+      <RegistryPerformancePanel roleFilter={roleFilter} />
     </div>
   );
 }

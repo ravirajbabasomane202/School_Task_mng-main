@@ -6,6 +6,7 @@ import PerformanceAnalytics from '../pages/chairman/PerformanceAnalytics';
 import * as dashboardService from '../services/dashboardService';
 import * as roleService from '../services/roleService';
 import * as registerService from '../services/registerService';
+import * as reportService from '../services/reportService';
 
 vi.mock('../services/dashboardService');
 vi.mock('../services/roleService');
@@ -43,14 +44,27 @@ beforeEach(() => {
     { ...base, userId: 3, name: 'Lena', role: 'Librarian', roleId: 9, roleName: 'Library Head',
       totalTasks: 4, completedTasks: 4, onTimeCompleteTasks: 4 },
   ]);
-  vi.mocked(registerService.getRegisters).mockResolvedValue([]);
+  vi.mocked(registerService.getRegisters).mockResolvedValue([
+    { id: 1, name: 'Admission Register', register_no: 'ADM-1', head_id: 1, head_name: 'Anita Rao', checking_cycle: 'WEEKLY', status: 'OK' },
+  ] as never);
   vi.mocked(registerService.getRegisterCalendarEvents).mockResolvedValue([]);
+  vi.mocked(reportService.getRegisterPerformance).mockResolvedValue({
+    summaries: [{
+      register_id: 1, name: 'Admission Register', register_no: 'ADM-1', cycle: 'WEEKLY', head_id: 1,
+      head_name: 'Anita Rao', role: 'ADMISSION', roleName: 'Admission', status: 'OK',
+      onTimeChecked: 2, checkedAfterDueDate: 1, notChecked: 1, totalPeriodsDue: 4, open: 1,
+      completionRate: 75, periods: [],
+    }],
+    totals: { onTimeChecked: 2, checkedAfterDueDate: 1, notChecked: 1, totalPeriodsDue: 4, open: 1, totalRegisters: 1 },
+  } as never);
 });
 
 describe('Performance page', () => {
   it('shows backend roles, the new column names and no Delay Rate', async () => {
     renderPage();
     expect((await screen.findAllByText('Library Head', { selector: 'td' })).length).toBeGreaterThan(0);
+    // the Register tables load from the register report: wait for them
+    await screen.findByText('Admission Register', { selector: 'td' });
     // Task table says Complete..., Register table keeps Checked...
     for (const header of ['In Progress', 'On Time Complete', 'Completed After Due Date',
       'On Time Checked', 'Checked After Due Date']) {
@@ -92,6 +106,7 @@ describe('Performance page', () => {
   it('keeps both tables with their columns', async () => {
     renderPage();
     await screen.findAllByText('Library Head', { selector: 'td' });
+    await screen.findByText('Admission Register', { selector: 'td' });
     for (const header of ['Total Tasks', 'Task Performance', 'Pending', 'In Progress', 'Delayed', 'Escalated',
       'Total Registers', 'Checking Cycle', 'Not Checked', 'Total Required Due', 'Register Performance']) {
       expect(screen.getAllByText(header, { selector: 'th' }).length).toBeGreaterThan(0);

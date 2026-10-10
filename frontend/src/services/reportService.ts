@@ -249,13 +249,14 @@ export interface RegisterPerformanceSummary {
   cycle: string;
   head_id: number | null;
   head_name: string;
+  /** Role of the register's head (or `name:<head name>` when the head is not linked to a user). */
+  role: string;
+  roleName: string;
   status: string;
   onTimeChecked: number;
   checkedAfterDueDate: number;
-  /** Unchecked period whose window is still open, plus rejected checks. */
+  /** Unchecked period (window open or already ended), plus rejected checks. */
   notChecked: number;
-  /** Unchecked period whose window has ended. */
-  delayed: number;
   totalPeriodsDue: number;
   open: number;
   completionRate: number;
@@ -268,7 +269,6 @@ export interface RegisterPerformanceData {
     onTimeChecked: number;
     checkedAfterDueDate: number;
     notChecked: number;
-    delayed: number;
     totalPeriodsDue: number;
     open: number;
     totalRegisters: number;

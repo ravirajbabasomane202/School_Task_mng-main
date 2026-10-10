@@ -33,7 +33,7 @@ export const PERFORMANCE_LABELS = {
   totalRegisters: 'Total Registers',
   checkingCycle: 'Checking Cycle',
   totalEstimatedCheck: 'Total Estimated Check',
-  totalPeriodsDue: 'Total Required Due',
+  totalPeriodsDue: 'Total Required Checks',
   registerPerformance: 'Register Performance',
 } as const;
 

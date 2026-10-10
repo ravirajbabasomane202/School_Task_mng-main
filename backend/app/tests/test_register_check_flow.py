@@ -228,9 +228,9 @@ def test_ok_row_without_check_time_is_on_time_and_not_invented(app, client, auth
 
 def test_performance_registers_endpoint_adds_up_and_matches_by_head_id(app, client, auth_headers):
     """Four buckets, counted per checking period, all computed by the backend:
-    On Time Checked + Checked After Due Date + Not Checked + Delayed = Total Required Due.
+    On Time Checked + Checked After Due Date + Not Checked = Total Required Due.
     Not Checked = unchecked period whose window is still open + rejected checks.
-    Delayed     = unchecked period whose window has ended."""
+    Not Checked = unchecked period (window open OR already ended) + rejected checks."""
     h = auth_headers['chairman']
     head, other = _head(app), _head(app)
     p1, p2, p3, p4 = _periods(4)
@@ -250,8 +250,8 @@ def test_performance_registers_endpoint_adds_up_and_matches_by_head_id(app, clie
     data = resp.get_json()['data']
     assert [s['register_id'] for s in data['summaries']] == [mine]
     t = data['totals']
-    assert (t['onTimeChecked'], t['checkedAfterDueDate'], t['notChecked'], t['delayed']) == (1, 1, 2, 1)
-    assert t['onTimeChecked'] + t['checkedAfterDueDate'] + t['notChecked'] + t['delayed'] == t['totalPeriodsDue'] == 5
+    assert (t['onTimeChecked'], t['checkedAfterDueDate'], t['notChecked']) == (1, 1, 3)
+    assert t['onTimeChecked'] + t['checkedAfterDueDate'] + t['notChecked'] == t['totalPeriodsDue'] == 5
     by_date = {p['date']: p for p in data['summaries'][0]['periods']}
     assert by_date[p2.isoformat()]['check_timing'] == 'LATE' and by_date[p2.isoformat()]['dot_color'] == 'yellow'
     assert by_date[p2.isoformat()]['checked_at'] is not None
@@ -268,7 +268,7 @@ def test_future_periods_are_not_due_yet(app, client, auth_headers):
         'date_to': (school_today() + timedelta(days=60)).isoformat(), 'head': str(head)})
     summary = resp.get_json()['data']['summaries'][0]
     assert all(p['date'] <= school_today().isoformat() for p in summary['periods'])  # nothing in the future
-    assert summary['totalPeriodsDue'] == summary['notChecked'] + summary['delayed'] + summary['onTimeChecked'] \
+    assert summary['totalPeriodsDue'] == summary['notChecked'] + summary['onTimeChecked'] \
         + summary['checkedAfterDueDate']
 
 

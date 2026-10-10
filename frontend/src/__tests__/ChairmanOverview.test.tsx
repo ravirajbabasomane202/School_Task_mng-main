@@ -31,8 +31,8 @@ const rows = [
     performanceScore: 100, totalRegisters: 1, registerPerformance: 40 },
 ];
 const registerSummaries = [
-  { onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 1, delayed: 1 },
-  { onTimeChecked: 1, checkedAfterDueDate: 0, notChecked: 2, delayed: 0 },
+  { onTimeChecked: 3, checkedAfterDueDate: 2, notChecked: 1 },
+  { onTimeChecked: 1, checkedAfterDueDate: 0, notChecked: 2 },
 ];
 
 function renderPage() {
@@ -67,7 +67,7 @@ describe('Chairman dashboard', () => {
     expect(within(tasks).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(
       ['Total Tasks', 'On Time Complete', 'Completed After Due Date', 'Not Completed', 'Delayed']);
     expect(within(registers).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(
-      ['Total Registers', 'On Time Checked', 'Checked After Due Date', 'Not Checked', 'Delayed']);
+      ['Total Registers', 'On Time Checked', 'Checked After Due Date', 'Not Checked']);
 
     // numbers come from the same helpers the Performance screen uses
     const t = summarizeTaskTotals(rows as never);

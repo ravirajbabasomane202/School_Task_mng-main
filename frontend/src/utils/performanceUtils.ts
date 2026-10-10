@@ -176,8 +176,8 @@ export interface RegisterTotals {
   totalRegisters: number;
   onTimeChecked: number;
   checkedAfterDueDate: number;
+  /** Unchecked periods (window open or already ended) plus rejected checks. */
   notChecked: number;
-  delayed: number;
 }
 
 /** Plain sums of the per-person performance rows, so every screen shows the same task numbers. */
@@ -195,7 +195,7 @@ export function summarizeTaskTotals(rows: StaffPerformance[]): TaskTotals {
 
 /** Plain sums of the backend's per-register numbers (the browser never re-classifies a period). */
 export function summarizeRegisterTotals(
-  summaries: { onTimeChecked: number; checkedAfterDueDate: number; notChecked: number; delayed: number }[]
+  summaries: { onTimeChecked: number; checkedAfterDueDate: number; notChecked: number }[]
 ): RegisterTotals {
   const sum = (pick: (s: (typeof summaries)[number]) => number) => summaries.reduce((acc, s) => acc + pick(s), 0);
   return {
@@ -203,7 +203,6 @@ export function summarizeRegisterTotals(
     onTimeChecked: sum((s) => s.onTimeChecked),
     checkedAfterDueDate: sum((s) => s.checkedAfterDueDate),
     notChecked: sum((s) => s.notChecked),
-    delayed: sum((s) => s.delayed),
   };
 }
 
@@ -212,4 +211,66 @@ export function defaultRegisterRange(): { dateFrom: string; dateTo: string } {
   const from = new Date();
   from.setDate(from.getDate() - 90);
   return { dateFrom: from.toISOString().split('T')[0], dateTo: todayISO() };
+}
+
+/** One row of the per-role Register Performance table. */
+export interface RegisterRoleRow {
+  role: string;
+  roleName: string;
+  totalRegisters: number;
+  checkingCycles: string[];
+  onTimeChecked: number;
+  checkedAfterDueDate: number;
+  notChecked: number;
+  /** onTimeChecked + checkedAfterDueDate + notChecked. */
+  totalPeriodsDue: number;
+  registerPerformance: number;
+}
+
+/**
+ * Per-role Register Performance, summed from the SAME per-register numbers as the
+ * Register Activity table and the cards (so the totals can never disagree).
+ * Every register is counted once, including registers whose head is not linked to
+ * a user (grouped by the head name stored on the register).
+ */
+export function aggregateRegistersByRole(
+  items: {
+    role: string;
+    roleName: string;
+    cycle: string;
+    onTimeChecked: number;
+    checkedAfterDueDate: number;
+    notChecked: number;
+  }[],
+  cycleOrder: string[] = []
+): RegisterRoleRow[] {
+  const groups = new Map<string, typeof items>();
+  for (const item of items) {
+    const key = item.role || `name:${item.roleName}`;
+    groups.set(key, [...(groups.get(key) ?? []), item]);
+  }
+  const rank = (cycle: string) => {
+    const index = cycleOrder.indexOf(cycle);
+    return index === -1 ? cycleOrder.length : index;
+  };
+  return Array.from(groups, ([role, list]) => {
+    const sum = (pick: (i: (typeof items)[number]) => number) => list.reduce((acc, i) => acc + (pick(i) || 0), 0);
+    const onTimeChecked = sum((i) => i.onTimeChecked);
+    const checkedAfterDueDate = sum((i) => i.checkedAfterDueDate);
+    const notChecked = sum((i) => i.notChecked);
+    const totalPeriodsDue = onTimeChecked + checkedAfterDueDate + notChecked;
+    return {
+      role,
+      roleName: list[0].roleName,
+      totalRegisters: list.length,
+      checkingCycles: Array.from(new Set(list.map((i) => i.cycle))).sort((a, b) => rank(a) - rank(b)),
+      onTimeChecked,
+      checkedAfterDueDate,
+      notChecked,
+      totalPeriodsDue,
+      registerPerformance: totalPeriodsDue
+        ? Math.round(((onTimeChecked + checkedAfterDueDate) / totalPeriodsDue) * 100)
+        : 0,
+    };
+  }).sort((a, b) => a.roleName.localeCompare(b.roleName));
 }
