@@ -197,7 +197,9 @@ export function summarizeTaskTotals(rows: StaffPerformance[]): TaskTotals {
 export function summarizeRegisterTotals(
   summaries: { onTimeChecked: number; checkedAfterDueDate: number; notChecked: number }[]
 ): RegisterTotals {
-  const sum = (pick: (s: (typeof summaries)[number]) => number) => summaries.reduce((acc, s) => acc + pick(s), 0);
+  // `Number(x) || 0` keeps a missing/renamed field from turning the sum into NaN.
+  const sum = (pick: (s: (typeof summaries)[number]) => number) =>
+    summaries.reduce((acc, s) => acc + (Number(pick(s)) || 0), 0);
   return {
     totalRegisters: summaries.length,
     onTimeChecked: sum((s) => s.onTimeChecked),

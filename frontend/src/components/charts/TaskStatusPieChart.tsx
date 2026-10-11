@@ -58,7 +58,11 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
   // Dashboard responses can temporarily omit chart data during an API rollout
   // or after a cached response. A chart should render its empty state, not
   // take down the entire dashboard in that case.
-  const safeData = Array.isArray(data) ? data : [];
+  // Non-numeric values (undefined/NaN) count as 0 so the chart never shows "NaN".
+  const safeData = (Array.isArray(data) ? data : []).map((item) => ({
+    ...item,
+    value: Number.isFinite(Number(item.value)) ? Number(item.value) : 0
+  }));
   const totalTasks = safeData.reduce((sum, item) => sum + item.value, 0);
   const chartData = totalTasks > 0 ? safeData : EMPTY_STATE_DATA;
 
