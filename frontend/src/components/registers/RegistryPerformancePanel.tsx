@@ -90,7 +90,7 @@ interface RegisterSummary {
   strip: { date: string; color: RegisterDotColor; tooltip: string }[];
 }
 
-/** `roleFilter` is the page-level "Filter Tasks and Registers by Role" (a role KEY, or 'ALL').
+/** `roleFilter` is the page-level "Filter Registers by Role" (a role KEY, or 'ALL').
  * It narrows only the per-role Register Performance table, exactly as before. */
 function RegistryPerformancePanel({ roleFilter = 'ALL' }: { roleFilter?: string } = {}) {
   const today = todayISO();

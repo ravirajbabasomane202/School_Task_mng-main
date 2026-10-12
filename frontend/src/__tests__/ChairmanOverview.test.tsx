@@ -65,7 +65,7 @@ describe('Chairman dashboard', () => {
     const registers = screen.getByRole('region', { name: 'Registers' });
 
     expect(within(tasks).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(
-      ['Total Tasks', 'On Time Complete', 'Completed After Due Date', 'Not Completed', 'Delayed']);
+      ['Total Tasks', 'On Time Complete', 'Completed After Due Date', 'Not Completed']);
     expect(within(registers).getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual(
       ['Total Registers', 'On Time Checked', 'Checked After Due Date', 'Not Checked']);
 
@@ -75,7 +75,6 @@ describe('Chairman dashboard', () => {
     expect(cardValue(tasks, 'On Time Complete')).toBe('5');
     expect(cardValue(tasks, 'Completed After Due Date')).toBe('1');
     expect(cardValue(tasks, 'Not Completed')).toBe('2');
-    expect(cardValue(tasks, 'Delayed')).toBe('1');
     const r = summarizeRegisterTotals(registerSummaries);
     expect(cardValue(registers, 'Total Registers')).toBe(String(r.totalRegisters));
     expect(cardValue(registers, 'On Time Checked')).toBe('4');

@@ -212,8 +212,7 @@ function ChairmanOverview() {
     { label: L.totalTasks, tone: 'text-blue-600', value: taskTotals.totalTasks, to: '/chairman/task-monitor' },
     { label: L.onTimeComplete, tone: 'text-green-600', value: taskTotals.onTimeComplete, to: '/chairman/task-monitor?status=COMPLETED' },
     { label: L.completedAfterDueDate, tone: 'text-amber-600', value: taskTotals.completedAfterDueDate, to: '/chairman/task-monitor?status=COMPLETED' },
-    { label: L.notCompleted, tone: 'text-orange-600', value: taskTotals.notCompleted, to: '/chairman/task-monitor' },
-    { label: L.delayed, tone: 'text-red-600', value: taskTotals.delayed, to: '/chairman/task-monitor?status=DELAYED' }
+    { label: L.notCompleted, tone: 'text-orange-600', value: taskTotals.notCompleted, to: '/chairman/task-monitor' }
   ];
   const registerCards = [
     { label: L.totalRegisters, tone: 'text-cyan-600', value: registerTotals.totalRegisters },
@@ -225,7 +224,7 @@ function ChairmanOverview() {
   const renderCardGroup = (title: string, cards: { label: string; tone: string; value: number; to: string }[]) => (
     <section aria-label={title}>
       <h2 className="mb-3 text-lg font-semibold text-[#1E293B]">{title}</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map((card) => (
           <button
             className="cursor-pointer rounded-lg bg-gray-50 p-4 text-left transition hover:bg-gray-100 hover:shadow-sm"

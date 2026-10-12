@@ -76,7 +76,7 @@ describe('Performance page', () => {
 
   it('role dropdown lists ALL backend roles with " Head" added once', async () => {
     renderPage();
-    const select = await screen.findByLabelText('Filter Tasks and Registers by Role');
+    const select = await screen.findByLabelText('Filter Tasks by Role');
     const labels = within(select).getAllByRole('option').map((o) => o.textContent);
     expect(labels).toEqual(['All Roles', 'Admission Head', 'Library Head', 'Transport Head']);
     // the value is the role key, not the name
@@ -120,7 +120,7 @@ describe('Performance page', () => {
     await screen.findAllByText('Library Head', { selector: 'td' });
     const taskTable = screen.getByRole('heading', { name: 'Task Performance' }).closest('div')!.parentElement!;
     expect(within(taskTable).queryByText(/Check/)).toBeNull();
-    const label = screen.getByText('Filter Tasks and Registers by Role');
+    const label = screen.getByText('Filter Tasks by Role');
     expect(label.getAttribute('for')).toBe('performance-role-filter');
     expect(document.getElementById('performance-role-filter')?.tagName).toBe('SELECT');
   });
@@ -134,9 +134,11 @@ describe('Performance page', () => {
 
   it('role filter filters by key', async () => {
     renderPage();
-    const select = await screen.findByLabelText('Filter Tasks and Registers by Role');
+    const select = await screen.findByLabelText('Filter Tasks by Role');
     await userEvent.selectOptions(select, 'Librarian');
-    expect(screen.queryAllByText('Admission Head', { selector: 'td' })).toHaveLength(0);
-    expect(screen.getAllByText('Library Head', { selector: 'td' }).length).toBeGreaterThan(0);
+    // the task filter only affects the Task Performance table
+    const taskTable = screen.getByRole('heading', { name: 'Task Performance' }).closest('div')!.parentElement!;
+    expect(within(taskTable).queryAllByText('Admission Head', { selector: 'td' })).toHaveLength(0);
+    expect(within(taskTable).getAllByText('Library Head', { selector: 'td' }).length).toBeGreaterThan(0);
   });
 });
