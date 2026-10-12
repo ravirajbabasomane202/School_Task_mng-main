@@ -170,18 +170,14 @@ function ChairmanOverview() {
   );
 
   // Pie chart: the same task rows as the Task cards above, split by status.
-  const taskStatusData = useMemo(() => {
-    const rows = asArray(performanceQuery.data as StaffPerformance[] | undefined);
-    const sum = (pick: (row: StaffPerformance) => number) =>
-      rows.reduce((acc, row) => acc + (pick(row) || 0), 0);
-    return [
-      { name: 'Pending', value: sum((r) => r.pendingTasks), color: '#3B82F6' },
-      { name: 'In Progress', value: sum((r) => r.inProgressTasks), color: '#F59E0B' },
-      { name: 'Completed', value: sum((r) => r.completedTasks), color: '#22C55E' },
-      { name: 'Delayed', value: sum((r) => r.delayedTasks), color: '#EF4444' },
-      { name: 'Escalated', value: sum((r) => r.escalatedTasks), color: '#8B5CF6' }
-    ];
-  }, [performanceQuery.data]);
+  const taskStatusData = useMemo(
+    () => [
+      { name: L.onTimeComplete, value: taskTotals.onTimeComplete, color: '#22C55E' },
+      { name: L.completedAfterDueDate, value: taskTotals.completedAfterDueDate, color: '#F59E0B' },
+      { name: L.notCompleted, value: taskTotals.notCompleted, color: '#F97316' }
+    ],
+    [taskTotals]
+  );
 
   // Register pie: the same register numbers as the Register cards above.
   const registerStatusData = useMemo(
