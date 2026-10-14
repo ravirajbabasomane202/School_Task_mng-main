@@ -7,6 +7,7 @@ import { useNotifications } from '../hooks/useNotifications';
 import type { Notification } from '../types/notification.types';
 import { getApiErrorMessage } from '../utils/apiError';
 
+import PageContainer from '../components/common/PageContainer';
 function formatTimestamp(value: string) {
   const date = new Date(value);
 
@@ -52,19 +53,19 @@ function NotificationsPage() {
   };
 
   return (
-    <section className="space-y-5 p-5">
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+    <PageContainer className="space-y-5">
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Activity Center
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">All Notifications</h2>
+            <h2 className="mt-2 text-xl font-semibold text-[#1E293B] sm:text-2xl">All Notifications</h2>
             <p className="mt-2 text-sm leading-6 text-[#5B6E8C]">
               Review task alerts, announcement updates, and live workflow events in one place.
             </p>
           </div>
-          <Button onClick={() => void markAllAsRead()}>{`Mark All Read (${unreadCount})`}</Button>
+          <Button className="w-full sm:w-auto" onClick={() => void markAllAsRead()}>{`Mark All Read (${unreadCount})`}</Button>
         </div>
       </div>
 
@@ -74,7 +75,7 @@ function NotificationsPage() {
             {notifications.map((notification) => (
               <div
                 className={[
-                  'flex w-full items-start justify-between gap-4 rounded-[16px] border px-4 py-4 transition',
+                  'flex w-full flex-col items-stretch gap-3 rounded-[16px] border px-3 py-3 transition sm:flex-row sm:items-start sm:justify-between sm:gap-4 sm:px-4 sm:py-4',
                   notification.is_read
                     ? 'border-[#EFF2F6] bg-white'
                     : 'border-[#D7E7F7] bg-[#F7FBFF]'
@@ -82,17 +83,17 @@ function NotificationsPage() {
                 key={`${notification.type}-${notification.id}`}
               >
                 <button
-                  className="flex min-w-0 flex-1 items-start justify-between gap-4 text-left"
+                  className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left sm:flex-row sm:justify-between sm:gap-4"
                   onClick={() => void markAsRead(notification.id)}
                   type="button"
                 >
-                  <div>
+                  <div className="min-w-0 break-words">
                     <p className="text-sm font-semibold text-[#1E293B]">{notification.message}</p>
                     <p className="mt-1 text-xs uppercase tracking-[0.12em] text-[#8A99B0]">
                       {notification.type.replace(/_/g, ' ')}
                     </p>
                   </div>
-                  <div className="shrink-0 text-right">
+                  <div className="sm:shrink-0 sm:text-right">
                     <p className="text-xs text-[#8A99B0]">{formatTimestamp(notification.created_at)}</p>
                     <p className="mt-2 text-xs font-semibold text-[#185FA5]">
                       {notification.is_read ? 'Read' : 'Mark As Read'}
@@ -126,7 +127,7 @@ function NotificationsPage() {
         onConfirm={() => void confirmDelete()}
         title="Delete Notification"
       />
-    </section>
+    </PageContainer>
   );
 }
 

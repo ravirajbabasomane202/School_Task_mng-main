@@ -9,6 +9,8 @@ import type { ApprovalType, ApprovalStatus } from '../../types/approval.types';
 import { APPROVAL_TYPE_META } from '../../types/approval.types';
 import { getAllApprovals, createApprovalRequest } from '../../services/approvalService';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLOR: Record<ApprovalStatus, string> = {
   PENDING:  'bg-amber-100 text-amber-700',
   APPROVED: 'bg-green-100 text-green-700',
@@ -60,8 +62,8 @@ const DeptApprovalsPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Approval Requests</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Submit and track your approval requests</p>
@@ -70,7 +72,7 @@ const DeptApprovalsPage: React.FC = () => {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-3 sm:gap-4">
         {(['PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => (
           <div key={s} className="rounded-xl border border-[#EFF2F6] bg-white p-4">
             <p className="text-xs text-[#8A99B0]">{s}</p>
@@ -86,46 +88,48 @@ const DeptApprovalsPage: React.FC = () => {
         {isLoading ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Title', 'Type', 'Amount', 'Status', 'Submitted', 'Approved By'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {approvals.length === 0 ? (
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
                 <tr>
-                  <td colSpan={6} className="py-10 text-center text-sm text-[#8A99B0]">
-                    No approval requests yet.
-                  </td>
+                  {['Title', 'Type', 'Amount', 'Status', 'Submitted', 'Approved By'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                  ))}
                 </tr>
-              ) : approvals.map((a) => {
-                const typeMeta = APPROVAL_TYPE_META[a.type];
-                return (
-                  <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
-                    <td className="px-4 py-3 font-medium text-[#1E293B]">{a.title}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeMeta?.bg ?? 'bg-gray-100 text-gray-600'}`}>
-                        {typeMeta?.label ?? a.type}
-                      </span>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {approvals.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="py-10 text-center text-sm text-[#8A99B0]">
+                      No approval requests yet.
                     </td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">
-                      {a.amount != null ? `₦${Number(a.amount).toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#8A99B0]">{a.created_at.slice(0, 10)}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">{a.approvedBy?.name ?? '—'}</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ) : approvals.map((a) => {
+                  const typeMeta = APPROVAL_TYPE_META[a.type];
+                  return (
+                    <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
+                      <td className="px-4 py-3 font-medium text-[#1E293B]">{a.title}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeMeta?.bg ?? 'bg-gray-100 text-gray-600'}`}>
+                          {typeMeta?.label ?? a.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">
+                        {a.amount != null ? `₦${Number(a.amount).toLocaleString()}` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#8A99B0]">{a.created_at.slice(0, 10)}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">{a.approvedBy?.name ?? '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -173,7 +177,7 @@ const DeptApprovalsPage: React.FC = () => {
               placeholder="0.00"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowModal(false)}>Cancel</Button>
             <Button
               loading={createMutation.isPending}
@@ -184,7 +188,7 @@ const DeptApprovalsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

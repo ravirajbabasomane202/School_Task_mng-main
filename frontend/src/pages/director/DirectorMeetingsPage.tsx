@@ -8,6 +8,8 @@ import { getMeetings, createMeeting, updateMeeting, deleteMeeting, getUpcomingMe
 import type { Meeting, CreateMeetingPayload, MeetingStatus } from '../../types/meeting.types';
 import type { RootState } from '../../store';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLOR: Record<MeetingStatus, string> = {
   SCHEDULED: 'bg-blue-100 text-blue-700',
   ONGOING:   'bg-amber-100 text-amber-700',
@@ -115,8 +117,8 @@ const DirectorMeetingsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Meetings</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Schedule and manage school meetings</p>
@@ -124,7 +126,7 @@ const DirectorMeetingsPage: React.FC = () => {
         <Button onClick={() => setShowCreateModal(true)}>+ Schedule Meeting</Button>
       </div>
 
-      <div className="flex gap-1 rounded-xl border border-[#EFF2F6] bg-white p-1 w-fit">
+      <div className="flex w-full gap-1 overflow-x-auto rounded-xl border border-[#EFF2F6] bg-white p-1 sm:w-fit [&>button]:shrink-0 [&>button]:whitespace-nowrap">
         {(['ALL', 'SCHEDULED', 'COMPLETED', 'CANCELLED'] as const).map((s) => (
           <button
             key={s}
@@ -144,52 +146,54 @@ const DirectorMeetingsPage: React.FC = () => {
         ) : meetings.length === 0 ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">No meetings found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Title', 'Date', 'Duration', 'Type', 'Status', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {meetings.map((m) => (
-                <tr key={m.id} className="hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3 font-medium text-[#1E293B]">{m.title}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">
-                    {new Date(m.meeting_date).toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{m.duration_minutes} min</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{m.meeting_type}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[m.status]}`}>
-                      {m.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(m)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Edit
-                      </button>
-                      {m.status === 'SCHEDULED' && (
-                        <button
-                          onClick={() => handleCancel(m.id)}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Cancel
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Title', 'Date', 'Duration', 'Type', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {meetings.map((m) => (
+                  <tr key={m.id} className="hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3 font-medium text-[#1E293B]">{m.title}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">
+                      {new Date(m.meeting_date).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{m.duration_minutes} min</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{m.meeting_type}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[m.status]}`}>
+                        {m.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(m)}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        {m.status === 'SCHEDULED' && (
+                          <button
+                            onClick={() => handleCancel(m.id)}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Cancel
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -214,7 +218,7 @@ const DirectorMeetingsPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-[#5B6E8C] mb-1">Date & Time *</label>
               <input
@@ -271,7 +275,7 @@ const DirectorMeetingsPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowCreateModal(false)} type="button">
               Cancel
             </Button>
@@ -281,7 +285,7 @@ const DirectorMeetingsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

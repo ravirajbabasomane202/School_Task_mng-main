@@ -59,11 +59,11 @@ function ConfirmDeleteDialog({
             {errorMessage}
           </p>
         ) : null}
-        <div className="flex justify-end gap-3 pt-2">
-          <Button disabled={isDeleting} onClick={handleClose} type="button" variant="ghost">
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" disabled={isDeleting} onClick={handleClose} type="button" variant="ghost">
             Cancel
           </Button>
-          <Button loading={isDeleting} onClick={onConfirm} type="button" variant="danger">
+          <Button className="w-full sm:w-auto" loading={isDeleting} onClick={onConfirm} type="button" variant="danger">
             Delete
           </Button>
         </div>

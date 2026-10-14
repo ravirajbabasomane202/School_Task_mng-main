@@ -96,7 +96,7 @@ function SelectWithOther({
         <div className="flex gap-2">
           <input
             autoFocus
-            className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+            className="mt-1 block min-h-[44px] w-full min-w-0 rounded-md border-gray-300 text-base shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:min-h-[38px] sm:text-sm"
             disabled={isSaving}
             onChange={(event) => setOtherValue(event.target.value)}
             placeholder={inputPlaceholder}
@@ -104,7 +104,7 @@ function SelectWithOther({
             value={otherValue}
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button loading={isSaving} onClick={handleSaveOther} size="sm" type="button">
             {saveLabel}
           </Button>
@@ -120,7 +120,7 @@ function SelectWithOther({
   return (
     <div>
       <select
-        className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+        className="mt-1 block min-h-[44px] w-full min-w-0 rounded-md border-gray-300 text-base shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:min-h-[38px] sm:text-sm"
         disabled={disabled}
         onChange={handleSelectChange}
         value={value}

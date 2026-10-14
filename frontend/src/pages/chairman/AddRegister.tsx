@@ -7,6 +7,7 @@ import { createRegister, getRegisterHeads } from '../../services/registerService
 import { REGISTER_CYCLES, REGISTER_PRIORITIES } from '../../types/register.types';
 import type { CreateRegisterPayload, RegisterCycle, RegisterPriority } from '../../types/register.types';
 
+import PageContainer from '../../components/common/PageContainer';
 const EMPTY_FORM: CreateRegisterPayload = {
   name: '',
   register_no: '',
@@ -71,7 +72,7 @@ function AddRegister() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[#1E293B]">Add Register</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Create a new register to track on a recurring cycle</p>
@@ -155,7 +156,7 @@ function AddRegister() {
           error={errors.start_date}
         />
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
           <Button variant="ghost" type="button" onClick={handleClose}>
             Close
           </Button>
@@ -164,7 +165,7 @@ function AddRegister() {
           </Button>
         </div>
       </form>
-    </div>
+    </PageContainer>
   );
 }
 

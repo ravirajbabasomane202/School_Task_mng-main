@@ -15,6 +15,7 @@ import { getApiErrorMessage, isNotFoundError } from '../../utils/apiError';
 import { APPROVAL_TYPE_META } from '../../types/approval.types';
 import type { Approval, ApprovalStatus } from '../../types/approval.types';
 
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLOR: Record<ApprovalStatus, string> = {
   PENDING:  'bg-amber-100 text-amber-700',
   APPROVED: 'bg-green-100 text-green-700',
@@ -118,9 +119,9 @@ function ApprovalManagement() {
     new Date(dateString).toLocaleDateString('en-IN');
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       {/* ── Approval type summary cards ── */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">
         {Object.entries(APPROVAL_TYPE_META).map(([key, meta]) => {
           const k = key as Approval['type'];
           const { total, pending } = perTypeCounts[k] ?? { total: 0, pending: 0 };
@@ -136,9 +137,9 @@ function ApprovalManagement() {
       </div>
 
       {/* ── Approval requests list ── */}
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+      <div className="min-w-0 rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
         <h2 className="mb-4 text-lg font-semibold text-[#1E293B]">Approval Requests</h2>
-        <div className="mb-6 flex flex-wrap gap-3">
+        <div className="-mx-1 mb-6 flex flex-nowrap gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:flex-wrap sm:gap-3 sm:overflow-visible sm:px-0 sm:pb-0">
           {[
             { key: 'ALL',      label: 'All',      count: counts.total },
             { key: 'PENDING',  label: 'Pending',  count: counts.pending },
@@ -148,7 +149,7 @@ function ApprovalManagement() {
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as typeof activeTab)}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+              className={`shrink-0 whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition ${
                 activeTab === tab.key
                   ? 'bg-[#185FA5] text-white'
                   : 'bg-[#F3F6FA] text-[#5B6E8C] hover:bg-[#E7EDF4]'
@@ -172,7 +173,7 @@ function ApprovalManagement() {
                 key={approval.id}
                 className="flex flex-col gap-4 rounded-lg border border-[#EFF2F6] p-4 lg:flex-row lg:items-center lg:justify-between"
               >
-                <div className="flex items-center gap-4">
+                <div className="flex min-w-0 items-start gap-3 sm:items-center sm:gap-4">
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${APPROVAL_TYPE_META[approval.type]?.bg ?? 'bg-gray-100 text-gray-600'}`}
                   >
@@ -184,13 +185,13 @@ function ApprovalManagement() {
                       .slice(0, 2) ?? '?')}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-[#1E293B]">{approval.title}</div>
-                    <div className="text-sm text-[#5B6E8C]">
+                    <div className="break-words font-medium text-[#1E293B]">{approval.title}</div>
+                    <div className="break-words text-sm text-[#5B6E8C]">
                       {approval.requestedBy?.name} · {formatAmount(approval.amount)} ·{' '}
                       {APPROVAL_TYPE_META[approval.type]?.label ?? approval.type}
                     </div>
                     {approval.details ? (
-                      <div className="mt-1 text-sm text-[#5B6E8C]">{approval.details}</div>
+                      <div className="mt-1 break-words text-sm text-[#5B6E8C]">{approval.details}</div>
                     ) : null}
                     <div className="mt-1 text-xs text-[#8A99B0]">
                       Submitted: {formatDate(approval.created_at)}
@@ -198,7 +199,7 @@ function ApprovalManagement() {
                   </div>
                 </div>
 
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto lg:shrink-0 [&>button]:flex-1 sm:[&>button]:flex-none">
                   {approval.status === 'PENDING' ? (
                     <>
                       <Button
@@ -258,7 +259,7 @@ function ApprovalManagement() {
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         title="Delete Approval Request"
       />
-    </div>
+    </PageContainer>
   );
 }
 

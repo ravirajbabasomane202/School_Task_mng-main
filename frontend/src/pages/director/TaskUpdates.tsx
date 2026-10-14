@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
-import Navbar from '../../components/common/Navbar';
-import Sidebar from '../../components/common/Sidebar';
+import AppShell from '../../components/common/AppShell';
 import Badge from '../../components/common/Badge';
 import Modal from '../../components/common/Modal';
 import type { Task, TaskStatus, UpdateTaskPayload } from '../../types/task.types';
@@ -81,11 +80,8 @@ function TaskUpdates() {
   });
 
   return (
-    <div className="flex min-h-screen bg-[#F1F4F9] text-[#1E293B]">
-      <Sidebar />
-      <main className="custom-scrollbar ml-[196px] h-screen min-w-0 flex-1 overflow-y-auto">
-        <Navbar />
-        <div className="p-6 space-y-6">
+    <AppShell>
+        <div className="mx-auto w-full max-w-[1600px] min-w-0 space-y-6 p-3 xs:p-4 md:p-5 lg:p-6">
           {/* Header */}
           <div>
             <h1 className="text-2xl font-semibold">Task Updates</h1>
@@ -95,13 +91,13 @@ function TaskUpdates() {
           </div>
 
           {/* Filters */}
-          <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-wrap gap-4 items-center">
+          <div className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 sm:items-center">
             <input
               type="text"
               placeholder="Search tasks…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-60 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="border border-gray-300 rounded-md px-3 py-2 text-sm w-full sm:w-60 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <select
               value={filterStatus}
@@ -191,7 +187,6 @@ function TaskUpdates() {
             </div>
           )}
         </div>
-      </main>
 
       {/* Update Modal */}
       {selectedTask && (
@@ -254,7 +249,7 @@ function TaskUpdates() {
             )}
 
             {/* Actions */}
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <button
                 onClick={() => setSelectedTask(null)}
                 className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
@@ -272,7 +267,7 @@ function TaskUpdates() {
           </div>
         </Modal>
       )}
-    </div>
+    </AppShell>
   );
 }
 

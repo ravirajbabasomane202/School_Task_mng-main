@@ -1,5 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
+import { X } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
+import { useIsDesktop } from '../../hooks/useMediaQuery';
 import { DEPARTMENT_HEAD_ROLES, ROLES } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { getAllApprovals } from '../../services/approvalService';
@@ -92,7 +94,15 @@ function getInitials(name?: string) {
     .join('');
 }
 
-function Sidebar() {
+interface SidebarProps {
+  /** Drawer state below lg. Ignored on desktop where the rail is always visible. */
+  isOpen?: boolean;
+  onClose?: () => void;
+}
+
+function Sidebar({ isOpen = false, onClose }: SidebarProps) {
+  const isDesktop = useIsDesktop();
+  const isDrawerOpen = isOpen && !isDesktop;
   const { user } = useAppSelector((state) => state.auth);
   const { unreadCount } = useAppSelector((state) => state.notifications);
   const approvalsQuery = useQuery({
@@ -124,22 +134,39 @@ function Sidebar() {
   });
 
   return (
-    <aside className="fixed inset-y-0 left-0 z-20 flex h-screen w-[196px] shrink-0 flex-col overflow-hidden border-r-[0.5px] border-[#EFF2F6] bg-[#F8F9FC]">
+    <aside
+      aria-label="Main navigation"
+      aria-modal={isDrawerOpen ? true : undefined}
+      className={[
+        'fixed inset-y-0 left-0 z-40 flex h-dvh w-[260px] max-w-[85vw] shrink-0 flex-col overflow-hidden border-r-[0.5px] border-[#EFF2F6] bg-[#F8F9FC] transition-transform duration-200 lg:z-20 lg:w-[196px] lg:max-w-none lg:translate-x-0',
+        isOpen ? 'translate-x-0' : '-translate-x-full'
+      ].join(' ')}
+      data-testid="sidebar"
+      role={isDrawerOpen ? 'dialog' : undefined}
+    >
       <div className="shrink-0 border-b border-b-[0.5px] border-[#EFF2F6] px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[10px] bg-[#185FA5] text-xs font-semibold text-white">
             ET
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-[14px] font-semibold text-[#1E293B]">EduTask Pro</p>
             <p className="truncate text-[11px] text-[#8A99B0]">
               {user ? getRoleLabel(user.role) : 'Master access'}
             </p>
           </div>
+          <button
+            aria-label="Close navigation menu"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#5B6E8C] transition hover:bg-white lg:hidden"
+            onClick={onClose}
+            type="button"
+          >
+            <X size={20} />
+          </button>
         </div>
       </div>
 
-      <nav className="custom-scrollbar min-h-0 flex-1 px-3 py-4">
+      <nav className="custom-scrollbar min-h-0 flex-1 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         {groups.map((group) => {
           const groupItems = decoratedItems.filter((item) => item.group === group);
           if (groupItems.length === 0) return null;
@@ -154,7 +181,7 @@ function Sidebar() {
                   <NavLink
                     className={({ isActive }) =>
                       [
-                        'flex min-h-[34px] items-center justify-between rounded-[10px] border-[0.5px] border-transparent px-2.5 transition',
+                        'flex min-h-[44px] items-center justify-between lg:min-h-[34px] rounded-[10px] border-[0.5px] border-transparent px-2.5 transition',
                         isActive
                           ? 'border-[#E4EAF2] bg-white font-semibold text-[#1E293B]'
                           : 'text-[#5B6E8C] hover:bg-white/80',
@@ -162,6 +189,7 @@ function Sidebar() {
                     }
                     end={item.to === '/chairman' || item.to === '/department' || item.to === '/director'}
                     key={item.to}
+                    onClick={onClose}
                     to={item.to}
                   >
                     <span className="flex min-w-0 items-center gap-2.5">
@@ -169,7 +197,7 @@ function Sidebar() {
                         className="h-[7px] w-[7px] rounded-full"
                         style={{ backgroundColor: item.color }}
                       />
-                      <span className="truncate text-[12px]">{item.label}</span>
+                      <span className="truncate text-[14px] lg:text-[12px]">{item.label}</span>
                     </span>
                     {item.badge && item.badge.value > 0 ? (
                       <Badge variant={item.badge.tone}>{item.badge.value}</Badge>
@@ -182,7 +210,7 @@ function Sidebar() {
         })}
       </nav>
 
-      <div className="shrink-0 border-t border-t-[0.5px] border-[#EFF2F6] px-4 py-3">
+      <div className="shrink-0 border-t border-t-[0.5px] border-[#EFF2F6] px-4 py-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#E6F1FB] text-[11px] font-semibold text-[#0C447C]">
             {getInitials(user?.name)}

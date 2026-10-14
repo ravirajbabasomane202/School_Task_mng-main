@@ -21,6 +21,7 @@ import { getStatusErrorMessage } from '../../utils/taskStatus';
 import type { StaffPerformance } from '../../services/dashboardService';
 import type { Task, TaskStatus } from '../../types/task.types';
 
+import PageContainer from '../../components/common/PageContainer';
 interface DashboardAlert {
   id: number;
   title: string;
@@ -220,7 +221,7 @@ function ChairmanOverview() {
   const renderCardGroup = (title: string, cards: { label: string; tone: string; value: number; to: string }[]) => (
     <section aria-label={title}>
       <h2 className="mb-3 text-lg font-semibold text-[#1E293B]">{title}</h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         {cards.map((card) => (
           <button
             className="cursor-pointer rounded-lg bg-gray-50 p-4 text-left transition hover:bg-gray-100 hover:shadow-sm"
@@ -228,7 +229,7 @@ function ChairmanOverview() {
             onClick={() => navigate(card.to)}
             type="button"
           >
-            <h3 className="text-sm font-medium text-gray-500">{card.label}</h3>
+            <h3 className="text-xs font-medium text-gray-500 sm:text-sm">{card.label}</h3>
             <p className={`text-2xl font-bold ${card.tone}`}>{card.value}</p>
             <p className="mt-1 text-[11px] text-[#8A99B0]">Click to view →</p>
           </button>
@@ -238,14 +239,14 @@ function ChairmanOverview() {
   );
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+    <PageContainer className="space-y-6">
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Master View
             </p>
-            <h1 className="mt-2 text-2xl font-semibold text-[#1E293B]">
+            <h1 className="mt-2 text-xl font-semibold text-[#1E293B] sm:text-2xl">
               School Status And Leadership Control
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5B6E8C]">
@@ -254,7 +255,7 @@ function ChairmanOverview() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
             <Button onClick={() => navigate('/chairman/task-assignment')}>Assign Task</Button>
             <Button onClick={() => navigate('/chairman/meetings')} variant="ghost">
               Schedule Meeting
@@ -273,9 +274,9 @@ function ChairmanOverview() {
 
       {/* Top Performers (Tasks) -> Pie Charts (Tasks + Registers) -> Top Performers (Registers) */}
       <div className="space-y-6">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
                 Staff Productivity
               </p>
@@ -287,14 +288,14 @@ function ChairmanOverview() {
           <div className="mt-5 space-y-3">
             {topPerformers.map((user) => (
               <div
-                className="flex items-center justify-between rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
+                className="flex items-center justify-between gap-3 rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-3 py-3 sm:px-4 sm:py-4"
                 key={user.userId}
               >
-                <div>
-                  <p className="text-sm font-semibold text-[#1E293B]">{user.name}</p>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[#1E293B]">{user.name}</p>
                   <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
                 </div>
-                <div className="text-right">
+                <div className="shrink-0 text-right">
                   <p className="text-sm font-semibold text-[#1E293B]">{user.performanceScore}%</p>
                   <p className="text-xs text-[#8A99B0]">{user.delayedTasks} delayed</p>
                 </div>
@@ -303,14 +304,14 @@ function ChairmanOverview() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-            <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Task Status Distribution</h2>
+        <div className="grid grid-cols-1 gap-4 sm:gap-6 xl:grid-cols-2">
+          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-[#1E293B] sm:text-xl">Task Status Distribution</h2>
             <TaskStatusPieChart data={taskStatusData} />
           </div>
 
-          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-            <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Register Status Distribution</h2>
+          <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-[#1E293B] sm:text-xl">Register Status Distribution</h2>
             <TaskStatusPieChart
               data={registerStatusData}
               emptyMessage="No register data available yet."
@@ -319,9 +320,9 @@ function ChairmanOverview() {
           </div>
         </div>
 
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
-          <div className="flex items-center justify-between gap-3">
-            <div>
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
                 Staff Productivity
               </p>
@@ -334,14 +335,14 @@ function ChairmanOverview() {
             {topRegisterPerformers.length > 0 ? (
               topRegisterPerformers.map((user) => (
                 <div
-                  className="flex items-center justify-between rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
+                  className="flex items-center justify-between gap-3 rounded-[16px] border border-[#EFF2F6] bg-[#FAFCFE] px-3 py-3 sm:px-4 sm:py-4"
                   key={user.userId}
                 >
-                  <div>
-                    <p className="text-sm font-semibold text-[#1E293B]">{user.name}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#1E293B]">{user.name}</p>
                     <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
                   </div>
-                  <div className="text-right">
+                  <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold text-[#1E293B]">{user.registerPerformance}%</p>
                     <p className="text-xs text-[#8A99B0]">{user.totalRegisters} registers</p>
                   </div>
@@ -356,8 +357,8 @@ function ChairmanOverview() {
 
       {/* Row 1: Recent task assignments | Active alerts */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr,0.9fr]">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="mb-4 flex items-center justify-between">
+        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold">Recent Task Assignments</h3>
             <Button onClick={() => navigate('/chairman/task-assignment')} size="sm">
               Assign Task +
@@ -373,8 +374,8 @@ function ChairmanOverview() {
           />
         </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">Active Alerts</h3>
             <Button onClick={() => navigate('/chairman/alerts')} size="sm" variant="ghost">
               Open Alerts
@@ -385,7 +386,7 @@ function ChairmanOverview() {
               dashboardData.alerts.map((alert) => (
                 <div key={alert.id} className="flex items-center space-x-3">
                   <div className="text-lg">!</div>
-                  <div className="flex-1">
+                  <div className="min-w-0 flex-1 break-words">
                     <p className="text-sm font-medium">{alert.title}</p>
                     <p className="text-xs text-gray-500">{alert.subLabel}</p>
                   </div>
@@ -401,8 +402,8 @@ function ChairmanOverview() {
 
       {/* Pending approvals */}
       <div className="grid grid-cols-1 gap-6">
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0 rounded-lg border border-gray-200 bg-white p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-lg font-semibold">Pending Approvals</h3>
             <Button onClick={() => navigate('/chairman/approvals')} size="sm" variant="ghost">
               View All
@@ -411,22 +412,22 @@ function ChairmanOverview() {
           <div className="mt-4 space-y-3">
             {dashboardData.pendingApprovalsList.length > 0 ? (
               dashboardData.pendingApprovalsList.map((approval) => (
-                <div key={approval.id} className="flex items-center justify-between gap-3">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600">
+                <div key={approval.id} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center space-x-3">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-100 text-xs font-medium text-blue-600">
                       {approval.submitter
                         .split(' ')
                         .map((name) => name[0])
                         .join('')}
                     </div>
-                    <div>
+                    <div className="min-w-0 break-words">
                       <p className="text-sm font-medium">{approval.title}</p>
                       <p className="text-xs text-gray-500">
                         {approval.submitter} | {approval.department} | {approval.amount}
                       </p>
                     </div>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="grid grid-cols-2 gap-2 sm:flex sm:space-x-2 sm:gap-0">
                     <Button
                       loading={approvalMutation.isPending}
                       onClick={() =>
@@ -456,7 +457,7 @@ function ChairmanOverview() {
           </div>
         </div>
       </div>
-    </div>
+    </PageContainer>
   );
 }
 

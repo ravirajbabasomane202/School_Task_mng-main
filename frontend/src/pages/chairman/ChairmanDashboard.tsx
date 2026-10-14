@@ -1,7 +1,6 @@
 import { Route, Routes } from 'react-router-dom';
 import { useSocket } from '../../hooks/useSocket';
-import Navbar from '../../components/common/Navbar';
-import Sidebar from '../../components/common/Sidebar';
+import AppShell from '../../components/common/AppShell';
 import AlertsEscalations from './AlertsEscalations';
 import AnnouncementsPage from './AnnouncementsPage';
 import ApprovalManagement from './ApprovalManagement';
@@ -19,10 +18,7 @@ function ChairmanDashboard() {
   useSocket();
 
   return (
-    <div className="flex min-h-screen bg-[#F1F4F9] text-[#1E293B]">
-      <Sidebar />
-      <main className="custom-scrollbar ml-[196px] h-screen min-w-0 flex-1 overflow-y-auto">
-        <Navbar />
+    <AppShell>
         <Routes>
           <Route
             index
@@ -73,8 +69,7 @@ function ChairmanDashboard() {
             path="register-monitoring"
           />
         </Routes>
-      </main>
-    </div>
+    </AppShell>
   );
 }
 

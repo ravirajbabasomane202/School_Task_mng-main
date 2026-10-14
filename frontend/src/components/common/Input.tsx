@@ -24,7 +24,7 @@ function Input({ className = '', error, id, label, register, ...props }: InputPr
       <input
         id={inputId}
         className={[
-          'min-h-[38px] rounded-[10px] border-[0.5px] border-solid border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none transition placeholder:text-[#8A99B0] focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10',
+          'min-h-[44px] w-full min-w-0 rounded-[10px] border-[0.5px] border-solid border-[#DCE2EA] bg-[#F8F9FC] px-3 text-base text-[#1E293B] sm:min-h-[38px] sm:text-sm outline-none transition placeholder:text-[#8A99B0] focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10',
           error ? 'border-[#C13F3A] focus:border-[#C13F3A] focus:ring-[#C13F3A]/10' : '',
           className
         ].join(' ')}

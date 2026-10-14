@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as announcementService from '../../services/announcementService';
 import { useNotifications } from '../../hooks/useNotifications';
 
+import PageContainer from '../../components/common/PageContainer';
 function formatDate(value: string) {
   const date = new Date(value);
 
@@ -36,7 +37,7 @@ function Announcements() {
   };
 
   return (
-    <section className="space-y-5 p-5">
+    <PageContainer className="space-y-5">
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
           Department Comms
@@ -63,8 +64,8 @@ function Announcements() {
                   onClick={() => (notificationId ? void markAsRead(notificationId) : undefined)}
                   type="button"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-4">
+                    <div className="min-w-0 break-words">
                       <p className="text-sm font-semibold text-[#1E293B]">Chairman</p>
                       <p className="mt-2 text-sm leading-6 text-[#42566F]">{announcement.message}</p>
                     </div>
@@ -88,7 +89,7 @@ function Announcements() {
           </div>
         )}
       </div>
-    </section>
+    </PageContainer>
   );
 }
 

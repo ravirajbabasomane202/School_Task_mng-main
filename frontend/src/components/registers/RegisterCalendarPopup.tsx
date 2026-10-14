@@ -291,7 +291,7 @@ function RegisterCalendarPopup({ register, onClose }: RegisterCalendarPopupProps
                           ))}
                         </select>
                       </label>
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
                         <Button variant="ghost" size="sm" type="button" onClick={() => setSelectedDate(null)}>
                           Cancel
                         </Button>

@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, Legend, PieChart, Pie, Cell,
 } from 'recharts';
+import { useIsMd } from '../../../hooks/useMediaQuery';
 import { useSelector } from 'react-redux';
 import api from '../../../services/api';
 import type { RootState } from '../../../store';
@@ -23,6 +24,7 @@ const StatCard: React.FC<{ label: string; value: string | number; color: string;
 );
 
 const ITAnalytics: React.FC = () => {
+  const isMd = useIsMd();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const { data, isLoading } = useQuery({
@@ -78,13 +80,13 @@ const ITAnalytics: React.FC = () => {
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Task Status Pie */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Task Status Distribution</h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie data={taskStatusData} cx="50%" cy="50%" outerRadius={80} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+              <Pie data={taskStatusData} cx="50%" cy="50%" outerRadius={isMd ? 80 : 55} dataKey="value" label={isMd ? ({ name, value }) => `${name}: ${value}` : false}>
                 {taskStatusData.map((entry: { color: string }, i: number) => (
                   <Cell key={i} fill={entry.color} />
                 ))}
@@ -123,7 +125,7 @@ const ITAnalytics: React.FC = () => {
         <ResponsiveContainer width="100%" height={260}>
           <LineChart data={monthly} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
+            <XAxis dataKey="month" interval="preserveStartEnd" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />

@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from 'recharts';
+import { useIsMd } from '../../../hooks/useMediaQuery';
 import { useSelector } from 'react-redux';
 import api from '../../../services/api';
 import type { RootState } from '../../../store';
@@ -28,6 +29,7 @@ const ASSET_CATEGORY_COLORS: Record<string, string> = {
 };
 
 const PropertyAnalytics: React.FC = () => {
+  const isMd = useIsMd();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
@@ -110,13 +112,13 @@ const PropertyAnalytics: React.FC = () => {
         <StatCard label="Pending POs" value={pendingPOs} color="bg-amber-100 text-amber-700" icon="📦" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Assets by category */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Assets By Category</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={assetByCategory} cx="50%" cy="50%" outerRadius={70} dataKey="count"
+              <Pie data={assetByCategory} cx="50%" cy="50%" outerRadius={isMd ? 70 : 45} dataKey="count"
                 label={({ name, count }) => count > 0 ? `${name}: ${count}` : ''}>
                 {assetByCategory.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
@@ -131,7 +133,7 @@ const PropertyAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={hkByStatus} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
               <Tooltip />
               <Bar dataKey="count" name="Tasks" fill="#14B8A6" radius={[4, 4, 0, 0]} />
@@ -145,7 +147,7 @@ const PropertyAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={hkByType} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
               <Tooltip />
               <Bar dataKey="count" name="Tasks" fill="#0D9488" radius={[4, 4, 0, 0]} />
@@ -183,7 +185,7 @@ const PropertyAnalytics: React.FC = () => {
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={monthly} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
+            <XAxis dataKey="month" interval="preserveStartEnd" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />

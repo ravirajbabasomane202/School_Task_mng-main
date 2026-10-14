@@ -9,6 +9,7 @@ import { useAppSelector } from '../../store/hooks';
 import { getAllowedStatuses, getStatusErrorMessage } from '../../utils/taskStatus';
 import type { Task, TaskStatus } from '../../types/task.types';
 
+import PageContainer from '../../components/common/PageContainer';
 type AlertKind = 'ESCALATED' | 'CRITICAL' | 'DELAYED' | 'NO_UPDATE';
 
 interface AlertRecord {
@@ -166,7 +167,7 @@ function AlertsEscalations() {
   );
 
   return (
-    <section className="space-y-5 p-5">
+    <PageContainer className="space-y-5">
       <div className="grid gap-4 md:grid-cols-3">
         <article className="rounded-[20px] border border-[#F2D1CF] bg-white p-5">
           <p className="text-sm font-semibold text-[#C13F3A]">Critical Alerts</p>
@@ -256,7 +257,7 @@ function AlertsEscalations() {
           )}
         </div>
       </article>
-    </section>
+    </PageContainer>
   );
 }
 

@@ -6,6 +6,8 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import type { RootState } from '../../store';
 import type { LeaveType, LeaveStatus } from '../../types/leave.types';
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 import {
   getLeaveRequests,
   createLeaveRequest,
@@ -122,9 +124,9 @@ const LeaveRequestsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Leave Management</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Manage leave and resumption requests</p>
@@ -156,59 +158,61 @@ const LeaveRequestsPage: React.FC = () => {
           {leaveQuery.isLoading ? (
             <div className="py-12 text-center text-sm text-[#8A99B0]">Loading…</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-                <tr>
-                  {isReviewer && <th className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">Employee</th>}
-                  {['Type', 'Start', 'End', 'Reason', 'Status', 'Applied', ...(isReviewer ? ['Action'] : [])].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F4F9]">
-                {(leaveQuery.data ?? []).length === 0 ? (
+            <ResponsiveTable minWidth={640}>
+              <table className="w-full text-sm">
+                <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
                   <tr>
-                    <td colSpan={8} className="py-10 text-center text-sm text-[#8A99B0]">
-                      No leave requests found.
-                    </td>
+                    {isReviewer && <th className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">Employee</th>}
+                    {['Type', 'Start', 'End', 'Reason', 'Status', 'Applied', ...(isReviewer ? ['Action'] : [])].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                    ))}
                   </tr>
-                ) : (leaveQuery.data ?? []).map((lr) => (
-                  <tr key={lr.id} className="hover:bg-[#F8F9FC] transition">
-                    {isReviewer && (
-                      <td className="px-4 py-3 font-medium text-[#1E293B]">
-                        {lr.applicant?.name ?? '—'}
+                </thead>
+                <tbody className="divide-y divide-[#F1F4F9]">
+                  {(leaveQuery.data ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={8} className="py-10 text-center text-sm text-[#8A99B0]">
+                        No leave requests found.
                       </td>
-                    )}
-                    <td className="px-4 py-3">
-                      <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
-                        {lr.leave_type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">{lr.start_date}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">{lr.end_date}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C] max-w-[160px] truncate">{lr.reason ?? '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={lr.status} /></td>
-                    <td className="px-4 py-3 text-xs text-[#8A99B0]">{lr.created_at.slice(0, 10)}</td>
-                    {isReviewer && (
+                    </tr>
+                  ) : (leaveQuery.data ?? []).map((lr) => (
+                    <tr key={lr.id} className="hover:bg-[#F8F9FC] transition">
+                      {isReviewer && (
+                        <td className="px-4 py-3 font-medium text-[#1E293B]">
+                          {lr.applicant?.name ?? '—'}
+                        </td>
+                      )}
                       <td className="px-4 py-3">
-                        {lr.status === 'PENDING' && (
-                          <button
-                            onClick={() => {
-                              setReviewModal({ type: 'leave', id: lr.id });
-                              setReviewStatus('APPROVED');
-                              setReviewComment('');
-                            }}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Review
-                          </button>
-                        )}
+                        <span className="rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                          {lr.leave_type}
+                        </span>
                       </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      <td className="px-4 py-3 text-[#5B6E8C]">{lr.start_date}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">{lr.end_date}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C] max-w-[160px] truncate">{lr.reason ?? '—'}</td>
+                      <td className="px-4 py-3"><StatusBadge status={lr.status} /></td>
+                      <td className="px-4 py-3 text-xs text-[#8A99B0]">{lr.created_at.slice(0, 10)}</td>
+                      {isReviewer && (
+                        <td className="px-4 py-3">
+                          {lr.status === 'PENDING' && (
+                            <button
+                              onClick={() => {
+                                setReviewModal({ type: 'leave', id: lr.id });
+                                setReviewStatus('APPROVED');
+                                setReviewComment('');
+                              }}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Review
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
           )}
         </div>
       )}
@@ -219,52 +223,54 @@ const LeaveRequestsPage: React.FC = () => {
           {resumptionQuery.isLoading ? (
             <div className="py-12 text-center text-sm text-[#8A99B0]">Loading…</div>
           ) : (
-            <table className="w-full text-sm">
-              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-                <tr>
-                  {isReviewer && <th className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">Employee</th>}
-                  {['Resumption Date', 'Notes', 'Status', 'Submitted', ...(isReviewer ? ['Action'] : [])].map((h) => (
-                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F4F9]">
-                {(resumptionQuery.data ?? []).length === 0 ? (
+            <ResponsiveTable minWidth={640}>
+              <table className="w-full text-sm">
+                <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
                   <tr>
-                    <td colSpan={6} className="py-10 text-center text-sm text-[#8A99B0]">
-                      No resumption requests found.
-                    </td>
+                    {isReviewer && <th className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">Employee</th>}
+                    {['Resumption Date', 'Notes', 'Status', 'Submitted', ...(isReviewer ? ['Action'] : [])].map((h) => (
+                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                    ))}
                   </tr>
-                ) : (resumptionQuery.data ?? []).map((rr) => (
-                  <tr key={rr.id} className="hover:bg-[#F8F9FC] transition">
-                    {isReviewer && (
-                      <td className="px-4 py-3 font-medium text-[#1E293B]">
-                        {rr.applicant?.name ?? '—'}
+                </thead>
+                <tbody className="divide-y divide-[#F1F4F9]">
+                  {(resumptionQuery.data ?? []).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-sm text-[#8A99B0]">
+                        No resumption requests found.
                       </td>
-                    )}
-                    <td className="px-4 py-3 text-[#5B6E8C]">{rr.resumption_date}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C] max-w-[180px] truncate">{rr.notes ?? '—'}</td>
-                    <td className="px-4 py-3"><StatusBadge status={rr.status} /></td>
-                    <td className="px-4 py-3 text-xs text-[#8A99B0]">{rr.created_at.slice(0, 10)}</td>
-                    {isReviewer && (
-                      <td className="px-4 py-3">
-                        {rr.status === 'PENDING' && (
-                          <button
-                            onClick={() => {
-                              setReviewModal({ type: 'resumption', id: rr.id });
-                              setReviewStatus('APPROVED');
-                            }}
-                            className="text-xs text-blue-600 hover:underline"
-                          >
-                            Review
-                          </button>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </tr>
+                  ) : (resumptionQuery.data ?? []).map((rr) => (
+                    <tr key={rr.id} className="hover:bg-[#F8F9FC] transition">
+                      {isReviewer && (
+                        <td className="px-4 py-3 font-medium text-[#1E293B]">
+                          {rr.applicant?.name ?? '—'}
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-[#5B6E8C]">{rr.resumption_date}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C] max-w-[180px] truncate">{rr.notes ?? '—'}</td>
+                      <td className="px-4 py-3"><StatusBadge status={rr.status} /></td>
+                      <td className="px-4 py-3 text-xs text-[#8A99B0]">{rr.created_at.slice(0, 10)}</td>
+                      {isReviewer && (
+                        <td className="px-4 py-3">
+                          {rr.status === 'PENDING' && (
+                            <button
+                              onClick={() => {
+                                setReviewModal({ type: 'resumption', id: rr.id });
+                                setReviewStatus('APPROVED');
+                              }}
+                              className="text-xs text-blue-600 hover:underline"
+                            >
+                              Review
+                            </button>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
           )}
         </div>
       )}
@@ -285,7 +291,7 @@ const LeaveRequestsPage: React.FC = () => {
               <option value="OTHER">Other</option>
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-[#5B6E8C] mb-1">Start Date *</label>
               <input
@@ -317,7 +323,7 @@ const LeaveRequestsPage: React.FC = () => {
               className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" type="button" onClick={() => setShowLeaveModal(false)}>Cancel</Button>
             <Button type="submit" loading={createLeaveMutation.isPending}>Submit</Button>
           </div>
@@ -345,7 +351,7 @@ const LeaveRequestsPage: React.FC = () => {
               className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowResumptionModal(false)}>Cancel</Button>
             <Button
               loading={createResumptionMutation.isPending}
@@ -391,7 +397,7 @@ const LeaveRequestsPage: React.FC = () => {
               />
             </div>
           )}
-          <div className="flex justify-end gap-3 pt-1">
+          <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setReviewModal(null)}>Cancel</Button>
             <Button
               loading={processLeaveMutation.isPending || processResumptionMutation.isPending}
@@ -403,7 +409,7 @@ const LeaveRequestsPage: React.FC = () => {
           </div>
         </div>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

@@ -14,6 +14,7 @@ import {
 } from '../../services/housekeepingService';
 import api from '../../services/api';
 
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLORS: Record<string, 'amber' | 'blue' | 'green'> = {
   PENDING: 'amber',
   IN_PROGRESS: 'blue',
@@ -181,7 +182,7 @@ export default function HousekeepingPage() {
   const users = usersQuery.data ?? [];
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       {/* Header */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -200,7 +201,7 @@ export default function HousekeepingPage() {
 
       {/* Stats */}
       {stats && (
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {[
             { label: 'Total', value: stats.total, tone: 'text-[#1E293B]' },
             { label: 'Pending', value: stats.pending, tone: 'text-amber-600' },
@@ -339,7 +340,7 @@ export default function HousekeepingPage() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-[#5B6E8C]">Task Type</label>
               <select
@@ -367,7 +368,7 @@ export default function HousekeepingPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-[#5B6E8C]">Scheduled Date</label>
               <input
@@ -416,7 +417,7 @@ export default function HousekeepingPage() {
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button
               onClick={() => {
                 setShowModal(false);
@@ -436,6 +437,6 @@ export default function HousekeepingPage() {
           </div>
         </div>
       </Modal>
-    </div>
+    </PageContainer>
   );
 }

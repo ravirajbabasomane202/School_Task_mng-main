@@ -9,6 +9,8 @@ import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnounc
 import type { Announcement, CreateAnnouncementPayload } from '../../types/notification.types';
 import { getApiErrorMessage, isNotFoundError } from '../../utils/apiError';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const DirectorCommunicationsPage: React.FC = () => {
   const qc = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -108,8 +110,8 @@ const DirectorCommunicationsPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Communications</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Manage school announcements and communications</p>
@@ -117,7 +119,7 @@ const DirectorCommunicationsPage: React.FC = () => {
         <Button onClick={() => setShowCreateModal(true)}>+ New Announcement</Button>
       </div>
 
-      <div className="flex gap-1 rounded-xl border border-[#EFF2F6] bg-white p-1 w-fit">
+      <div className="flex w-full gap-1 overflow-x-auto rounded-xl border border-[#EFF2F6] bg-white p-1 sm:w-fit [&>button]:shrink-0 [&>button]:whitespace-nowrap">
         {(['ALL', 'SCHOOL', 'DEPARTMENT'] as const).map((t) => (
           <button
             key={t}
@@ -137,47 +139,49 @@ const DirectorCommunicationsPage: React.FC = () => {
         ) : announcements.length === 0 ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">No announcements found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Message', 'Target', 'Date', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {announcements.map((a) => (
-                <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3 text-[#1E293B] max-w-[400px] truncate">{a.message}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">
-                    {a.target === 'ALL' ? 'All Staff' : a.target === 'DEPARTMENT' ? 'Dept Only' : 'School'}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[#8A99B0]">
-                    {new Date(a.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleEdit(a)}
-                        className="text-xs text-blue-600 hover:underline"
-                      >
-                        Edit
-                      </button>
-                      <DeleteButton
-                        label="Delete announcement"
-                        onClick={() => {
-                          setDeleteError(null);
-                          setDeleteTarget(a);
-                        }}
-                      />
-                    </div>
-                  </td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Message', 'Target', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {announcements.map((a) => (
+                  <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3 text-[#1E293B] max-w-[400px] truncate">{a.message}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">
+                      {a.target === 'ALL' ? 'All Staff' : a.target === 'DEPARTMENT' ? 'Dept Only' : 'School'}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#8A99B0]">
+                      {new Date(a.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleEdit(a)}
+                          className="text-xs text-blue-600 hover:underline"
+                        >
+                          Edit
+                        </button>
+                        <DeleteButton
+                          label="Delete announcement"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setDeleteTarget(a);
+                          }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -242,7 +246,7 @@ const DirectorCommunicationsPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowCreateModal(false)} type="button">
               Cancel
             </Button>
@@ -252,7 +256,7 @@ const DirectorCommunicationsPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

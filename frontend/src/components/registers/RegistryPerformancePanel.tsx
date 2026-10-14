@@ -19,6 +19,7 @@ import { exportPerformanceReportFiltered, getRegisterPerformance } from '../../s
 import { todayISO } from '../../utils/dateUtils';
 import type { RegisterCycle, RegisterDotColor } from '../../types/register.types';
 
+import ResponsiveTable from '../common/ResponsiveTable';
 const CYCLE_LABEL: Record<RegisterCycle, string> = {
   DAILY: 'Daily',
   WEEKLY: 'Weekly',
@@ -60,8 +61,8 @@ function KpiBox({
 }) {
   const classes = KPI_COLOR_CLASS[color];
   return (
-    <div className={`rounded-[20px] border p-5 ${classes.box} ${className}`}>
-      <p className="text-xs font-medium text-[#5B6E8C]">{label}</p>
+    <div className={`min-w-0 rounded-[20px] border p-3 sm:p-5 ${classes.box} ${className}`}>
+      <p className="break-words text-xs font-medium text-[#5B6E8C]">{label}</p>
       <p className={`mt-1 text-2xl font-semibold ${classes.value}`}>{value}</p>
     </div>
   );
@@ -278,8 +279,9 @@ function RegistryPerformancePanel() {
         <div className="w-full">
           <h2 className="text-base font-semibold text-[#1E293B]">Filter Registers</h2>
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
+        <div className="grid w-full grid-cols-1 gap-3 sm:flex sm:w-auto sm:flex-wrap sm:items-end">
+          <div className="grid grid-cols-2 gap-2 sm:contents">
+          <div className="flex min-w-0 flex-col gap-1">
             <label htmlFor="register-date-from" className="text-xs font-medium text-[#5B6E8C]">From</label>
             <input
               id="register-date-from"
@@ -287,10 +289,10 @@ function RegistryPerformancePanel() {
               value={dateFrom}
               max={dateTo}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+              className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
             />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex min-w-0 flex-col gap-1">
             <label htmlFor="register-date-to" className="text-xs font-medium text-[#5B6E8C]">To</label>
             <input
               id="register-date-to"
@@ -299,8 +301,9 @@ function RegistryPerformancePanel() {
               min={dateFrom}
               max={today}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+              className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
             />
+          </div>
           </div>
           <div className="flex flex-col gap-1">
             <label htmlFor="register-cycle-filter" className="text-xs font-medium text-[#5B6E8C]">Cycle</label>
@@ -308,7 +311,7 @@ function RegistryPerformancePanel() {
               id="register-cycle-filter"
               value={cycleFilter}
               onChange={(e) => setCycleFilter(e.target.value as RegisterCycle | 'ALL')}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+              className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
             >
               <option value="ALL">All cycles</option>
               {CYCLE_ORDER.map((cycle) => (
@@ -324,7 +327,7 @@ function RegistryPerformancePanel() {
               id="register-head-filter"
               value={headFilter}
               onChange={(e) => setHeadFilter(e.target.value)}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+              className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
             >
               <option value="ALL">All heads</option>
               {headOptions.map((option) => (
@@ -340,7 +343,7 @@ function RegistryPerformancePanel() {
               id="register-status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'ALL' | 'IDLE' | 'OK' | 'REJECTED')}
-              className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
+              className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
             >
               <option value="ALL">All statuses</option>
               <option value="IDLE">Idle</option>
@@ -350,6 +353,7 @@ function RegistryPerformancePanel() {
           </div>
         </div>
         <Button
+          className="w-full sm:w-auto"
           variant="primary"
           size="sm"
           onClick={handleExport}
@@ -363,142 +367,142 @@ function RegistryPerformancePanel() {
       {/* Register cards, directly below the filters. Names come from the shared
           label constants and the numbers are the backend's per-period counts,
           the same ones the table columns and the export show. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <KpiBox color="green" label={L.onTimeChecked} value={registerTotals.onTimeChecked} />
         <KpiBox color="yellow" label={L.checkedAfterDueDate} value={registerTotals.checkedAfterDueDate} />
         <KpiBox color="orange" label={L.notChecked} value={registerTotals.notChecked} />
         <KpiBox color="cyan" label={L.totalRegisters} value={registerTotals.totalRegisters} />
       </div>
 
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-4 text-xl font-semibold text-[#1E293B]">Register Performance</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
-                <th className="pl-6 pr-4 py-3 text-left font-semibold">{L.role}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.totalRegisters}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.checkingCycle}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.registerPerformance}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {roleRows.map((row) => (
-                <tr key={row.role} className="border-b border-[#EFF2F6]">
-                  <td className="pl-6 pr-4 py-3 text-left text-[#5B6E8C]">{toHeadLabel(row.roleName)}</td>
-                  <td className="px-4 py-3 text-center text-cyan-700">{row.totalRegisters}</td>
-                  <td className="px-4 py-3 text-center text-blue-700">
-                    {row.checkingCycles.map((c) => CYCLE_LABEL[c as RegisterCycle] ?? c).join(', ') || 'N/A'}
-                  </td>
-                  <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{row.onTimeChecked}</td>
-                  <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{row.checkedAfterDueDate}</td>
-                  <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{row.notChecked}</td>
-                  <td className="px-4 py-3 text-center text-cyan-700">{row.totalPeriodsDue}</td>
-                  <td className="px-4 py-3 text-center text-indigo-700">{row.registerPerformance}%</td>
+      <div className="min-w-0 rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
+        <h2 className="mb-4 text-lg font-semibold text-[#1E293B] sm:text-xl">Register Performance</h2>
+          <ResponsiveTable minWidth={960}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
+                  <th className="sticky left-0 z-[1] bg-[#2E75B6] py-3 pl-3 pr-4 text-left font-semibold sm:pl-6">{L.role}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.totalRegisters}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.checkingCycle}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.registerPerformance}</th>
                 </tr>
-              ))}
-              {roleRows.length > 0 && (
-                <tr className="bg-[#F1F5F9] font-semibold text-[#1E293B]" data-testid="register-performance-total">
-                  <td className="pl-6 pr-4 py-3 text-left">Total</td>
-                  <td className="px-4 py-3 text-center">{roleTotals.totalRegisters}</td>
-                  <td className="px-4 py-3" />
-                  <td className="px-4 py-3 text-center">{roleTotals.onTimeChecked}</td>
-                  <td className="px-4 py-3 text-center">{roleTotals.checkedAfterDueDate}</td>
-                  <td className="px-4 py-3 text-center">{roleTotals.notChecked}</td>
-                  <td className="px-4 py-3 text-center">{roleTotals.totalPeriodsDue}</td>
-                  <td className="px-4 py-3 text-center">{roleTotals.registerPerformance}%</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {roleRows.map((row) => (
+                  <tr key={row.role} className="border-b border-[#EFF2F6]">
+                    <td className="sticky left-0 z-[1] bg-white py-3 pl-3 pr-4 text-left text-[#5B6E8C] sm:pl-6">{toHeadLabel(row.roleName)}</td>
+                    <td className="px-4 py-3 text-center text-cyan-700">{row.totalRegisters}</td>
+                    <td className="px-4 py-3 text-center text-blue-700">
+                      {row.checkingCycles.map((c) => CYCLE_LABEL[c as RegisterCycle] ?? c).join(', ') || 'N/A'}
+                    </td>
+                    <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{row.onTimeChecked}</td>
+                    <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{row.checkedAfterDueDate}</td>
+                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{row.notChecked}</td>
+                    <td className="px-4 py-3 text-center text-cyan-700">{row.totalPeriodsDue}</td>
+                    <td className="px-4 py-3 text-center text-indigo-700">{row.registerPerformance}%</td>
+                  </tr>
+                ))}
+                {roleRows.length > 0 && (
+                  <tr className="bg-[#F1F5F9] font-semibold text-[#1E293B]" data-testid="register-performance-total">
+                    <td className="pl-6 pr-4 py-3 text-left">Total</td>
+                    <td className="px-4 py-3 text-center">{roleTotals.totalRegisters}</td>
+                    <td className="px-4 py-3" />
+                    <td className="px-4 py-3 text-center">{roleTotals.onTimeChecked}</td>
+                    <td className="px-4 py-3 text-center">{roleTotals.checkedAfterDueDate}</td>
+                    <td className="px-4 py-3 text-center">{roleTotals.notChecked}</td>
+                    <td className="px-4 py-3 text-center">{roleTotals.totalPeriodsDue}</td>
+                    <td className="px-4 py-3 text-center">{roleTotals.registerPerformance}%</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </ResponsiveTable>
       </div>
 
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <h2 className="mb-1 text-xl font-semibold text-[#1E293B]">Register Activity Report</h2>
+      <div className="min-w-0 rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
+        <h2 className="mb-1 text-lg font-semibold text-[#1E293B] sm:text-xl">Register Activity Report</h2>
         <p className="mb-4 text-sm text-[#8A99B0]">
           Every register, however it's assigned (daily, weekly, monthly…), with its own recent activity.
         </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
-                <th className="pl-6 pr-4 py-3 text-left font-semibold">Register Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Register No</th>
-                <th className="px-4 py-3 text-left font-semibold">Head Name</th>
-                <th className="px-4 py-3 text-left font-semibold">Checking Cycle</th>
-                <th className="px-4 py-3 text-left font-semibold">Recent Activity</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
-                <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
-                <th className="px-4 py-3 text-center font-semibold">Completion %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSummaries.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
-                    No registers match the selected filters.
-                  </td>
+          <ResponsiveTable minWidth={1100}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-[#EFF2F6] bg-[#2E75B6] text-white">
+                  <th className="sticky left-0 z-[1] bg-[#2E75B6] py-3 pl-3 pr-4 text-left font-semibold sm:pl-6">Register Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Register No</th>
+                  <th className="px-4 py-3 text-left font-semibold">Head Name</th>
+                  <th className="px-4 py-3 text-left font-semibold">Checking Cycle</th>
+                  <th className="px-4 py-3 text-left font-semibold">Recent Activity</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.onTimeChecked}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.checkedAfterDueDate}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.notChecked}</th>
+                  <th className="px-4 py-3 text-center font-semibold">{L.totalPeriodsDue}</th>
+                  <th className="px-4 py-3 text-center font-semibold">Completion %</th>
                 </tr>
-              ) : (
-                filteredSummaries.map((s) => (
-                  <tr key={s.register.id} className="border-b border-[#EFF2F6]">
-                    <td className="pl-6 pr-4 py-3 font-medium text-[#1E293B]">{s.register.name}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">{s.register.register_no}</td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">{s.register.head_name}</td>
-                    <td className="px-4 py-3">
-                      <Badge variant="blue">{CYCLE_LABEL[s.register.checking_cycle]}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      {s.strip.length ? (
-                        <div className="flex items-center gap-[3px]" title="Latest 5, Newest First">
-                          {latestEntries(s.strip, 5).shown.map((entry) => (
-                            <span
-                              key={entry.date}
-                              className={['h-2.5 w-2.5 rounded-sm', DOT_CLASS[entry.color]].join(' ')}
-                              title={entry.tooltip}
-                            />
-                          ))}
-                          {latestEntries(s.strip, 5).more > 0 && (
-                            <span className="ml-1 text-xs text-[#8A99B0]">
-                              +{latestEntries(s.strip, 5).more} more
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-[#C3CCDA]">No activity yet</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
-                    <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
-                    <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.notChecked}</td>
-                    <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="h-2 w-16 rounded-full bg-gray-200">
-                          <div
-                            className={[
-                              'h-2 rounded-full',
-                              s.completionRate >= 75 ? 'bg-emerald-500' : s.completionRate < 50 ? 'bg-red-500' : 'bg-amber-500',
-                            ].join(' ')}
-                            style={{ width: `${s.completionRate}%` }}
-                          />
-                        </div>
-                        <span className="text-xs text-[#1E293B]">{s.completionRate}%</span>
-                      </div>
+              </thead>
+              <tbody>
+                {filteredSummaries.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="px-4 py-6 text-center text-sm text-[#8A99B0]">
+                      No registers match the selected filters.
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ) : (
+                  filteredSummaries.map((s) => (
+                    <tr key={s.register.id} className="border-b border-[#EFF2F6]">
+                      <td className="sticky left-0 z-[1] bg-white py-3 pl-3 pr-4 font-medium text-[#1E293B] sm:pl-6">{s.register.name}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">{s.register.register_no}</td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">{s.register.head_name}</td>
+                      <td className="px-4 py-3">
+                        <Badge variant="blue">{CYCLE_LABEL[s.register.checking_cycle]}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        {s.strip.length ? (
+                          <div className="flex items-center gap-[3px]" title="Latest 5, Newest First">
+                            {latestEntries(s.strip, 5).shown.map((entry) => (
+                              <span
+                                key={entry.date}
+                                className={['h-2.5 w-2.5 rounded-sm', DOT_CLASS[entry.color]].join(' ')}
+                                title={entry.tooltip}
+                              />
+                            ))}
+                            {latestEntries(s.strip, 5).more > 0 && (
+                              <span className="ml-1 text-xs text-[#8A99B0]">
+                                +{latestEntries(s.strip, 5).more} more
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-[#C3CCDA]">No activity yet</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center bg-[#E3F6E8] text-[#14532D]">{s.onTime}</td>
+                      <td className="px-4 py-3 text-center bg-[#FEF3C7] text-[#78350F]">{s.late}</td>
+                      <td className="px-4 py-3 text-center bg-[#FDE2E2] text-[#7F1D1D]">{s.notChecked}</td>
+                      <td className="px-4 py-3 text-center text-[#1E293B]">{s.total}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="h-2 w-16 rounded-full bg-gray-200">
+                            <div
+                              className={[
+                                'h-2 rounded-full',
+                                s.completionRate >= 75 ? 'bg-emerald-500' : s.completionRate < 50 ? 'bg-red-500' : 'bg-amber-500',
+                              ].join(' ')}
+                              style={{ width: `${s.completionRate}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-[#1E293B]">{s.completionRate}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </ResponsiveTable>
       </div>
     </div>
   );

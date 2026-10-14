@@ -7,6 +7,7 @@ import Badge from '../../components/common/Badge';
 import { createMeeting, deleteMeeting, getMeetings, updateMeeting, type Meeting } from '../../services/meetingService';
 import api from '../../services/api';
 
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLORS: Record<string, 'blue' | 'amber' | 'green' | 'red' | 'gray'> = {
   SCHEDULED: 'blue',
   ONGOING: 'amber',
@@ -193,7 +194,7 @@ export default function ScheduleMeeting() {
   }).length;
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       {/* Header */}
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -213,7 +214,7 @@ export default function ScheduleMeeting() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-3 sm:gap-4">
         {[
           { label: 'Upcoming', value: upcomingCount, tone: 'text-blue-600' },
           { label: 'Today', value: todayCount, tone: 'text-amber-600' },
@@ -342,7 +343,7 @@ export default function ScheduleMeeting() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-[#5B6E8C]">
                 Date &amp; Time <span className="text-red-500">*</span>
@@ -368,7 +369,7 @@ export default function ScheduleMeeting() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs font-semibold text-[#5B6E8C]">Type</label>
               <select
@@ -437,7 +438,7 @@ export default function ScheduleMeeting() {
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button
               onClick={() => {
                 setShowModal(false);
@@ -517,7 +518,7 @@ export default function ScheduleMeeting() {
                 </div>
               </div>
             )}
-            <div className="flex justify-end gap-2 pt-2">
+            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <Button onClick={() => { setDetailMeeting(null); openEdit(detailMeeting); }} size="sm" variant="ghost">
                 Edit
               </Button>
@@ -528,6 +529,6 @@ export default function ScheduleMeeting() {
           </div>
         </Modal>
       )}
-    </div>
+    </PageContainer>
   );
 }

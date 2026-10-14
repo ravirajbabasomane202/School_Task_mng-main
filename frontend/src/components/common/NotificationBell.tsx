@@ -58,7 +58,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ notificationsPath =
     <div className="relative">
       <button
         onClick={() => setOpen((o) => !o)}
-        className="relative p-2 rounded-full hover:bg-gray-100 transition-colors"
+        className="relative flex h-10 w-10 items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
         aria-label="Notifications"
       >
         <Bell size={20} className="text-gray-600" />
@@ -75,7 +75,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ notificationsPath =
           <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
 
           {/* Dropdown */}
-          <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-xl border z-40">
+          <div className="fixed inset-x-3 top-14 z-40 max-w-sm rounded-xl border bg-white shadow-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-auto sm:mt-2 sm:w-80">
             <div className="flex items-center justify-between px-4 py-3 border-b">
               <h4 className="font-semibold text-sm text-gray-800">Notifications</h4>
               {unreadCount > 0 && (
@@ -92,7 +92,7 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ notificationsPath =
             {preview.length === 0 ? (
               <p className="text-center text-gray-400 text-sm py-8">No notifications.</p>
             ) : (
-              <ul className="divide-y max-h-72 overflow-y-auto">
+              <ul className="divide-y max-h-[60dvh] overflow-y-auto sm:max-h-72">
                 {preview.map((n) => (
                   <li
                     key={n.id}

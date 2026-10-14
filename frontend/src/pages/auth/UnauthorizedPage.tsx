@@ -15,8 +15,8 @@ export default function UnauthorizedPage() {
       : '/department';
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#F1F4F9]">
-      <div className="w-full max-w-md rounded-2xl border border-[#EFF2F6] bg-white p-10 text-center shadow-sm">
+    <div className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] p-4">
+      <div className="w-full max-w-md rounded-2xl border border-[#EFF2F6] bg-white px-5 py-7 text-center sm:p-10 shadow-sm">
         <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-2xl">
           🔒
         </div>
@@ -31,7 +31,7 @@ export default function UnauthorizedPage() {
         )}
         <button
           onClick={() => navigate(home, { replace: true })}
-          className="rounded-xl bg-[#185FA5] px-6 py-2.5 text-sm font-medium text-white hover:bg-[#0C447C] transition"
+          className="min-h-[44px] w-full rounded-xl bg-[#185FA5] px-6 py-2.5 sm:w-auto text-sm font-medium text-white hover:bg-[#0C447C] transition"
         >
           Go to my dashboard
         </button>

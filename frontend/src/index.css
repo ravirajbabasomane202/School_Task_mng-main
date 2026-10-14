@@ -16,11 +16,44 @@
   --color-border: #EFF2F6;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   background: #F1F4F9;
+  /* Safety net only: real overflow fixes live in the components. */
+  overflow-x: hidden;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+/* Phones: 16px form controls stop iOS Safari zooming in on focus, and every
+   tappable control is at least 40px tall. !important is deliberate: Tailwind
+   utilities such as text-sm have higher specificity than these element selectors
+   and would otherwise win. */
+@media (max-width: 639px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='hidden']),
+  select,
+  button {
+    min-height: 40px;
+  }
 }
 
 * {
@@ -71,4 +104,20 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* Tables scroll sideways inside their own container, never the page. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll > table {
+  min-width: 640px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='animate-[fadeIn'] {
+    animation: none !important;
+  }
 }

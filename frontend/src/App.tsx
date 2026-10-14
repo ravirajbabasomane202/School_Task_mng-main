@@ -48,7 +48,7 @@ function AppBootstrap() {
 
   if (isBootstrapping) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#F1F4F9] text-[#1E293B]">
+      <main className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] text-[#1E293B]">
         <div className="rounded-[18px] border border-[#EFF2F6] bg-white px-5 py-4 text-sm font-medium shadow-sm">
           Restoring your session...
         </div>

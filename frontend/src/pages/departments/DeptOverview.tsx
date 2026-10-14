@@ -11,6 +11,7 @@ import { updateTask } from '../../services/taskService';
 import type { Task, TaskStatus } from '../../types/task.types';
 import type { RootState } from '../../store';
 
+import PageContainer from '../../components/common/PageContainer';
 interface DeptDashboardData {
   myTasks: {
     total: number;
@@ -74,9 +75,9 @@ const UpdateStatusModal: React.FC<UpdateStatusModalProps> = ({
       onClose={onClose}
       title="Update Task Status"
       footer={
-        <div className="flex justify-end space-x-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
-          <Button loading={isSubmitting} onClick={handleSubmit}>Update</Button>
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button className="w-full sm:w-auto" variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button className="w-full sm:w-auto" loading={isSubmitting} onClick={handleSubmit}>Update</Button>
         </div>
       }
     >
@@ -180,7 +181,7 @@ const DeptOverview: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div className="mb-4">
         <h1 className="text-2xl font-semibold">Department Dashboard</h1>
         <p className="text-gray-600">
@@ -188,7 +189,7 @@ const DeptOverview: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-5">
         <div className="rounded-lg bg-gray-50 p-4">
           <h3 className="text-sm font-medium text-gray-500">My Tasks</h3>
           <p className="text-2xl font-bold text-gray-900">{data.myTasks.total}</p>
@@ -238,7 +239,7 @@ const DeptOverview: React.FC = () => {
       </div>
 
       <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-1 sm:gap-3">
           <h3 className="text-lg font-semibold">My Tasks</h3>
           <p className="text-sm text-gray-500">Click a task row to update its status.</p>
         </div>
@@ -258,7 +259,7 @@ const DeptOverview: React.FC = () => {
         task={selectedTask}
         onUpdate={handleUpdateStatus}
       />
-    </div>
+    </PageContainer>
   );
 };
 

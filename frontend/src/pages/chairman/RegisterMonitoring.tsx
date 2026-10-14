@@ -23,6 +23,8 @@ import { checkedOnText, dueDateText, timingLabel } from '../../utils/registerChe
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { useRoles } from '../../hooks/useRoles';
 import { aggregateByRole, filterRowsByRole } from '../../utils/performanceUtils';
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 import {
   REGISTER_CYCLES,
   REGISTER_PRIORITIES,
@@ -297,8 +299,8 @@ function RegisterMonitoring() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Register Monitoring</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Track register status and upcoming due dates</p>
@@ -314,7 +316,7 @@ function RegisterMonitoring() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search by Register Name or No."
-          className="min-w-[220px] flex-1 rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm"
+          className="w-full min-w-0 flex-1 rounded-lg sm:min-w-[220px] border border-[#E4EAF2] px-3 py-2 text-sm"
         />
         <select
           value={cycleFilter}
@@ -375,105 +377,107 @@ function RegisterMonitoring() {
         ) : emptyState ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">No registers found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {[
-                  'Register Name',
-                  'Register No.',
-                  'Head Name',
-                  'Checking Cycle',
-                  'Priority',
-                  'Start Date',
-                  'Status',
-                  'Due Date',
-                  'Checked On',
-                  'Actions',
-                ].map((h) => (
-                  <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {registers.map((r) => (
-                <tr key={r.id} className="transition hover:bg-[#F8F9FC]">
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsRegister(r)}
-                      className="font-medium text-[#185FA5] hover:underline"
-                    >
-                      {r.name}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{r.register_no}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{r.head_name}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{CYCLE_LABEL[r.checking_cycle]}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={PRIORITY_BADGE[r.priority]}>{r.priority}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.start_date)}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={STATUS_BADGE[r.status]}>{r.status}</Badge>
-                  </td>
-                  <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]">{dueDateText(r)}</td>
-                  <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]">
-                    {checkedOnText(r)}
-                    {r.check_timing === 'LATE' ? (
-                      <span className="block text-[11px] font-semibold text-amber-700">{timingLabel(r)}</span>
-                    ) : null}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
-                      <button onClick={() => openEdit(r)} className="text-xs text-blue-600 hover:underline" type="button">
-                        Edit
-                      </button>
-                      {(() => {
-                        const updatability = isRegisterUpdatable(r);
-                        return (
-                          <button
-                            onClick={() => openTodayStatusModal(r)}
-                            disabled={!updatability.updatable}
-                            className={
-                              updatability.updatable
-                                ? 'text-xs text-emerald-600 hover:underline'
-                                : 'text-xs text-[#B7C0CD] cursor-not-allowed'
-                            }
-                            type="button"
-                            title={
-                              updatability.updatable
-                                ? `Check this register once for the current period${
-                                    formatPeriod(r) ? ` (${formatPeriod(r)})` : ''
-                                  }`
-                                : updatability.reason
-                            }
-                          >
-                            {r.checked_in_current_period ? 'Already Checked' : 'Check Register'}
-                          </button>
-                        );
-                      })()}
-                      <button
-                        onClick={() => setCalendarRegister(r)}
-                        className="text-xs text-[#185FA5] hover:underline"
-                        type="button"
-                      >
-                        Calendar
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(r)}
-                        className="text-xs text-red-600 hover:underline"
-                        type="button"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </td>
+          <ResponsiveTable minWidth={900}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {[
+                    'Register Name',
+                    'Register No.',
+                    'Head Name',
+                    'Checking Cycle',
+                    'Priority',
+                    'Start Date',
+                    'Status',
+                    'Due Date',
+                    'Checked On',
+                    'Actions',
+                  ].map((h) => (
+                    <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {registers.map((r) => (
+                  <tr key={r.id} className="transition hover:bg-[#F8F9FC]">
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setDetailsRegister(r)}
+                        className="font-medium text-[#185FA5] hover:underline"
+                      >
+                        {r.name}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{r.register_no}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{r.head_name}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{CYCLE_LABEL[r.checking_cycle]}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={PRIORITY_BADGE[r.priority]}>{r.priority}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.start_date)}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={STATUS_BADGE[r.status]}>{r.status}</Badge>
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]">{dueDateText(r)}</td>
+                    <td className="whitespace-nowrap px-4 py-3 text-[#5B6E8C]">
+                      {checkedOnText(r)}
+                      {r.check_timing === 'LATE' ? (
+                        <span className="block text-[11px] font-semibold text-amber-700">{timingLabel(r)}</span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-wrap gap-2">
+                        <button onClick={() => openEdit(r)} className="text-xs text-blue-600 hover:underline" type="button">
+                          Edit
+                        </button>
+                        {(() => {
+                          const updatability = isRegisterUpdatable(r);
+                          return (
+                            <button
+                              onClick={() => openTodayStatusModal(r)}
+                              disabled={!updatability.updatable}
+                              className={
+                                updatability.updatable
+                                  ? 'text-xs text-emerald-600 hover:underline'
+                                  : 'text-xs text-[#B7C0CD] cursor-not-allowed'
+                              }
+                              type="button"
+                              title={
+                                updatability.updatable
+                                  ? `Check this register once for the current period${
+                                      formatPeriod(r) ? ` (${formatPeriod(r)})` : ''
+                                    }`
+                                  : updatability.reason
+                              }
+                            >
+                              {r.checked_in_current_period ? 'Already Checked' : 'Check Register'}
+                            </button>
+                          );
+                        })()}
+                        <button
+                          onClick={() => setCalendarRegister(r)}
+                          className="text-xs text-[#185FA5] hover:underline"
+                          type="button"
+                        >
+                          Calendar
+                        </button>
+                        <button
+                          onClick={() => setDeleteTarget(r)}
+                          className="text-xs text-red-600 hover:underline"
+                          type="button"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -518,7 +522,7 @@ function RegisterMonitoring() {
                 ))}
               </select>
             </label>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label className="flex flex-col gap-1.5">
                 <span className="text-[12px] font-medium text-[#36506C]">Checking Cycle *</span>
                 <select
@@ -554,7 +558,7 @@ function RegisterMonitoring() {
               value={editForm.start_date}
               onChange={(e) => setEditForm({ ...editForm, start_date: e.target.value })}
             />
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <Button variant="ghost" type="button" onClick={() => { setEditingRegister(null); setEditForm(null); }}>
                 Cancel
               </Button>
@@ -598,7 +602,7 @@ function RegisterMonitoring() {
                 ))}
               </select>
             </label>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <Button variant="ghost" type="button" onClick={() => setOccurrenceTarget(null)}>
                 Cancel
               </Button>
@@ -629,7 +633,7 @@ function RegisterMonitoring() {
               <span className="font-semibold text-[#1E293B]">{deleteTarget.name}</span> ({deleteTarget.register_no})? This
               action cannot be undone.
             </p>
-            <div className="flex justify-end gap-3 pt-2">
+            <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <Button variant="ghost" type="button" onClick={() => setDeleteTarget(null)}>
                 Cancel
               </Button>
@@ -650,7 +654,7 @@ function RegisterMonitoring() {
 
       {/* Calendar popup — opens a small modal for just the selected Register (Section 4). */}
       <RegisterCalendarPopup register={calendarRegister} onClose={() => setCalendarRegister(null)} />
-    </div>
+    </PageContainer>
   );
 }
 

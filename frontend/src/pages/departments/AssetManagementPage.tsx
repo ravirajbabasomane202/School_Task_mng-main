@@ -8,6 +8,8 @@ import { getAssets, getAssetStats, createAsset, updateAsset, deleteAsset } from 
 import type { Asset, AssetStats, CreateAssetPayload, AssetCategory, AssetCondition, AssetStatus } from '../../types/asset.types';
 import type { RootState } from '../../store';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const CONDITION_COLOR: Record<AssetCondition, string> = {
   EXCELLENT: 'bg-green-100 text-green-700',
   GOOD: 'bg-blue-100 text-blue-700',
@@ -131,8 +133,8 @@ const AssetManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Asset Management</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Track and manage school assets</p>
@@ -159,7 +161,7 @@ const AssetManagementPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="flex gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:gap-4 [&>select]:w-full sm:[&>select]:w-auto">
         <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value as AssetCategory | 'ALL')}
@@ -189,54 +191,56 @@ const AssetManagementPage: React.FC = () => {
         ) : assets.length === 0 ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">No assets found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Name', 'Category', 'Serial', 'Condition', 'Status', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {assets.map((a) => (
-                <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3 font-medium text-[#1E293B]">{a.name}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{a.category}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{a.serial_number ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_COLOR[a.condition]}`}>
-                      {a.condition}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
-                      {a.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {isIT && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleEdit(a)}
-                          className="text-xs text-blue-600 hover:underline"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => deleteMutation.mutate(a.id)}
-                          className="text-xs text-red-600 hover:underline"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    )}
-                  </td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Name', 'Category', 'Serial', 'Condition', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
+                      {h}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {assets.map((a) => (
+                  <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3 font-medium text-[#1E293B]">{a.name}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{a.category}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{a.serial_number ?? '—'}</td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${CONDITION_COLOR[a.condition]}`}>
+                        {a.condition}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
+                        {a.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {isIT && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEdit(a)}
+                            className="text-xs text-blue-600 hover:underline"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => deleteMutation.mutate(a.id)}
+                            className="text-xs text-red-600 hover:underline"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -261,7 +265,7 @@ const AssetManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-[#5B6E8C] mb-1">Category *</label>
               <select
@@ -300,7 +304,7 @@ const AssetManagementPage: React.FC = () => {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-[#5B6E8C] mb-1">Assigned To (User ID)</label>
               <input
@@ -324,7 +328,7 @@ const AssetManagementPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowCreateModal(false)} type="button">
               Cancel
             </Button>
@@ -334,7 +338,7 @@ const AssetManagementPage: React.FC = () => {
           </div>
         </form>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

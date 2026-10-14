@@ -5,6 +5,8 @@ import {
 } from 'recharts';
 import { getWeeklyReport } from '../../services/reportService';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const today = new Date();
 const monday = new Date(today);
 monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
@@ -27,27 +29,27 @@ function WeeklyReport() {
   const chartData = reportData?.daily ?? [];
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-end gap-4">
         <div>
-          <h1 className="text-2xl font-semibold text-[#1E293B]">Weekly Report</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl text-[#1E293B]">Weekly Report</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">Task summary for a selected week</p>
         </div>
-        <div className="ml-auto flex flex-wrap items-end gap-3">
+        <div className="grid w-full grid-cols-1 gap-3 xs:grid-cols-2 sm:ml-auto sm:flex sm:w-auto sm:flex-wrap sm:items-end">
           <div>
             <label className="block text-xs font-medium text-[#5B6E8C] mb-1">From</label>
             <input type="date" value={dateFrom} max={dateTo}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none" />
+              className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none" />
           </div>
           <div>
             <label className="block text-xs font-medium text-[#5B6E8C] mb-1">To</label>
             <input type="date" value={dateTo} min={dateFrom}
               onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none" />
+              className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none" />
           </div>
           <button onClick={() => refetch()}
-            className="rounded-lg bg-[#185FA5] px-4 py-2 text-sm font-medium text-white hover:bg-[#1251A0] transition">
+            className="w-full rounded-lg bg-[#185FA5] px-4 py-2 text-sm font-medium xs:col-span-2 sm:w-auto text-white hover:bg-[#1251A0] transition">
             Generate
           </button>
         </div>
@@ -106,39 +108,41 @@ function WeeklyReport() {
               <div className="border-b border-[#EFF2F6] bg-[#F8F9FC] px-5 py-3">
                 <h3 className="text-sm font-semibold text-[#1E293B]">Task Details</h3>
               </div>
-              <table className="w-full text-sm">
-                <thead className="border-b border-[#EFF2F6]">
-                  <tr>
-                    {['Title', 'Assignee', 'Priority', 'Status', 'Due Date'].map((h) => (
-                      <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#F1F4F9]">
-                  {reportData.tasks.map((t: any) => (
-                    <tr key={t.id} className="hover:bg-[#F8F9FC]">
-                      <td className="px-4 py-3 font-medium text-[#1E293B]">{t.title}</td>
-                      <td className="px-4 py-3 text-[#5B6E8C]">{t.assignee?.name ?? t.assigned_to ?? '--'}</td>
-                      <td className="px-4 py-3 text-[#5B6E8C]">{t.priority}</td>
-                      <td className="px-4 py-3">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          t.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
-                          t.status === 'DELAYED'   ? 'bg-red-100 text-red-700' :
-                          t.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
-                        }`}>{t.status?.replace('_', ' ')}</span>
-                      </td>
-                      <td className="px-4 py-3 text-xs text-[#8A99B0]">
-                        {t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'}
-                      </td>
+              <ResponsiveTable minWidth={640}>
+                <table className="w-full text-sm">
+                  <thead className="border-b border-[#EFF2F6]">
+                    <tr>
+                      {['Title', 'Assignee', 'Priority', 'Status', 'Due Date'].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-[#F1F4F9]">
+                    {reportData.tasks.map((t: any) => (
+                      <tr key={t.id} className="hover:bg-[#F8F9FC]">
+                        <td className="px-4 py-3 font-medium text-[#1E293B]">{t.title}</td>
+                        <td className="px-4 py-3 text-[#5B6E8C]">{t.assignee?.name ?? t.assigned_to ?? '--'}</td>
+                        <td className="px-4 py-3 text-[#5B6E8C]">{t.priority}</td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            t.status === 'COMPLETED' ? 'bg-green-100 text-green-700' :
+                            t.status === 'DELAYED'   ? 'bg-red-100 text-red-700' :
+                            t.status === 'IN_PROGRESS' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'
+                          }`}>{t.status?.replace('_', ' ')}</span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-[#8A99B0]">
+                          {t.due_date ? new Date(t.due_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '--'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </ResponsiveTable>
             </div>
           )}
         </>
       )}
-    </div>
+    </PageContainer>
   );
 }
 

@@ -1,7 +1,6 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
-import Navbar from '../components/common/Navbar';
-import Sidebar from '../components/common/Sidebar';
+import AppShell from '../components/common/AppShell';
 import { DEPARTMENT_HEAD_ROLES, ROLES } from '../constants/roles';
 import { useSocket } from '../hooks/useSocket';
 import ChangePassword from '../pages/auth/ChangePassword';
@@ -38,13 +37,9 @@ const PageSpinner = () => (
 function AppLayout() {
   useSocket();
   return (
-    <div className="flex min-h-screen bg-[#F1F4F9] text-[#1E293B]">
-      <Sidebar />
-      <main className="custom-scrollbar ml-[196px] h-screen min-w-0 flex-1 overflow-y-auto">
-        <Navbar />
-        <Outlet />
-      </main>
-    </div>
+    <AppShell>
+      <Outlet />
+    </AppShell>
   );
 }
 

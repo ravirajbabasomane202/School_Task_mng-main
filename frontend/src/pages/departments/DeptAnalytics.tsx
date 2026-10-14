@@ -6,6 +6,7 @@ import TaskStatusPieChart from '../../components/charts/TaskStatusPieChart';
 import api from '../../services/api';
 import type { RootState } from '../../store';
 
+import PageContainer from '../../components/common/PageContainer';
 interface AnalyticsSummary {
   total: number;
   completed: number;
@@ -56,7 +57,7 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
   const { summary, monthly, taskStatusData } = data;
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-[#1E293B]">My Analytics</h1>
         <p className="mt-1 text-sm text-[#5B6E8C]">Your own task performance overview</p>
@@ -70,7 +71,7 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
         <StatCard label="Completion %" value={`${summary.completionPct}%`} color="text-blue-600" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Pie Chart */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Task Status Distribution</h3>
@@ -112,7 +113,7 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthly} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
+            <XAxis dataKey="month" interval="preserveStartEnd" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />
@@ -121,7 +122,7 @@ const DeptAnalytics: React.FC<DeptAnalyticsProps> = ({ roleSlug }) => {
           </BarChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

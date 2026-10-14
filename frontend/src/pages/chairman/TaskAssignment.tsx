@@ -569,13 +569,25 @@ function TaskAssignment() {
   };
 
   return (
-    <section className="grid gap-5 p-5 xl:grid-cols-[420px_minmax(0,1fr)]">
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+    <section className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 p-3 xs:p-4 md:gap-5 md:p-5 lg:p-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+      {/* Phones/tablets: form comes first, so offer a quick jump to the queue. */}
+      <div className="sticky top-[68px] z-[5] -mb-1 flex justify-end xl:hidden">
+        <button
+          className="rounded-full border border-[#D7E7F7] bg-white/95 px-4 py-2 text-xs font-semibold text-[#185FA5] shadow-sm backdrop-blur"
+          onClick={() =>
+            document.getElementById('task-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+          type="button"
+        >
+          Jump to queue ↓
+        </button>
+      </div>
+      <div className="min-w-0 rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
             Tasks Module
           </p>
-          <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">
+          <h2 className="mt-2 text-lg font-semibold text-[#1E293B] sm:text-xl">
             {editingTask !== null ? 'Edit Task' : 'Create New Task'}
           </h2>
           <p className="mt-2 text-sm leading-6 text-[#5B6E8C]">
@@ -749,8 +761,8 @@ function TaskAssignment() {
         </form>
       </div>
 
-      <div className="space-y-4">
-        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+      <div className="min-w-0 scroll-mt-20 space-y-4" id="task-queue">
+        <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
@@ -759,11 +771,11 @@ function TaskAssignment() {
               <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">Active Task Queue</h2>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="-mx-1 flex w-full flex-nowrap gap-2 overflow-x-auto px-1 pb-1 sm:mx-0 sm:w-auto sm:flex-wrap sm:overflow-visible sm:px-0 sm:pb-0">
               {statusTabs.map((tab) => (
                 <button
                   className={[
-                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    'shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition',
                     activeStatus === tab.value
                       ? 'bg-[#185FA5] text-white'
                       : 'bg-[#F3F6FA] text-[#5B6E8C] hover:bg-[#E7EDF4]'
@@ -810,11 +822,11 @@ function TaskAssignment() {
               showActions
             />
             {filteredTasks.length > PAGE_SIZE ? (
-              <div className="flex items-center justify-between gap-3 text-xs text-[#5B6E8C]">
+              <div className="flex flex-col gap-2 text-xs text-[#5B6E8C] sm:flex-row sm:items-center sm:justify-between sm:gap-3">
                 <span>
                   {`Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(currentPage * PAGE_SIZE, filteredTasks.length)} of ${filteredTasks.length}`}
                 </span>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
                   <Button disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} size="sm" variant="ghost">
                     Previous
                   </Button>

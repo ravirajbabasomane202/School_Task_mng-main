@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TaskTable from '../components/tables/TaskTable';
 import type { Task } from '../types/task.types';
@@ -271,5 +271,56 @@ describe('TaskTable status options by relationship to the task', () => {
     expect(
       await screen.findByText('You can only set status to In Progress or Completed.')
     ).toBeInTheDocument();
+  });
+});
+
+describe('TaskTable responsive layout', () => {
+  const originalMatchMedia = window.matchMedia;
+
+  const setViewport = (isPhone: boolean) => {
+    window.matchMedia = ((query: string) => ({
+      matches: query.includes('max-width: 767px') ? isPhone : false,
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })) as unknown as typeof window.matchMedia;
+  };
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  it('renders the table (inside a scroll wrapper) at md and up', () => {
+    setViewport(false);
+    render(<TaskTable tasks={mockTasks} />);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByTestId('responsive-table')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-card-list')).toBeNull();
+  });
+
+  it('renders one card per task on phones, keeping row click and actions', () => {
+    setViewport(true);
+    const onRowClick = vi.fn();
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(<TaskTable tasks={mockTasks} showActions onRowClick={onRowClick} onEdit={onEdit} onDelete={onDelete} />);
+
+    expect(screen.queryByRole('table')).toBeNull();
+    expect(screen.getAllByTestId('task-card')).toHaveLength(mockTasks.length);
+    expect(screen.getByText('High Priority Task')).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByTitle('Edit task')[0]);
+    expect(onEdit).toHaveBeenCalledWith(mockTasks[0]);
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getAllByTitle('Delete task')[0]);
+    expect(onDelete).toHaveBeenCalledWith(mockTasks[0].id);
+
+    fireEvent.click(screen.getAllByTestId('task-card')[1]);
+    expect(onRowClick).toHaveBeenCalledWith(mockTasks[1]);
   });
 });

@@ -20,9 +20,9 @@ const variantClasses: Record<ButtonVariant, string> = {
 };
 
 const sizeClasses: Record<ButtonSize, string> = {
-  sm: 'min-h-[32px] px-3 text-xs',
-  md: 'min-h-[36px] px-4 text-sm',
-  lg: 'min-h-[40px] px-5 text-sm'
+  sm: 'min-h-[40px] px-3 text-xs sm:min-h-[32px]',
+  md: 'min-h-[40px] px-4 text-sm sm:min-h-[36px]',
+  lg: 'min-h-[44px] px-5 text-sm sm:min-h-[40px]'
 };
 
 function Button({

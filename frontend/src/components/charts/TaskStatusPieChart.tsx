@@ -1,4 +1,5 @@
 import React from 'react';
+import { useIsMd } from '../../hooks/useMediaQuery';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface TaskStatusData {
@@ -77,19 +78,20 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
   const totalTasks = safeData.reduce((sum, item) => sum + item.value, 0);
   const chartData = totalTasks > 0 ? safeData : EMPTY_STATE_DATA;
 
+  const isMd = useIsMd();
   const captionLines = splitCaption(totalLabel);
 
   return (
     <div className="flex flex-col items-center">
-      <div className="h-[380px] w-full">
+      <div className="h-[260px] w-full md:h-[380px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={chartData}
               cx="50%"
               cy="50%"
-              innerRadius={95}
-              outerRadius={150}
+              innerRadius={isMd ? 95 : 60}
+              outerRadius={isMd ? 150 : 95}
               paddingAngle={totalTasks > 0 ? 3 : 0}
               dataKey="value"
               nameKey="name"
@@ -107,7 +109,7 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
               textAnchor="middle"
               dominantBaseline="middle"
               fill="#1E293B"
-              fontSize={28}
+              fontSize={isMd ? 28 : 22}
               fontWeight={600}
               pointerEvents="none"
             >
@@ -121,7 +123,7 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#475569"
-                fontSize={13}
+                fontSize={isMd ? 13 : 11}
                 pointerEvents="none"
               >
                 {line}
@@ -130,7 +132,7 @@ const TaskStatusPieChart: React.FC<TaskStatusPieChartProps> = ({
           </PieChart>
         </ResponsiveContainer>
       </div>
-      <ul className="mt-2 flex flex-wrap justify-center gap-4">
+      <ul className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
         {(totalTasks > 0 ? chartData : []).map((entry) => (
           <li key={entry.name} className="flex items-center space-x-2">
             <div className="h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />

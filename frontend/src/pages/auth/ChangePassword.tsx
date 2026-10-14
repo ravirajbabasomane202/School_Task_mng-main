@@ -45,14 +45,14 @@ function ChangePassword() {
   };
 
   return (
-    <main className="min-h-screen bg-[#F1F4F9] px-6 py-10 text-[#1E293B]">
+    <main className="min-h-dvh bg-[#F1F4F9] p-4 sm:px-6 sm:py-10 text-[#1E293B]">
       {showToast ? (
-        <div className="fixed right-6 top-6 rounded-md border border-[#EFF2F6] bg-white px-4 py-3 text-sm font-semibold text-[#185FA5] shadow-sm">
+        <div className="fixed inset-x-4 top-16 z-50 rounded-md sm:inset-x-auto sm:right-6 sm:top-6 border border-[#EFF2F6] bg-white px-4 py-3 text-sm font-semibold text-[#185FA5] shadow-sm">
           Password Changed Successfully.
         </div>
       ) : null}
 
-      <section className="mx-auto max-w-xl rounded-lg border border-[#EFF2F6] bg-white p-6 shadow-sm">
+      <section className="mx-auto w-full max-w-xl rounded-lg border border-[#EFF2F6] bg-white px-5 py-7 shadow-sm sm:p-8">
         <p className="text-sm font-semibold uppercase text-[#185FA5]">Account Security</p>
         <h1 className="mt-3 text-2xl font-bold">Change Password</h1>
         <p className="mt-2 text-[#5B6E8C]">Update your password to keep your account secure.</p>
@@ -66,7 +66,7 @@ function ChangePassword() {
             type="password"
             value={currentPassword}
             onChange={(event) => setCurrentPassword(event.target.value)}
-            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-sm outline-none focus:border-[#185FA5] focus:bg-white"
+            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-base outline-none sm:text-sm focus:border-[#185FA5] focus:bg-white"
             required
           />
 
@@ -79,7 +79,7 @@ function ChangePassword() {
             value={newPassword}
             onChange={(event) => setNewPassword(event.target.value)}
             minLength={8}
-            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-sm outline-none focus:border-[#185FA5] focus:bg-white"
+            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-base outline-none sm:text-sm focus:border-[#185FA5] focus:bg-white"
             required
           />
 
@@ -92,7 +92,7 @@ function ChangePassword() {
             value={confirmPassword}
             onChange={(event) => setConfirmPassword(event.target.value)}
             minLength={8}
-            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-sm outline-none focus:border-[#185FA5] focus:bg-white"
+            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-base outline-none sm:text-sm focus:border-[#185FA5] focus:bg-white"
             required
           />
 

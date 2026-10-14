@@ -4,6 +4,7 @@ import { useAppSelector } from '../store/hooks';
 import { ROLES } from '../constants/roles';
 import { SCHOOL_INFO } from '../constants/schoolInfo';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
+import { Menu, X } from 'lucide-react';
 
 // Floating shape animations
 const FloatingShape = ({ className, delay }: { className: string; delay: number }) => (
@@ -96,7 +97,7 @@ const Section = ({ id, children, className = "" }: { id?: string; children: Reac
       initial={{ opacity: 0, y: 50 }}
       animate={isInView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.6, ease: "easeOut" }}
-      className={`mx-auto max-w-7xl px-6 sm:px-8 ${className}`}
+      className={`mx-auto max-w-7xl px-4 xs:px-6 sm:px-8 ${className}`}
     >
       {children}
     </motion.section>
@@ -155,9 +156,13 @@ function LandingPage() {
     return () => observer.disconnect();
   }, []);
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const navItems = ["Features", "How it works", "Dashboard", "Testimonials", "FAQ"];
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    setMobileMenuOpen(false);
   };
 
   return (
@@ -174,18 +179,18 @@ function LandingPage() {
         transition={{ duration: 0.5 }}
         className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm"
       >
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4 sm:px-8">
-          <div className="flex items-center gap-3">
-            <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg" />
-            <div>
-              <span className="block text-xs font-medium text-slate-500">{schoolInfo.name}</span>
-              <span className="block text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-8 sm:py-4">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg" />
+            <div className="min-w-0">
+              <span className="block truncate text-xs font-medium text-slate-500">{schoolInfo.name}</span>
+              <span className="block truncate text-base font-bold sm:text-lg bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
                 {schoolInfo.appName}
               </span>
             </div>
           </div>
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
-            {["Features", "How it works", "Dashboard", "Testimonials", "FAQ"].map((item) => {
+            {navItems.map((item) => {
               const id = item.toLowerCase().replace(/ /g, "-");
               return (
                 <button
@@ -207,13 +212,44 @@ function LandingPage() {
               );
             })}
           </div>
-          <button
-            onClick={() => navigate('/login')}
-            className="rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md hover:shadow-xl transition-all hover:scale-105"
-          >
-            Login
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={() => navigate('/login')}
+              className="min-h-[40px] rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 px-5 py-2 text-sm font-semibold text-white shadow-md hover:shadow-xl transition-all hover:scale-105"
+            >
+              Login
+            </button>
+            <button
+              aria-controls="landing-mobile-menu"
+              aria-expanded={mobileMenuOpen}
+              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+              className="flex h-10 w-10 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 md:hidden"
+              onClick={() => setMobileMenuOpen((open) => !open)}
+              type="button"
+            >
+              {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+            </button>
+          </div>
         </div>
+        {mobileMenuOpen ? (
+          <div className="border-t border-slate-200/60 px-4 pb-3 md:hidden" id="landing-mobile-menu">
+            {navItems.map((item) => {
+              const id = item.toLowerCase().replace(/ /g, "-");
+              return (
+                <button
+                  key={item}
+                  onClick={() => scrollTo(id)}
+                  className={`flex min-h-[44px] w-full items-center text-left text-sm font-medium ${
+                    activeNav === id ? "text-blue-600" : "text-slate-700"
+                  }`}
+                  type="button"
+                >
+                  {item}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
       </motion.nav>
 
       {/* Hero Section */}
@@ -228,16 +264,16 @@ function LandingPage() {
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 border border-blue-100">
               ✨ Next-Gen School Operations
             </div>
-            <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+            <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900 xs:text-4xl sm:text-5xl lg:text-6xl">
               Build A Smarter School Operation With{" "}
               <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
                 Centralized Task Management
               </span>
             </h1>
-            <p className="mt-6 text-lg leading-relaxed text-slate-600 max-w-2xl">
+            <p className="mt-6 text-base leading-relaxed text-slate-600 max-w-2xl sm:text-lg">
               EduTask Pro helps school leadership organize assignments, monitor deadlines, and keep staff aligned with a modern responsive dashboard designed for education workflows.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row [&>*]:w-full sm:[&>*]:w-auto">
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -262,8 +298,8 @@ function LandingPage() {
             transition={{ duration: 0.8, type: "spring" }}
             className="flex-1 relative"
           >
-            <div className="rounded-2xl bg-white/50 backdrop-blur-sm border border-white/50 shadow-2xl p-6 overflow-hidden">
-              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
+            <div className="rounded-2xl bg-white/50 backdrop-blur-sm border border-white/50 shadow-2xl p-3 overflow-hidden sm:p-6">
+              <div className="rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 p-3 sm:p-6">
                 <div className="flex items-center gap-2 mb-4">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div className="h-3 w-3 rounded-full bg-yellow-400" />
@@ -293,7 +329,7 @@ function LandingPage() {
 
       {/* Statistics Section */}
       <Section id="statistics" className="py-16">
-        <div className="grid grid-cols-2 gap-8 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 p-8 text-white shadow-2xl lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-8 rounded-3xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white sm:p-8 shadow-2xl lg:grid-cols-4">
           {[
             { label: "Active Schools", target: 500, suffix: "+" },
             { label: "Tasks Completed", target: 125000, suffix: "+" },
@@ -301,7 +337,7 @@ function LandingPage() {
             { label: "Avg. Response Time", target: 2.4, suffix: "h" },
           ].map((stat) => (
             <div key={stat.label} className="text-center">
-              <div className="text-4xl font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+              <div className="text-3xl font-bold sm:text-4xl bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
                 <AnimatedCounter target={stat.target} suffix={stat.suffix} />
               </div>
               <p className="mt-2 text-sm text-slate-300">{stat.label}</p>

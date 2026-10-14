@@ -34,8 +34,8 @@ function Login() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#F1F4F9] px-4 py-10 text-[#1E293B]">
-      <section className="w-full max-w-[420px] rounded-lg border border-[#EFF2F6] bg-[#FFFFFF] px-8 py-9 shadow-sm">
+    <main className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] p-4 sm:py-10 text-[#1E293B]">
+      <section className="w-full max-w-[420px] rounded-lg border border-[#EFF2F6] bg-[#FFFFFF] px-5 py-7 shadow-sm sm:px-8 sm:py-9">
         <div className="flex flex-col items-center text-center">
           <div className="flex h-[30px] w-[30px] items-center justify-center rounded-md bg-[#185FA5] text-[11px] font-bold text-white">
             EP
@@ -54,7 +54,7 @@ function Login() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             autoComplete="email"
-            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none transition focus:border-[#185FA5] focus:bg-white"
+            className="mt-2 h-11 w-full rounded-md border border-[#EFF2F6] bg-[#F8F9FC] px-3 text-base sm:text-sm text-[#1E293B] outline-none transition focus:border-[#185FA5] focus:bg-white"
             placeholder="chairman@school.com"
             required
           />
@@ -76,7 +76,7 @@ function Login() {
             <button
               type="button"
               onClick={() => setShowPassword((current) => !current)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-[#185FA5]"
+              className="absolute right-1 top-1/2 flex min-h-[40px] -translate-y-1/2 items-center px-2 text-xs font-semibold text-[#185FA5]"
             >
               {showPassword ? 'Hide' : 'Show'}
             </button>

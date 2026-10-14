@@ -16,6 +16,7 @@ import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import type { Task, TaskStatus } from '../../types/task.types';
 import type { User } from '../../types/user.types';
 
+import PageContainer from '../../components/common/PageContainer';
 const statCards: Array<{ color: string; key: TaskStatus; label: string }> = [
   { color: 'bg-[#FFF7E1] text-[#A86A00]', key: 'IN_PROGRESS', label: 'In Progress' },
   { color: 'bg-[#EDF9F1] text-[#2E7D4F]', key: 'COMPLETED', label: 'Completed' },
@@ -189,7 +190,7 @@ function TaskMonitoring() {
 
   if (taskQuery.isError) {
     return (
-      <section className="space-y-5 p-5">
+      <section className="space-y-5 p-3 xs:p-4 md:p-5">
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
           Failed to load tasks. Please refresh the page.
         </p>
@@ -198,10 +199,10 @@ function TaskMonitoring() {
   }
 
   return (
-    <section className="space-y-5 p-5">
-      <div className="grid gap-4 md:grid-cols-3 xl:grid-cols-3">
+    <PageContainer className="space-y-5">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3">
         {statCards.map((card) => (
-          <article className="rounded-[18px] border border-[#EFF2F6] bg-white p-5" key={card.key}>
+          <article className="min-w-0 rounded-[18px] border border-[#EFF2F6] bg-white p-4 sm:p-5" key={card.key}>
             <span
               className={[
                 'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold',
@@ -210,7 +211,7 @@ function TaskMonitoring() {
             >
               {card.label}
             </span>
-            <p className="mt-4 text-3xl font-semibold text-[#1E293B]">{counts[card.key]}</p>
+            <p className="mt-3 text-2xl font-semibold text-[#1E293B] sm:mt-4 sm:text-3xl">{counts[card.key]}</p>
             <p className="mt-2 text-sm text-[#8A99B0]">
               Tasks currently marked {card.label.toLowerCase()}.
             </p>
@@ -218,7 +219,7 @@ function TaskMonitoring() {
         ))}
       </div>
 
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
@@ -231,7 +232,7 @@ function TaskMonitoring() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="grid w-full grid-cols-1 gap-2 xs:grid-cols-2 sm:flex sm:w-auto sm:flex-wrap">
             <Button
               loading={isExporting === 'pdf'}
               onClick={() => void handleExport('pdf')}
@@ -248,7 +249,7 @@ function TaskMonitoring() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="mt-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Search</span>
             <input
@@ -295,7 +296,7 @@ function TaskMonitoring() {
             </select>
           </label>
 
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 xs:grid-cols-2 sm:col-span-2 xl:col-span-1">
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-medium text-[#36506C]">Start from</span>
               <input
@@ -327,7 +328,7 @@ function TaskMonitoring() {
         tasks={filteredTasks}
         currentUserId={user?.id}
       />
-    </section>
+    </PageContainer>
   );
 }
 

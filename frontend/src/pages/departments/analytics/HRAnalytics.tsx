@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
+import { useIsMd } from '../../../hooks/useMediaQuery';
 import { useSelector } from 'react-redux';
 import api from '../../../services/api';
 import type { RootState } from '../../../store';
@@ -27,6 +28,7 @@ const LEAVE_COLORS: Record<string, string> = {
 };
 
 const HRAnalytics: React.FC = () => {
+  const isMd = useIsMd();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
@@ -118,13 +120,13 @@ const HRAnalytics: React.FC = () => {
         <StatCard label="Open Positions" value={recruitments.filter((r) => r.status === 'OPEN').length} color="bg-blue-100 text-blue-700" icon="💼" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Leave status pie */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Leave Request Status</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={leaveStats} cx="50%" cy="50%" outerRadius={70} dataKey="value" label={({ name, value }) => `${name}: ${value}`}>
+              <Pie data={leaveStats} cx="50%" cy="50%" outerRadius={isMd ? 70 : 45} dataKey="value" label={isMd ? ({ name, value }) => `${name}: ${value}` : false}>
                 {leaveStats.map((e, i) => <Cell key={i} fill={e.color} />)}
               </Pie>
               <Tooltip />
@@ -138,7 +140,7 @@ const HRAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={leaveTypeData} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar dataKey="count" name="Requests" fill="#EC4899" radius={[4, 4, 0, 0]} />
@@ -152,7 +154,7 @@ const HRAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={recData} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar dataKey="count" name="Openings" fill="#8B5CF6" radius={[4, 4, 0, 0]} />
@@ -166,7 +168,7 @@ const HRAnalytics: React.FC = () => {
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={salData} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 9 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 9 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip />
               <Bar dataKey="count" name="Requests" fill="#F59E0B" radius={[4, 4, 0, 0]} />
@@ -181,7 +183,7 @@ const HRAnalytics: React.FC = () => {
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={monthly} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
+            <XAxis dataKey="month" interval="preserveStartEnd" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />

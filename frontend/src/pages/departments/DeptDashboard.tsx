@@ -43,7 +43,7 @@ const DeptDashboard: React.FC<DeptDashboardProps> = ({ deptLabel, basePath }) =>
 
   return (
     <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">{deptLabel} Dashboard</h2>
+      <h2 className="text-xl font-bold text-gray-800 sm:text-2xl">{deptLabel} Dashboard</h2>
 
       {/* Stat cards — clickable */}
       <DeptOverview tasks={tasks} loading={loading} basePath={basePath} />

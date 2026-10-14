@@ -151,14 +151,14 @@ function AnnouncementsPage() {
   };
 
   return (
-    <section className="grid gap-5 p-5 xl:grid-cols-[1.1fr,0.9fr]">
-      <article className="rounded-[22px] border border-[#EFF2F6] bg-white p-6">
-        <div className="flex items-center justify-between gap-3">
-          <div>
+    <section className="mx-auto grid w-full max-w-[1600px] min-w-0 gap-4 p-3 xs:p-4 md:gap-5 md:p-5 lg:p-6 xl:grid-cols-[1.1fr,0.9fr]">
+      <article className="min-w-0 rounded-[22px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Comms Module
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Broadcast Message</h2>
+            <h2 className="mt-2 text-xl font-semibold text-[#1E293B] sm:text-2xl">Broadcast Message</h2>
           </div>
           <Badge variant="blue">Chairman Control</Badge>
         </div>
@@ -167,7 +167,7 @@ function AnnouncementsPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Target</span>
             <select
-              className="min-h-[40px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+              className="min-h-[44px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-base sm:min-h-[40px] sm:text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
               onChange={(event) => setTarget(event.target.value as AnnouncementTarget)}
               value={target}
             >
@@ -180,7 +180,7 @@ function AnnouncementsPage() {
             <label className="flex flex-col gap-1.5">
               <span className="text-[12px] font-medium text-[#36506C]">Department</span>
               <select
-                className="min-h-[40px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+                className="min-h-[44px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-base sm:min-h-[40px] sm:text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
                 onChange={(event) => setDepartmentId(event.target.value)}
                 value={departmentId}
               >
@@ -197,7 +197,7 @@ function AnnouncementsPage() {
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Message</span>
             <textarea
-              className="min-h-[220px] rounded-[16px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-4 py-3 text-sm leading-6 text-[#1E293B] outline-none transition placeholder:text-[#8A99B0] focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+              className="min-h-[160px] rounded-[16px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-4 py-3 text-base sm:min-h-[220px] sm:text-sm leading-6 text-[#1E293B] outline-none transition placeholder:text-[#8A99B0] focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
               onChange={(event) => setMessage(event.target.value)}
               placeholder="Share an update, direction, or escalation note for your teams."
               value={message}
@@ -205,20 +205,20 @@ function AnnouncementsPage() {
           </label>
 
           <div className="flex justify-end">
-            <Button loading={createAnnouncementMutation.isPending} type="submit">
+            <Button className="w-full sm:w-auto" loading={createAnnouncementMutation.isPending} type="submit">
               Broadcast Now
             </Button>
           </div>
         </form>
       </article>
 
-      <article className="rounded-[22px] border border-[#EFF2F6] bg-white p-6">
+      <article className="min-w-0 rounded-[22px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Comms Log
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-[#1E293B]">Recent Announcements</h2>
+            <h2 className="mt-2 text-xl font-semibold text-[#1E293B] sm:text-2xl">Recent Announcements</h2>
           </div>
           <Badge variant="gray">{announcementsQuery.data?.length ?? 0} Items</Badge>
         </div>
@@ -230,8 +230,8 @@ function AnnouncementsPage() {
                 className="rounded-[18px] border border-[#EFF2F6] bg-[#FAFCFE] px-4 py-4"
                 key={announcement.id}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+                <div className="flex flex-col items-start gap-2 sm:flex-row sm:justify-between sm:gap-3">
+                  <div className="min-w-0 break-words">
                     <p className="text-sm font-semibold text-[#1E293B]">
                       {getAnnouncementTitle(announcement.message)}
                     </p>
@@ -243,7 +243,7 @@ function AnnouncementsPage() {
                       : announcement.department?.name ?? 'Department'}
                   </Badge>
                 </div>
-                <div className="mt-3 flex items-center justify-between gap-3">
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 sm:gap-3">
                   <p className="text-xs text-[#8A99B0]">{formatDate(announcement.created_at)}</p>
                   <DeleteButton
                     label="Delete announcement"

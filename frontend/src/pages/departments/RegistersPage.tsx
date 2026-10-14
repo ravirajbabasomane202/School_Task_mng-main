@@ -10,6 +10,8 @@ import { downloadCsv } from '../../utils/fileDownload';
 import { getRegisterCalendarEvents, getRegisters } from '../../services/registerService';
 import type { Register, RegisterCalendarEvent, RegisterCycle, RegisterPriority, RegisterStatus } from '../../types/register.types';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_BADGE: Record<RegisterStatus, 'gray' | 'green' | 'red'> = {
   IDLE: 'gray',
   OK: 'green',
@@ -84,7 +86,7 @@ function RegistersPage() {
   };
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Registers</h1>
@@ -102,45 +104,47 @@ function RegistersPage() {
         ) : registers.length === 0 ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">No registers found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Start Date', 'Status', 'Next Due Date'].map(
-                  (h) => (
-                    <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
-                      {h}
-                    </th>
-                  )
-                )}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {registers.map((r) => (
-                <tr key={r.id} className="transition hover:bg-[#F8F9FC]">
-                  <td className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => setDetailsRegister(r)}
-                      className="font-medium text-[#185FA5] hover:underline"
-                    >
-                      {r.name}
-                    </button>
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{r.register_no}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{r.head_name}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{CYCLE_LABEL[r.checking_cycle]}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={PRIORITY_BADGE[r.priority]}>{r.priority}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.start_date)}</td>
-                  <td className="px-4 py-3">
-                    <Badge variant={STATUS_BADGE[r.status]}>{r.status}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.next_due_date)}</td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Register Name', 'Register No.', 'Head Name', 'Checking Cycle', 'Priority', 'Start Date', 'Status', 'Next Due Date'].map(
+                    (h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">
+                        {h}
+                      </th>
+                    )
+                  )}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {registers.map((r) => (
+                  <tr key={r.id} className="transition hover:bg-[#F8F9FC]">
+                    <td className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => setDetailsRegister(r)}
+                        className="font-medium text-[#185FA5] hover:underline"
+                      >
+                        {r.name}
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{r.register_no}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{r.head_name}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{CYCLE_LABEL[r.checking_cycle]}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={PRIORITY_BADGE[r.priority]}>{r.priority}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.start_date)}</td>
+                    <td className="px-4 py-3">
+                      <Badge variant={STATUS_BADGE[r.status]}>{r.status}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{formatDate(r.next_due_date)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -150,7 +154,7 @@ function RegistersPage() {
       </div>
 
       <RegisterDetailsModal register={detailsRegister} onClose={() => setDetailsRegister(null)} />
-    </div>
+    </PageContainer>
   );
 }
 

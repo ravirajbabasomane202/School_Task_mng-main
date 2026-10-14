@@ -12,6 +12,7 @@ import { downloadCsv } from '../../utils/fileDownload';
 import { todayISO, formatDate } from '../../utils/dateUtils';
 import type { Task, TaskStatus } from '../../types/task.types';
 
+import PageContainer from '../../components/common/PageContainer';
 function AssignedTasks() {
   const dispatch = useAppDispatch();
   const tasks = useAppSelector((state) => state.tasks.tasks);
@@ -61,7 +62,7 @@ function AssignedTasks() {
   };
 
   return (
-    <section className="space-y-5 p-5">
+    <PageContainer className="space-y-5">
       <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
@@ -85,7 +86,7 @@ function AssignedTasks() {
         emptyMessage="Tasks assigned to your department will appear here."
         onStatusChange={handleStatusChange}
       />
-    </section>
+    </PageContainer>
   );
 }
 

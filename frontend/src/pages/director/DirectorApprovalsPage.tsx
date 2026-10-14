@@ -5,6 +5,8 @@ import { getAllApprovals, approveApproval, rejectApproval } from '../../services
 import { APPROVAL_TYPE_META } from '../../types/approval.types';
 import type { ApprovalStatus } from '../../types/approval.types';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const STATUS_COLOR: Record<ApprovalStatus, string> = {
   PENDING:  'bg-amber-100 text-amber-700',
   APPROVED: 'bg-green-100 text-green-700',
@@ -39,14 +41,14 @@ const DirectorApprovalsPage: React.FC = () => {
   });
 
   return (
-    <div className="p-6 space-y-6">
+    <PageContainer className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[#1E293B]">Approvals</h1>
         <p className="text-sm text-[#5B6E8C] mt-1">Review and action all approval requests</p>
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-3 xs:grid-cols-3 sm:gap-4">
         {(['PENDING', 'APPROVED', 'REJECTED'] as const).map((s) => (
           <div key={s} className="rounded-xl border border-[#EFF2F6] bg-white p-4">
             <p className="text-xs text-[#8A99B0]">{s}</p>
@@ -76,74 +78,76 @@ const DirectorApprovalsPage: React.FC = () => {
         {isLoading ? (
           <div className="py-12 text-center text-sm text-[#8A99B0]">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Requested By', 'Title', 'Type', 'Amount', 'Status', 'Date', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {approvals.length === 0 ? (
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
                 <tr>
-                  <td colSpan={7} className="py-10 text-center text-sm text-[#8A99B0]">
-                    No approvals found.
-                  </td>
+                  {['Requested By', 'Title', 'Type', 'Amount', 'Status', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                  ))}
                 </tr>
-              ) : approvals.map((a) => {
-                const meta = APPROVAL_TYPE_META[a.type];
-                return (
-                  <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
-                    <td className="px-4 py-3 font-medium text-[#1E293B]">
-                      {a.requestedBy?.name ?? '—'}
-                      {a.requestedBy?.role && (
-                        <div className="text-xs text-[#8A99B0]">{a.requestedBy.role}</div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-[#1E293B]">{a.title}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta?.bg ?? 'bg-gray-100 text-gray-600'}`}>
-                        {meta?.label ?? a.type}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-[#5B6E8C]">
-                      {a.amount != null ? `₦${Number(a.amount).toLocaleString()}` : '—'}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
-                        {a.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-[#8A99B0]">{a.created_at.slice(0, 10)}</td>
-                    <td className="px-4 py-3">
-                      {a.status === 'PENDING' && (
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => approveMutation.mutate(a.id)}
-                            disabled={approveMutation.isPending}
-                            className="rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => rejectMutation.mutate(a.id)}
-                            disabled={rejectMutation.isPending}
-                            className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50"
-                          >
-                            Reject
-                          </button>
-                        </div>
-                      )}
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {approvals.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="py-10 text-center text-sm text-[#8A99B0]">
+                      No approvals found.
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ) : approvals.map((a) => {
+                  const meta = APPROVAL_TYPE_META[a.type];
+                  return (
+                    <tr key={a.id} className="hover:bg-[#F8F9FC] transition">
+                      <td className="px-4 py-3 font-medium text-[#1E293B]">
+                        {a.requestedBy?.name ?? '—'}
+                        {a.requestedBy?.role && (
+                          <div className="text-xs text-[#8A99B0]">{a.requestedBy.role}</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[#1E293B]">{a.title}</td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${meta?.bg ?? 'bg-gray-100 text-gray-600'}`}>
+                          {meta?.label ?? a.type}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-[#5B6E8C]">
+                        {a.amount != null ? `₦${Number(a.amount).toLocaleString()}` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[a.status]}`}>
+                          {a.status}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-xs text-[#8A99B0]">{a.created_at.slice(0, 10)}</td>
+                      <td className="px-4 py-3">
+                        {a.status === 'PENDING' && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => approveMutation.mutate(a.id)}
+                              disabled={approveMutation.isPending}
+                              className="rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => rejectMutation.mutate(a.id)}
+                              disabled={rejectMutation.isPending}
+                              className="rounded-lg bg-red-50 px-2.5 py-1 text-xs font-medium text-red-600 hover:bg-red-100 disabled:opacity-50"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
-    </div>
+    </PageContainer>
   );
 };
 

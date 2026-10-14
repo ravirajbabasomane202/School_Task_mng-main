@@ -4,6 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
 } from 'recharts';
+import { useIsMd } from '../../../hooks/useMediaQuery';
 import { useSelector } from 'react-redux';
 import api from '../../../services/api';
 import type { RootState } from '../../../store';
@@ -21,6 +22,7 @@ const StatCard: React.FC<{ label: string; value: string | number; color: string;
 );
 
 const TransportAnalytics: React.FC = () => {
+  const isMd = useIsMd();
   const user = useSelector((state: RootState) => state.auth.user);
 
   const taskData = useQuery({
@@ -91,14 +93,14 @@ const TransportAnalytics: React.FC = () => {
         <StatCard label="Approved Spend" value={`₦${totalSpend.toLocaleString()}`} color="bg-green-100 text-green-700" icon="💰" />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2 [&>*]:min-w-0">
         {/* Fleet condition */}
         <div className="rounded-xl border border-[#EFF2F6] bg-white p-5">
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Fleet Condition</h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={fleetCondition} margin={{ left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="name" interval="preserveStartEnd" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} allowDecimals={false} />
               <Tooltip />
               <Bar dataKey="count" name="Vehicles" fill="#F97316" radius={[4, 4, 0, 0]} />
@@ -111,7 +113,7 @@ const TransportAnalytics: React.FC = () => {
           <h3 className="mb-4 text-sm font-semibold text-[#1E293B]">Fleet Status</h3>
           <ResponsiveContainer width="100%" height={200}>
             <PieChart>
-              <Pie data={fleetStatus} cx="50%" cy="50%" outerRadius={70} dataKey="count"
+              <Pie data={fleetStatus} cx="50%" cy="50%" outerRadius={isMd ? 70 : 45} dataKey="count"
                 label={({ name, count }) => count > 0 ? `${name}: ${count}` : ''}>
                 {fleetStatus.map((_, i) => (
                   <Cell key={i} fill={['#22C55E', '#F59E0B', '#9CA3AF'][i]} />
@@ -166,7 +168,7 @@ const TransportAnalytics: React.FC = () => {
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={monthly} margin={{ top: 0, right: 8, left: -20, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#EFF2F6" />
-            <XAxis dataKey="month" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
+            <XAxis dataKey="month" interval="preserveStartEnd" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(0, 3)} />
             <YAxis tick={{ fontSize: 10 }} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />

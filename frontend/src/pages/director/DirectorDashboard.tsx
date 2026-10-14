@@ -5,8 +5,7 @@ import { useSelector } from 'react-redux';
 import { useSocket } from '../../hooks/useSocket';
 import TaskStatusPieChart from '../../components/charts/TaskStatusPieChart';
 import TaskTable from '../../components/tables/TaskTable';
-import Navbar from '../../components/common/Navbar';
-import Sidebar from '../../components/common/Sidebar';
+import AppShell from '../../components/common/AppShell';
 import { getDirectorDashboard } from '../../services/dashboardService';
 import AssignedTasks from '../departments/AssignedTasks';
 import Announcements from '../departments/Announcements';
@@ -20,6 +19,7 @@ import DirectorCommunicationsPage from './DirectorCommunicationsPage';
 import type { Task } from '../../types/task.types';
 import type { RootState } from '../../store';
 
+import PageContainer from '../../components/common/PageContainer';
 interface DashboardData {
   totalTasks: number;
   completedTasks: number;
@@ -62,7 +62,7 @@ function DirectorOverview() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <PageContainer className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[#1E293B]">School Manager Dashboard</h1>
         <p className="text-sm text-[#5B6E8C] mt-1">Welcome back, {user?.name}</p>
@@ -96,7 +96,7 @@ function DirectorOverview() {
         <h3 className="text-sm font-semibold text-[#1E293B] mb-4">Recent Tasks (School-wide)</h3>
         <TaskTable tasks={data.recentTasks} />
       </div>
-    </div>
+    </PageContainer>
   );
 }
 
@@ -104,10 +104,7 @@ function DirectorDashboard() {
   useSocket();
 
   return (
-    <div className="flex min-h-screen bg-[#F1F4F9] text-[#1E293B]">
-      <Sidebar />
-      <main className="custom-scrollbar ml-[196px] h-screen min-w-0 flex-1 overflow-y-auto">
-        <Navbar />
+    <AppShell>
 <Routes>
            <Route index element={<DirectorOverview />} />
            <Route path="my-tasks"      element={<AssignedTasks />} />
@@ -120,8 +117,7 @@ function DirectorDashboard() {
            <Route path="leave"         element={<LeaveRequestsPage />} />
            <Route path="registers"     element={<RegistersPage />} />
          </Routes>
-      </main>
-    </div>
+    </AppShell>
   );
 }
 

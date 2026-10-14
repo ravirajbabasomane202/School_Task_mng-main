@@ -16,6 +16,9 @@ import {
 } from '../../utils/taskStatus';
 import api from '../../services/api';
 
+import Modal from '../common/Modal';
+import ResponsiveTable from '../common/ResponsiveTable';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 const statusVariant: Record<TaskStatus, 'blue' | 'amber' | 'green' | 'red' | 'gray'> = {
   PENDING: 'blue', IN_PROGRESS: 'amber', COMPLETED: 'green', DELAYED: 'red', ESCALATED: 'gray',
 };
@@ -57,39 +60,42 @@ function StatusModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[20px] bg-white p-6 shadow-xl">
-        <h3 className="font-semibold text-[#1E293B]">Change Task Status</h3>
-        <p className="mt-1 text-xs text-[#8A99B0] truncate">{task.title}</p>
-        <label className="mt-4 flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-[#36506C]">New Status</span>
-          <select className="min-h-[38px] rounded-[10px] border border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none"
-            value={newStatus} onChange={(e) => { setNewStatus(e.target.value as TaskStatus); setErr(null); }}>
-            {availableStatuses.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
-          </select>
-        </label>
-        {showAssigneeHint && <p className="mt-2 text-[11px] text-[#8A99B0]">{ASSIGNEE_STATUS_HINT}</p>}
-        {newStatus === 'COMPLETED' && (
-          <label className="mt-3 flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Task Proof <span className="text-red-500">*</span></span>
-            <input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx"
-              className="min-h-[38px] rounded-[10px] border border-dashed border-[#C9D6E5] bg-[#F8F9FC] px-3 py-2 text-sm text-[#36506C] file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#185FA5]"
-              onChange={(e) => { setProof(e.target.files?.[0]); setErr(null); }} />
-          </label>
-        )}
-        {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
-        <div className="mt-5 flex gap-2">
-          <button disabled={saving} onClick={handleConfirm}
-            className="flex-1 rounded-[10px] bg-[#185FA5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0F4880] disabled:opacity-60">
-            {saving ? 'Saving…' : 'Confirm'}
-          </button>
+    <Modal
+      footer={
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <button onClick={onClose}
-            className="rounded-[10px] border border-[#DCE2EA] px-4 py-2 text-sm font-semibold text-[#5B6E8C] hover:bg-[#F3F6FA]">
+            className="min-h-[44px] rounded-[10px] border border-[#DCE2EA] px-4 py-2 text-sm font-semibold text-[#5B6E8C] hover:bg-[#F3F6FA] sm:min-h-0">
             Cancel
           </button>
+          <button disabled={saving} onClick={handleConfirm}
+            className="min-h-[44px] flex-1 rounded-[10px] bg-[#185FA5] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0F4880] disabled:opacity-60 sm:min-h-0">
+            {saving ? 'Saving…' : 'Confirm'}
+          </button>
         </div>
-      </div>
-    </div>
+      }
+      isOpen
+      onClose={onClose}
+      title="Change Task Status"
+    >
+      <p className="truncate text-xs text-[#8A99B0]">{task.title}</p>
+      <label className="mt-4 flex flex-col gap-1.5">
+        <span className="text-[12px] font-medium text-[#36506C]">New Status</span>
+        <select className="min-h-[44px] rounded-[10px] border border-[#DCE2EA] bg-[#F8F9FC] px-3 text-base text-[#1E293B] outline-none sm:min-h-[38px] sm:text-sm"
+          value={newStatus} onChange={(e) => { setNewStatus(e.target.value as TaskStatus); setErr(null); }}>
+          {availableStatuses.map((s) => <option key={s} value={s}>{s.replace('_', ' ')}</option>)}
+        </select>
+      </label>
+      {showAssigneeHint && <p className="mt-2 text-[11px] text-[#8A99B0]">{ASSIGNEE_STATUS_HINT}</p>}
+      {newStatus === 'COMPLETED' && (
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-[12px] font-medium text-[#36506C]">Task Proof <span className="text-red-500">*</span></span>
+          <input type="file" accept=".pdf,.jpg,.jpeg,.png,.docx"
+            className="min-h-[38px] w-full min-w-0 rounded-[10px] border border-dashed border-[#C9D6E5] bg-[#F8F9FC] px-3 py-2 text-sm text-[#36506C] file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#185FA5]"
+            onChange={(e) => { setProof(e.target.files?.[0]); setErr(null); }} />
+        </label>
+      )}
+      {err && <p className="mt-2 text-xs text-red-600">{err}</p>}
+    </Modal>
   );
 }
 
@@ -102,6 +108,7 @@ interface HRTaskTableProps {
 
 const HRTaskTable: React.FC<HRTaskTableProps> = ({ tasks, emptyMessage = 'No HR tasks found.', onStatusChange, currentUserId }) => {
   const navigate = useNavigate();
+  const isMobile = useIsMobile();
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'ALL'>('ALL');
   const [search, setSearch] = useState('');
   const [modalTask, setModalTask] = useState<Task | null>(null);
@@ -131,7 +138,7 @@ const HRTaskTable: React.FC<HRTaskTableProps> = ({ tasks, emptyMessage = 'No HR 
       )}
 
       {/* Quick-action banners */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3">
         <div onClick={() => navigate('/department/leave')}
           className="flex cursor-pointer items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-100 transition">
           🗓️ Pending Leave Requests
@@ -150,7 +157,7 @@ const HRTaskTable: React.FC<HRTaskTableProps> = ({ tasks, emptyMessage = 'No HR 
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-3 [&>input]:w-full [&>select]:w-full sm:[&>input]:w-auto sm:[&>select]:w-auto">
         <input type="text" placeholder="Search tasks…" value={search} onChange={(e) => setSearch(e.target.value)}
           className="rounded-lg border border-[#E4EAF2] px-3 py-1.5 text-sm focus:border-[#185FA5] focus:outline-none" />
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as TaskStatus | 'ALL')}
@@ -164,49 +171,79 @@ const HRTaskTable: React.FC<HRTaskTableProps> = ({ tasks, emptyMessage = 'No HR 
         <div className="flex min-h-[200px] items-center justify-center rounded-xl border border-[#EFF2F6] bg-white text-sm text-[#8A99B0]">
           {emptyMessage}
         </div>
+      ) : isMobile ? (
+        <ul className="space-y-3" data-testid="task-card-list">
+          {filtered.map((task) => (
+            <li key={task.id} onClick={() => navigate(`/task/${task.id}`)}
+              className="cursor-pointer rounded-[14px] border border-[#EFF2F6] bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-semibold text-[#1E293B]">{task.title}</p>
+                <Badge variant={statusVariant[task.status as TaskStatus]}>{task.status.replace('_', ' ')}</Badge>
+              </div>
+              {task.description && <p className="mt-1 line-clamp-2 text-xs text-[#8A99B0]">{task.description}</p>}
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div><dt className="text-[#8A99B0]">Priority</dt>
+                  <dd><span className={`rounded-md px-2 py-0.5 font-medium ${priorityColor[task.priority as TaskPriority]}`}>{task.priority}</span></dd></div>
+                <div><dt className="text-[#8A99B0]">Due Date</dt><dd className="text-[#36506C]">{fmt(task.due_date)}</dd></div>
+                <div className="min-w-0"><dt className="text-[#8A99B0]">Assigned By</dt><dd className="truncate text-[#36506C]">{(task as any).assignedBy?.name ?? '--'}</dd></div>
+                <div><dt className="text-[#8A99B0]">Cadence</dt><dd className="text-[#36506C]">{task.cadence ?? 'One-off'}</dd></div>
+              </dl>
+              {onStatusChange && getAllowedStatuses(task, currentUserId).length > 0 && (
+                <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                  <button onClick={() => setModalTask(task)}
+                    className="min-h-[40px] w-full rounded-[8px] border border-[#DCE2EA] bg-white px-3 py-1.5 text-xs font-semibold text-[#185FA5] hover:bg-[#EAF3FC]">
+                    Status
+                  </button>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="overflow-hidden rounded-xl border border-[#EFF2F6] bg-white">
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Task', 'Priority', 'Status', 'Due Date', 'Assigned By', 'Cadence', ...(onStatusChange ? ['Actions'] : [])].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {filtered.map((task) => (
-                <tr key={task.id} onClick={() => navigate(`/task/${task.id}`)}
-                  className="cursor-pointer hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3">
-                    <p className="font-medium text-[#1E293B] truncate max-w-[220px]">{task.title}</p>
-                    {task.description && <p className="text-xs text-[#8A99B0] truncate max-w-[220px]">{task.description}</p>}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${priorityColor[task.priority as TaskPriority]}`}>
-                      {task.priority}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={statusVariant[task.status as TaskStatus]}>{task.status.replace('_', ' ')}</Badge>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-[#5B6E8C]">{fmt(task.due_date)}</td>
-                  <td className="px-4 py-3 text-xs text-[#5B6E8C]">{(task as any).assignedBy?.name ?? '--'}</td>
-                  <td className="px-4 py-3 text-xs text-[#5B6E8C]">{task.cadence ?? 'One-off'}</td>
-                  {onStatusChange && (
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {getAllowedStatuses(task, currentUserId).length > 0 && (
-                      <button onClick={() => setModalTask(task)}
-                        className="rounded-[8px] border border-[#DCE2EA] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#185FA5] hover:bg-[#EAF3FC]">
-                        Status
-                      </button>
-                      )}
-                    </td>
-                  )}
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Task', 'Priority', 'Status', 'Due Date', 'Assigned By', 'Cadence', ...(onStatusChange ? ['Actions'] : [])].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {filtered.map((task) => (
+                  <tr key={task.id} onClick={() => navigate(`/task/${task.id}`)}
+                    className="cursor-pointer hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3">
+                      <p className="font-medium text-[#1E293B] truncate max-w-[220px]">{task.title}</p>
+                      {task.description && <p className="text-xs text-[#8A99B0] truncate max-w-[220px]">{task.description}</p>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${priorityColor[task.priority as TaskPriority]}`}>
+                        {task.priority}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={statusVariant[task.status as TaskStatus]}>{task.status.replace('_', ' ')}</Badge>
+                    </td>
+                    <td className="px-4 py-3 text-xs text-[#5B6E8C]">{fmt(task.due_date)}</td>
+                    <td className="px-4 py-3 text-xs text-[#5B6E8C]">{(task as any).assignedBy?.name ?? '--'}</td>
+                    <td className="px-4 py-3 text-xs text-[#5B6E8C]">{task.cadence ?? 'One-off'}</td>
+                    {onStatusChange && (
+                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                        {getAllowedStatuses(task, currentUserId).length > 0 && (
+                        <button onClick={() => setModalTask(task)}
+                          className="rounded-[8px] border border-[#DCE2EA] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#185FA5] hover:bg-[#EAF3FC]">
+                          Status
+                        </button>
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         </div>
       )}
     </div>

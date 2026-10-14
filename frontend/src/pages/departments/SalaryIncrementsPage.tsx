@@ -6,6 +6,8 @@ import Button from '../../components/common/Button';
 import Modal from '../../components/common/Modal';
 import type { RootState } from '../../store';
 import type { SalaryIncrement, SalaryStatus } from '../../types/salary.types';
+import PageContainer from '../../components/common/PageContainer';
+import ResponsiveTable from '../../components/common/ResponsiveTable';
 import {
   getSalaryIncrements,
   createSalaryIncrement,
@@ -125,9 +127,9 @@ const SalaryIncrementsPage: React.FC = () => {
     curr > 0 ? (((prop - curr) / curr) * 100).toFixed(1) : '—';
 
   return (
-    <div className="p-6">
+    <PageContainer>
       {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold text-[#1E293B]">Salary Increments</h1>
           <p className="text-sm text-[#8A99B0]">Manage and track employee salary increment requests</p>
@@ -161,62 +163,64 @@ const SalaryIncrementsPage: React.FC = () => {
         ) : increments.length === 0 ? (
           <div className="py-16 text-center text-sm text-[#8A99B0]">No salary increment records found.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Employee', 'Current Salary', 'Proposed Salary', 'Increment', 'Reason', 'Status', 'Date', 'Actions'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {increments.map((inc) => (
-                <tr key={inc.id} className="hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3 font-medium text-[#1E293B]">
-                    {inc.employee?.name ?? `#${inc.employee_id}`}
-                    {inc.employee?.role && (
-                      <div className="text-xs text-[#8A99B0]">{inc.employee.role}</div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{fmt(inc.current_salary)}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{fmt(inc.proposed_salary)}</td>
-                  <td className="px-4 py-3 text-green-600 font-medium">
-                    +{incrementPct(inc.current_salary, inc.proposed_salary)}%
-                  </td>
-                  <td className="px-4 py-3 text-[#5B6E8C] max-w-[180px] truncate">
-                    {inc.reason ?? '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={inc.status} />
-                  </td>
-                  <td className="px-4 py-3 text-[#8A99B0] text-xs">
-                    {new Date(inc.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-2">
-                      {isHR && inc.status === 'PENDING_HR' && (
-                        <button
-                          onClick={() => hrApproveMutation.mutate(inc.id)}
-                          disabled={hrApproveMutation.isPending}
-                          className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                        >
-                          HR Approve
-                        </button>
-                      )}
-                      {isFinance && inc.status === 'PENDING_FINANCE' && (
-                        <button
-                          onClick={() => setReviewItem(inc)}
-                          className="rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
-                        >
-                          Finance Review
-                        </button>
-                      )}
-                    </div>
-                  </td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Employee', 'Current Salary', 'Proposed Salary', 'Increment', 'Reason', 'Status', 'Date', 'Actions'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {increments.map((inc) => (
+                  <tr key={inc.id} className="hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3 font-medium text-[#1E293B]">
+                      {inc.employee?.name ?? `#${inc.employee_id}`}
+                      {inc.employee?.role && (
+                        <div className="text-xs text-[#8A99B0]">{inc.employee.role}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{fmt(inc.current_salary)}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{fmt(inc.proposed_salary)}</td>
+                    <td className="px-4 py-3 text-green-600 font-medium">
+                      +{incrementPct(inc.current_salary, inc.proposed_salary)}%
+                    </td>
+                    <td className="px-4 py-3 text-[#5B6E8C] max-w-[180px] truncate">
+                      {inc.reason ?? '—'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusBadge status={inc.status} />
+                    </td>
+                    <td className="px-4 py-3 text-[#8A99B0] text-xs">
+                      {new Date(inc.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex gap-2">
+                        {isHR && inc.status === 'PENDING_HR' && (
+                          <button
+                            onClick={() => hrApproveMutation.mutate(inc.id)}
+                            disabled={hrApproveMutation.isPending}
+                            className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                          >
+                            HR Approve
+                          </button>
+                        )}
+                        {isFinance && inc.status === 'PENDING_FINANCE' && (
+                          <button
+                            onClick={() => setReviewItem(inc)}
+                            className="rounded-lg bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+                          >
+                            Finance Review
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         )}
       </div>
 
@@ -234,7 +238,7 @@ const SalaryIncrementsPage: React.FC = () => {
               required
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="block text-xs font-medium text-[#5B6E8C] mb-1">Current Salary *</label>
               <input
@@ -275,7 +279,7 @@ const SalaryIncrementsPage: React.FC = () => {
               placeholder="Briefly explain the basis for this increment…"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
             <Button variant="ghost" onClick={() => setShowCreate(false)} type="button">Cancel</Button>
             <Button type="submit" disabled={createMutation.isPending}>
               {createMutation.isPending ? 'Submitting…' : 'Submit Request'}
@@ -349,7 +353,7 @@ const SalaryIncrementsPage: React.FC = () => {
               />
             </div>
 
-            <div className="flex justify-end gap-3 pt-1">
+            <div className="flex flex-col-reverse gap-3 pt-1 sm:flex-row sm:justify-end [&>*]:w-full sm:[&>*]:w-auto">
               <Button variant="ghost" onClick={() => { setReviewItem(null); setFinanceComment(''); }} type="button">
                 Cancel
               </Button>
@@ -364,7 +368,7 @@ const SalaryIncrementsPage: React.FC = () => {
           </div>
         )}
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

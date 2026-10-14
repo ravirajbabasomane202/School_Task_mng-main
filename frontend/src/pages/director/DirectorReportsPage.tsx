@@ -5,6 +5,8 @@ import Button from '../../components/common/Button';
 import { getReportPreview, exportReportFile } from '../../services/reportService';
 import type { ReportType } from '../../services/reportService';
 
+import ResponsiveTable from '../../components/common/ResponsiveTable';
+import PageContainer from '../../components/common/PageContainer';
 const DirectorReportsPage: React.FC = () => {
   const [reportType, setReportType] = useState<ReportType>('WEEKLY');
   const [exporting, setExporting] = useState(false);
@@ -47,7 +49,7 @@ const DirectorReportsPage: React.FC = () => {
   const summary = data?.summary;
 
   return (
-    <div className="p-6 space-y-6">
+    <PageContainer className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold text-[#1E293B]">Reports</h1>
         <p className="text-sm text-[#5B6E8C] mt-1">Generate and export school-wide reports</p>
@@ -127,40 +129,42 @@ const DirectorReportsPage: React.FC = () => {
           <div className="px-5 py-4 border-b border-[#EFF2F6]">
             <h3 className="text-sm font-semibold text-[#1E293B]">Department Breakdown</h3>
           </div>
-          <table className="w-full text-sm">
-            <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
-              <tr>
-                {['Department', 'Total', 'Completed', 'Pending', 'Delayed', 'Score'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#F1F4F9]">
-              {data.departments.map((dept) => (
-                <tr key={dept.department} className="hover:bg-[#F8F9FC] transition">
-                  <td className="px-4 py-3 font-medium text-[#1E293B]">{dept.department}</td>
-                  <td className="px-4 py-3 text-[#5B6E8C]">{dept.total}</td>
-                  <td className="px-4 py-3 text-green-600">{dept.completed}</td>
-                  <td className="px-4 py-3 text-amber-600">{dept.pending}</td>
-                  <td className="px-4 py-3 text-red-600">{dept.delayed}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 rounded-full bg-[#EFF2F6]">
-                        <div
-                          className="h-1.5 rounded-full bg-[#185FA5]"
-                          style={{ width: `${dept.performanceScore}%` }}
-                        />
-                      </div>
-                      <span className="text-xs text-[#5B6E8C]">{dept.performanceScore}%</span>
-                    </div>
-                  </td>
+          <ResponsiveTable minWidth={640}>
+            <table className="w-full text-sm">
+              <thead className="border-b border-[#EFF2F6] bg-[#F8F9FC]">
+                <tr>
+                  {['Department', 'Total', 'Completed', 'Pending', 'Delayed', 'Score'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-[#8A99B0]">{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-[#F1F4F9]">
+                {data.departments.map((dept) => (
+                  <tr key={dept.department} className="hover:bg-[#F8F9FC] transition">
+                    <td className="px-4 py-3 font-medium text-[#1E293B]">{dept.department}</td>
+                    <td className="px-4 py-3 text-[#5B6E8C]">{dept.total}</td>
+                    <td className="px-4 py-3 text-green-600">{dept.completed}</td>
+                    <td className="px-4 py-3 text-amber-600">{dept.pending}</td>
+                    <td className="px-4 py-3 text-red-600">{dept.delayed}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 rounded-full bg-[#EFF2F6]">
+                          <div
+                            className="h-1.5 rounded-full bg-[#185FA5]"
+                            style={{ width: `${dept.performanceScore}%` }}
+                          />
+                        </div>
+                        <span className="text-xs text-[#5B6E8C]">{dept.performanceScore}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
         </div>
       )}
-    </div>
+    </PageContainer>
   );
 };
 

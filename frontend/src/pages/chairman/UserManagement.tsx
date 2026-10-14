@@ -10,6 +10,7 @@ import { createRole, getAllRoles } from '../../services/roleService';
 import api from '../../services/api';
 import type { User } from '../../types/user.types';
 
+import PageContainer from '../../components/common/PageContainer';
 interface AddUserForm {
   name: string;
   email: string;
@@ -173,8 +174,8 @@ const UserManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <PageContainer className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-semibold">User Management</h1>
         <Button onClick={() => setIsAddModalOpen(true)}>Add New User</Button>
       </div>
@@ -190,11 +191,11 @@ const UserManagement: React.FC = () => {
         onClose={() => setIsAddModalOpen(false)}
         title="Add New User"
         footer={
-          <div className="flex justify-end space-x-2">
-            <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button className="w-full sm:w-auto" variant="ghost" onClick={() => setIsAddModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleAddUser} loading={addUserMutation.isPending}>
+            <Button className="w-full sm:w-auto" onClick={handleAddUser} loading={addUserMutation.isPending}>
               Add User
             </Button>
           </div>
@@ -255,11 +256,11 @@ const UserManagement: React.FC = () => {
         onClose={() => setIsEditModalOpen(false)}
         title="Edit User"
         footer={
-          <div className="flex justify-end space-x-2">
-            <Button variant="ghost" onClick={() => setIsEditModalOpen(false)}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button className="w-full sm:w-auto" variant="ghost" onClick={() => setIsEditModalOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleEditUser} loading={editUserMutation.isPending}>
+            <Button className="w-full sm:w-auto" onClick={handleEditUser} loading={editUserMutation.isPending}>
               Update User
             </Button>
           </div>
@@ -319,8 +320,8 @@ const UserManagement: React.FC = () => {
         onClose={() => setIsDeactivateModalOpen(false)}
         title="Deactivate User"
         footer={
-          <div className="flex justify-end space-x-2">
-            <Button variant="ghost" onClick={() => setIsDeactivateModalOpen(false)}>
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <Button className="w-full sm:w-auto" variant="ghost" onClick={() => setIsDeactivateModalOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -338,7 +339,7 @@ const UserManagement: React.FC = () => {
           immediately.
         </p>
       </Modal>
-    </div>
+    </PageContainer>
   );
 };
 

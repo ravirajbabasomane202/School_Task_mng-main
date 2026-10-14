@@ -58,7 +58,7 @@ function Modal({
     // viewports a tall modal (e.g. a long form) no longer gets clipped off
     // the top/bottom of the screen with no way to reach its own scrollbar.
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-[#1E293B]/30 p-4 animate-[fadeIn_180ms_ease-out] sm:p-6"
+      className="fixed inset-0 z-[100] flex items-end justify-center overflow-y-auto bg-[#1E293B]/30 p-0 animate-[fadeIn_180ms_ease-out] sm:items-center sm:p-6"
       onClick={onClose}
       role="presentation"
     >
@@ -67,7 +67,7 @@ function Modal({
         // flex-col + max-h-[90vh]: the header/footer stay pinned and only the
         // body (below) scrolls, so the dialog never exceeds the viewport on
         // small screens no matter how much content it holds.
-        className="flex max-h-[90vh] w-full max-w-[560px] flex-col overflow-hidden rounded-[18px] bg-white shadow-[0_24px_60px_rgba(30,41,59,0.14)]"
+        className="flex max-h-[92dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-[18px] bg-white pb-[env(safe-area-inset-bottom)] shadow-[0_24px_60px_rgba(30,41,59,0.14)] sm:max-h-[90dvh] sm:rounded-[18px] sm:pb-0"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
       >
@@ -78,14 +78,14 @@ function Modal({
           </div>
           <button
             aria-label="Close modal"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xl leading-none text-[#5B6E8C] transition hover:bg-[#F8F9FC]"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xl sm:h-8 sm:w-8 leading-none text-[#5B6E8C] transition hover:bg-[#F8F9FC]"
             onClick={onClose}
             type="button"
           >
             ×
           </button>
         </div>
-        <div className={['overflow-y-auto px-4 py-4 sm:px-5', bodyClassName].join(' ')}>{children}</div>
+        <div className={['min-h-0 overflow-y-auto px-4 py-4 sm:px-5', bodyClassName].join(' ')}>{children}</div>
         {footer ? <div className="shrink-0 border-t border-[#EFF2F6] px-4 py-4 sm:px-5">{footer}</div> : null}
       </div>
     </div>,

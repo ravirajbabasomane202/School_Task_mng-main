@@ -6,14 +6,14 @@ import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
 import Loader from '../../components/common/Loader';
 import Modal from '../../components/common/Modal';
-import Navbar from '../../components/common/Navbar';
-import Sidebar from '../../components/common/Sidebar';
+import AppShell from '../../components/common/AppShell';
 import { useSocket } from '../../hooks/useSocket';
 import * as taskService from '../../services/taskService';
 import { useAppSelector } from '../../store/hooks';
 import type { Task, TaskHistory, TaskStatus } from '../../types/task.types';
 import { ROLES } from '../../constants/roles';
 import { downloadAuthenticatedUpload } from '../../utils/fileDownload';
+import PageContainer from '../../components/common/PageContainer';
 import {
   ASSIGNEE_STATUS_HINT,
   getAllowedStatuses,
@@ -167,7 +167,7 @@ function EscalateModal({
 
       {err && <p className="mt-2 text-xs text-[#D64545]">{err}</p>}
 
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
         <Button onClick={onClose} variant="ghost">Cancel</Button>
         <Button
           className="!border-[#F3C7C5] !bg-[#FFF4F4] !text-[#C13F3A] hover:!bg-[#FFE9E9]"
@@ -250,7 +250,7 @@ function StatusChangeModal({
         </label>
       )}
       {err && <p className="mt-3 text-xs text-[#D64545]">{err}</p>}
-      <div className="mt-5 flex justify-end gap-2">
+      <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end [&>button]:w-full sm:[&>button]:w-auto">
         <Button onClick={onClose} variant="ghost">Cancel</Button>
         <Button loading={saving} onClick={() => void handleConfirm()}>Save</Button>
       </div>
@@ -347,10 +347,10 @@ function TaskDetailContent() {
   const canEscalate = isTaskAssigner(task, user?.id);
 
   return (
-    <section className="space-y-5 p-5">
+    <PageContainer className="space-y-5">
 
       {/* ── Header card ── */}
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
 
         {/* Top row: back + actions */}
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -369,7 +369,7 @@ function TaskDetailContent() {
                 disabled={alreadyEscalated}
                 onClick={() => setShowEscalateModal(true)}
                 className={[
-                  'inline-flex items-center gap-1.5 rounded-[10px] border px-3.5 py-2 text-sm font-semibold transition',
+                  'inline-flex min-h-[40px] items-center gap-1.5 rounded-[10px] border px-3.5 py-2 text-sm font-semibold transition sm:min-h-0',
                   alreadyEscalated
                     ? 'cursor-not-allowed border-[#E2E8F0] bg-[#F8F9FC] text-[#8A99B0]'
                     : 'border-[#F3C7C5] bg-[#FFF4F4] text-[#C13F3A] hover:bg-[#FFE9E9]',
@@ -392,7 +392,7 @@ function TaskDetailContent() {
         {/* Title + badges */}
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl font-semibold text-[#1E293B] leading-snug">{task.title}</h1>
+            <h1 className="break-words text-lg font-semibold leading-snug text-[#1E293B] sm:text-xl">{task.title}</h1>
             <div className="mt-2.5 flex flex-wrap items-center gap-2">
               <Badge variant={priorityVariant[task.priority] ?? 'gray'}>
                 {fmt(task.priority)} Priority
@@ -406,7 +406,7 @@ function TaskDetailContent() {
         </div>
 
         {/* Meta grid */}
-        <div className="mt-6 grid gap-x-6 gap-y-5 rounded-[14px] bg-[#F8F9FC] p-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-4 rounded-[14px] bg-[#F8F9FC] p-4 xs:grid-cols-2 sm:p-5 lg:grid-cols-3 xl:grid-cols-6">
           <MetaField label="Assigned To">
             <p className="text-sm font-medium text-[#1E293B]">
               {task.assignedTo?.name ?? task.assignedToName ?? '--'}
@@ -458,8 +458,8 @@ function TaskDetailContent() {
       </div>
 
       {/* ── Timeline card ── */}
-      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-6">
-        <div className="mb-6 flex items-center justify-between gap-3">
+      <div className="rounded-[20px] border border-[#EFF2F6] bg-white p-4 sm:p-6">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#185FA5]">
               Task History
@@ -506,7 +506,7 @@ function TaskDetailContent() {
           task={task}
         />
       )}
-    </section>
+    </PageContainer>
   );
 }
 
@@ -515,13 +515,9 @@ function TaskDetailContent() {
 function TaskDetail() {
   useSocket();
   return (
-    <div className="flex min-h-screen bg-[#F1F4F9] text-[#1E293B]">
-      <Sidebar />
-      <main className="custom-scrollbar ml-[196px] h-screen min-w-0 flex-1 overflow-y-auto">
-        <Navbar />
+    <AppShell>
         <TaskDetailContent />
-      </main>
-    </div>
+    </AppShell>
   );
 }
 

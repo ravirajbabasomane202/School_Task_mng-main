@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import type { Task, TaskCadence, TaskPriority, TaskStatus } from '../../types/task.types';
 import Badge from '../common/Badge';
+import Modal from '../common/Modal';
+import ResponsiveTable from '../common/ResponsiveTable';
+import { useIsMobile } from '../../hooks/useMediaQuery';
 import { toTitleCase } from '../../utils/formatUtils';
 import {
   ASSIGNEE_STATUS_HINT,
@@ -98,62 +101,64 @@ function StatusChangeModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-sm rounded-[20px] bg-white p-6 shadow-xl">
-        <h3 className="text-base font-semibold text-[#1E293B]">Change Task Status</h3>
-        <p className="mt-1 text-xs text-[#8A99B0] truncate">{task.title}</p>
-
-        <label className="mt-4 flex flex-col gap-1.5">
-          <span className="text-[12px] font-medium text-[#36506C]">New Status</span>
-          <select
-            className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-            value={newStatus}
-            onChange={(e) => { setNewStatus(e.target.value as TaskStatus); setErr(null); }}
-          >
-            {availableStatuses.map((s) => (
-              <option key={s} value={s}>{formatLabel(s)}</option>
-            ))}
-          </select>
-        </label>
-
-        {showAssigneeHint && (
-          <p className="mt-2 text-[11px] text-[#8A99B0]">{ASSIGNEE_STATUS_HINT}</p>
-        )}
-
-        {needsProof && (
-          <label className="mt-3 flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">
-              Task Proof <span className="text-[#C13F3A]">*</span>
-              <span className="ml-1 font-normal text-[#8A99B0]">(required for Completed)</span>
-            </span>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png,.docx"
-              className="min-h-[38px] rounded-[10px] border-[0.5px] border-dashed border-[#C9D6E5] bg-[#F8F9FC] px-3 py-2 text-sm text-[#36506C] file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#185FA5]"
-              onChange={(e) => { setProof(e.target.files?.[0]); setErr(null); }}
-            />
-          </label>
-        )}
-
-        {err && <p className="mt-2 text-xs text-[#C13F3A]">{err}</p>}
-
-        <div className="mt-5 flex gap-2">
-          <button
-            disabled={saving}
-            onClick={handleConfirm}
-            className="flex-1 rounded-[10px] bg-[#185FA5] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0F4880] disabled:opacity-60"
-          >
-            {saving ? 'Saving…' : 'Confirm'}
-          </button>
+    <Modal
+      footer={
+        <div className="flex flex-col-reverse gap-2 sm:flex-row">
           <button
             onClick={onClose}
-            className="rounded-[10px] border border-[#DCE2EA] px-4 py-2 text-sm font-semibold text-[#5B6E8C] transition hover:bg-[#F3F6FA]"
+            className="min-h-[44px] rounded-[10px] border border-[#DCE2EA] px-4 py-2 text-sm font-semibold text-[#5B6E8C] transition hover:bg-[#F3F6FA] sm:min-h-0"
           >
             Cancel
           </button>
+          <button
+            disabled={saving}
+            onClick={handleConfirm}
+            className="min-h-[44px] flex-1 rounded-[10px] bg-[#185FA5] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0F4880] disabled:opacity-60 sm:min-h-0"
+          >
+            {saving ? 'Saving…' : 'Confirm'}
+          </button>
         </div>
-      </div>
-    </div>
+      }
+      isOpen
+      onClose={onClose}
+      title="Change Task Status"
+    >
+      <p className="truncate text-xs text-[#8A99B0]">{task.title}</p>
+
+      <label className="mt-4 flex flex-col gap-1.5">
+        <span className="text-[12px] font-medium text-[#36506C]">New Status</span>
+        <select
+          className="min-h-[44px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-base text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10 sm:min-h-[38px] sm:text-sm"
+          value={newStatus}
+          onChange={(e) => { setNewStatus(e.target.value as TaskStatus); setErr(null); }}
+        >
+          {availableStatuses.map((s) => (
+            <option key={s} value={s}>{formatLabel(s)}</option>
+          ))}
+        </select>
+      </label>
+
+      {showAssigneeHint && (
+        <p className="mt-2 text-[11px] text-[#8A99B0]">{ASSIGNEE_STATUS_HINT}</p>
+      )}
+
+      {needsProof && (
+        <label className="mt-3 flex flex-col gap-1.5">
+          <span className="text-[12px] font-medium text-[#36506C]">
+            Task Proof <span className="text-[#C13F3A]">*</span>
+            <span className="ml-1 font-normal text-[#8A99B0]">(required for Completed)</span>
+          </span>
+          <input
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.docx"
+            className="min-h-[38px] w-full min-w-0 rounded-[10px] border-[0.5px] border-dashed border-[#C9D6E5] bg-[#F8F9FC] px-3 py-2 text-sm text-[#36506C] file:mr-3 file:rounded-full file:border-0 file:bg-white file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-[#185FA5]"
+            onChange={(e) => { setProof(e.target.files?.[0]); setErr(null); }}
+          />
+        </label>
+      )}
+
+      {err && <p className="mt-2 text-xs text-[#C13F3A]">{err}</p>}
+    </Modal>
   );
 }
 
@@ -168,6 +173,7 @@ function TaskTable({
   currentUserId
 }: TaskTableProps) {
   const [statusModalTask, setStatusModalTask] = useState<Task | null>(null);
+  const isMobile = useIsMobile();
 
   if (tasks.length === 0) {
     return (
@@ -193,6 +199,60 @@ function TaskTable({
     ...(actionsEnabled ? ['Actions'] : [])
   ];
 
+  const canShowActions = (task: Task) =>
+    typeof showActions === 'function' ? showActions(task) : Boolean(showActions);
+
+  const renderActionButtons = (task: Task, compact: boolean) => {
+    const base = compact
+      ? 'min-h-[40px] flex-1 rounded-[8px] border bg-white px-3 py-1.5 text-xs font-semibold transition'
+      : 'rounded-[8px] border bg-white px-2.5 py-1.5 text-[11px] font-semibold transition';
+    return (
+      <div className={compact ? 'flex flex-wrap items-center gap-2' : 'flex items-center gap-1.5'}>
+        {onStatusChange && getAllowedStatuses(task, currentUserId).length > 0 && (
+          <button
+            title="Change status"
+            onClick={() => setStatusModalTask(task)}
+            className={`${base} border-[#DCE2EA] text-[#185FA5] hover:bg-[#EAF3FC]`}
+          >
+            Status
+          </button>
+        )}
+        {onEdit && (
+          <button
+            title="Edit task"
+            onClick={() => onEdit(task)}
+            className={`${base} border-[#DCE2EA] text-[#36506C] hover:bg-[#F3F6FA]`}
+          >
+            Edit
+          </button>
+        )}
+        {onDelete && (
+          <button
+            title="Delete task"
+            onClick={() => onDelete(task.id)}
+            className={`${base} border-[#FECDCA] text-[#C13F3A] hover:bg-[#FEF3F2]`}
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    );
+  };
+
+  const statusBadges = (task: Task) => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Badge variant={statusVariant[task.status]}>{formatLabel(task.status)}</Badge>
+      {task.status === 'COMPLETED' && !task.proof_path && (
+        <span
+          className="inline-flex items-center rounded-full bg-[#FFF1F1] px-2 py-0.5 text-[10px] font-semibold text-[#C13F3A]"
+          title="No proof uploaded for this completed task"
+        >
+          No Proof
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <>
       {statusModalTask && onStatusChange && (
@@ -208,8 +268,52 @@ function TaskTable({
         />
       )}
 
+      {isMobile ? (
+        <ul className="space-y-3" data-testid="task-card-list">
+          {tasks.map((task) => (
+            <li
+              className={[
+                'relative overflow-hidden rounded-[14px] border border-[#EFF2F6] bg-white p-4 pl-5 before:absolute before:inset-y-0 before:left-0 before:w-1',
+                priorityStripe[task.priority],
+                onRowClick ? 'cursor-pointer' : ''
+              ].join(' ')}
+              data-testid="task-card"
+              key={task.id}
+              onClick={() => onRowClick?.(task)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 break-words text-sm font-semibold text-[#1E293B]">{task.title}</p>
+                {statusBadges(task)}
+              </div>
+              <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                <div className="min-w-0">
+                  <dt className="text-[#8A99B0]">Assigned to</dt>
+                  <dd className="truncate text-[#36506C]">{task.assignedTo?.name ?? task.assignedToName ?? 'Unassigned'}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-[#8A99B0]">Priority</dt>
+                  <dd className="text-[#36506C]">{formatLabel(task.priority)}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-[#8A99B0]">Type</dt>
+                  <dd className="text-[#36506C]">{formatLabel(getCadence(task))}</dd>
+                </div>
+                <div className="min-w-0">
+                  <dt className="text-[#8A99B0]">Deadline</dt>
+                  <dd className="text-[#36506C]">{formatDate(task.due_date)}</dd>
+                </div>
+              </dl>
+              {canShowActions(task) ? (
+                <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                  {renderActionButtons(task, true)}
+                </div>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : (
       <div className="overflow-hidden rounded-[18px] border border-[#EFF2F6] bg-white">
-        <div className="overflow-x-auto">
+        <ResponsiveTable minWidth={900}>
           <table className="min-w-full border-collapse">
             <thead>
               <tr className="bg-[#F8F9FC] text-left">
@@ -252,62 +356,23 @@ function TaskTable({
                   <td className="px-4 py-3.5 text-sm text-[#36506C]">{formatLabel(getCadence(task))}</td>
                   <td className="px-4 py-3.5 text-sm text-[#36506C]">{formatDate(task.start_date)}</td>
                   <td className="px-4 py-3.5 text-sm text-[#36506C]">{formatDate(task.due_date)}</td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex items-center gap-2">
-                      <Badge variant={statusVariant[task.status]}>{formatLabel(task.status)}</Badge>
-                      {task.status === 'COMPLETED' && !task.proof_path && (
-                        <span
-                          className="inline-flex items-center rounded-full bg-[#FFF1F1] px-2 py-0.5 text-[10px] font-semibold text-[#C13F3A]"
-                          title="No proof uploaded for this completed task"
-                        >
-                          No Proof
-                        </span>
-                      )}
-                    </div>
-                  </td>
+                  <td className="px-4 py-3.5">{statusBadges(task)}</td>
 
-                  {((typeof showActions === 'function' ? showActions(task) : Boolean(showActions))) && (
+                  {canShowActions(task) && (
                     <td
                       className="px-4 py-3.5"
                       onClick={(e) => e.stopPropagation()}
                     >
-                      <div className="flex items-center gap-1.5">
-                        {onStatusChange && getAllowedStatuses(task, currentUserId).length > 0 && (
-                          <button
-                            title="Change status"
-                            onClick={() => setStatusModalTask(task)}
-                            className="rounded-[8px] border border-[#DCE2EA] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#185FA5] transition hover:bg-[#EAF3FC]"
-                          >
-                            Status
-                          </button>
-                        )}
-                        {onEdit && (
-                          <button
-                            title="Edit task"
-                            onClick={() => onEdit(task)}
-                            className="rounded-[8px] border border-[#DCE2EA] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#36506C] transition hover:bg-[#F3F6FA]"
-                          >
-                            Edit
-                          </button>
-                        )}
-                        {onDelete && (
-                          <button
-                            title="Delete task"
-                            onClick={() => onDelete(task.id)}
-                            className="rounded-[8px] border border-[#FECDCA] bg-white px-2.5 py-1.5 text-[11px] font-semibold text-[#C13F3A] transition hover:bg-[#FEF3F2]"
-                          >
-                            Delete
-                          </button>
-                        )}
-                      </div>
+                      {renderActionButtons(task, false)}
                     </td>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
-        </div>
+        </ResponsiveTable>
       </div>
+      )}
     </>
   );
 }
