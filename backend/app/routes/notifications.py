@@ -30,10 +30,32 @@ def mark_all_read():
 @notifications_bp.route('/<int:notif_id>/read', methods=['PUT'])
 @jwt_required()
 def mark_read(notif_id):
-    user_id = get_jwt_identity()
+    # JWT identity is a string; the column is an integer.
+    user_id = int(get_jwt_identity())
     notif = Notification.query.get_or_404(notif_id)
     if notif.user_id != user_id:
         return error('Forbidden', 403)
     notif.is_read = True
     db.session.commit()
     return success(notif.to_dict(), 'Notification marked as read')
+
+
+@notifications_bp.route('/<int:notif_id>', methods=['DELETE'])
+@jwt_required()
+def delete_notification(notif_id):
+    """Delete one of the caller's own notifications.
+
+    Notifications are personal inbox items, so only the owner may delete one
+    (even CHAIRMAN/DIRECTOR cannot delete someone else's). Nothing references a
+    notification, so no related data needs cleaning up.
+    """
+    user_id = int(get_jwt_identity())
+    notif = db.session.get(Notification, notif_id)
+    if not notif:
+        return error('Notification not found', 404)
+    if notif.user_id != user_id:
+        return error('Forbidden: you can only delete your own notifications', 403)
+
+    db.session.delete(notif)
+    db.session.commit()
+    return success({'id': notif_id}, 'Notification deleted')

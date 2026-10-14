@@ -1,5 +1,11 @@
+import { useState } from 'react';
+import toast from 'react-hot-toast';
 import Button from '../components/common/Button';
+import ConfirmDeleteDialog from '../components/common/ConfirmDeleteDialog';
+import DeleteButton from '../components/common/DeleteButton';
 import { useNotifications } from '../hooks/useNotifications';
+import type { Notification } from '../types/notification.types';
+import { getApiErrorMessage } from '../utils/apiError';
 
 function formatTimestamp(value: string) {
   const date = new Date(value);
@@ -18,7 +24,32 @@ function formatTimestamp(value: string) {
 }
 
 function NotificationsPage() {
-  const { notifications, unreadCount, markAllAsRead, markAsRead } = useNotifications();
+  const { notifications, unreadCount, markAllAsRead, markAsRead, deleteNotification } = useNotifications();
+  const [deleteTarget, setDeleteTarget] = useState<Notification | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget || isDeleting) return;
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await deleteNotification(deleteTarget.id);
+      toast.success('Notification deleted.');
+      setDeleteTarget(null);
+    } catch (err) {
+      const message = getApiErrorMessage(err, 'Failed to delete notification. Please try again.');
+      setDeleteError(message);
+      toast.error(message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   return (
     <section className="space-y-5 p-5">
@@ -41,30 +72,41 @@ function NotificationsPage() {
         {notifications.length > 0 ? (
           <div className="space-y-3">
             {notifications.map((notification) => (
-              <button
+              <div
                 className={[
-                  'flex w-full items-start justify-between gap-4 rounded-[16px] border px-4 py-4 text-left transition',
+                  'flex w-full items-start justify-between gap-4 rounded-[16px] border px-4 py-4 transition',
                   notification.is_read
                     ? 'border-[#EFF2F6] bg-white'
                     : 'border-[#D7E7F7] bg-[#F7FBFF]'
                 ].join(' ')}
                 key={`${notification.type}-${notification.id}`}
-                onClick={() => void markAsRead(notification.id)}
-                type="button"
               >
-                <div>
-                  <p className="text-sm font-semibold text-[#1E293B]">{notification.message}</p>
-                  <p className="mt-1 text-xs uppercase tracking-[0.12em] text-[#8A99B0]">
-                    {notification.type.replace(/_/g, ' ')}
-                  </p>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-xs text-[#8A99B0]">{formatTimestamp(notification.created_at)}</p>
-                  <p className="mt-2 text-xs font-semibold text-[#185FA5]">
-                    {notification.is_read ? 'Read' : 'Mark As Read'}
-                  </p>
-                </div>
-              </button>
+                <button
+                  className="flex min-w-0 flex-1 items-start justify-between gap-4 text-left"
+                  onClick={() => void markAsRead(notification.id)}
+                  type="button"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-[#1E293B]">{notification.message}</p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-[#8A99B0]">
+                      {notification.type.replace(/_/g, ' ')}
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-xs text-[#8A99B0]">{formatTimestamp(notification.created_at)}</p>
+                    <p className="mt-2 text-xs font-semibold text-[#185FA5]">
+                      {notification.is_read ? 'Read' : 'Mark As Read'}
+                    </p>
+                  </div>
+                </button>
+                <DeleteButton
+                  label="Delete notification"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setDeleteTarget(notification);
+                  }}
+                />
+              </div>
             ))}
           </div>
         ) : (
@@ -73,6 +115,17 @@ function NotificationsPage() {
           </div>
         )}
       </div>
+
+      <ConfirmDeleteDialog
+        errorMessage={deleteError}
+        isDeleting={isDeleting}
+        isOpen={deleteTarget !== null}
+        itemLabel={deleteTarget ? `“${deleteTarget.message}”` : null}
+        itemName="notification"
+        onCancel={closeDeleteDialog}
+        onConfirm={() => void confirmDelete()}
+        title="Delete Notification"
+      />
     </section>
   );
 }

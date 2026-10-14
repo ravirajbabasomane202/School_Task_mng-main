@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from app.extensions import db
+from app.models.department import Department
 from app.models.notification import Notification
 from app.models.task import Task, TaskHistory
 from app.models.user import User
@@ -19,6 +20,82 @@ VALID_STATUSES = {'PENDING', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'ESCALATED'}
 ASSIGNEE_STATUSES = {'IN_PROGRESS', 'COMPLETED'}
 # The assignee cannot change a task that is already in one of these states.
 ASSIGNEE_LOCKED_STATUSES = {'COMPLETED', 'ESCALATED'}
+VALID_PRIORITIES = {'HIGH', 'MEDIUM', 'LOW'}
+VALID_CADENCES = {'DAILY', 'WEEKLY', 'MONTHLY'}
+
+
+def _to_int(value):
+    """``int(value)`` for a clean integer (int or numeric string), else ``None``."""
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _range_bound(value, end_of_day):
+    """Parse a ``from`` / ``to`` filter. A bare ``YYYY-MM-DD`` covers the whole day:
+    start-of-day for ``from``, end-of-day for ``to`` (task due dates are stored as
+    end-of-day, so ``to=2026-05-10`` must still include a task due on the 10th)."""
+    if not value:
+        return None
+    value = value.strip()
+    try:
+        day = datetime.strptime(value, '%Y-%m-%d')
+    except ValueError:
+        return _parse_date(value)
+    if end_of_day:
+        return day.replace(hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc)
+    return day.replace(tzinfo=timezone.utc)
+
+
+def _aware(moment):
+    """Treat a naive datetime (some databases drop tzinfo) as UTC so values compare."""
+    if moment is not None and moment.tzinfo is None:
+        return moment.replace(tzinfo=timezone.utc)
+    return moment
+
+
+def _is_future(moment):
+    return moment is not None and _aware(moment) > datetime.now(timezone.utc)
+
+
+def _find_duplicate(title, assigned_to, start_date, due_date, exclude_id=None):
+    """An open (not COMPLETED) task with the same title, assignee and dates."""
+    query = Task.query.filter(
+        Task.assigned_to == assigned_to,
+        func.lower(Task.title) == (title or '').strip().lower(),
+        Task.start_date == start_date,
+        Task.due_date == due_date,
+        Task.status != 'COMPLETED',
+    )
+    if exclude_id is not None:
+        query = query.filter(Task.id != exclude_id)
+    return query.first()
+
+
+def _validate_assignee(assigned_to):
+    """Return ``(assignee, None)`` or ``(None, (message, status))``."""
+    user_id = _to_int(assigned_to)
+    if user_id is None:
+        return None, ('assigned_to must be a valid user id', 400)
+    assignee = db.session.get(User, user_id)
+    if not assignee:
+        return None, ('Assigned user not found', 404)
+    if not assignee.is_active:
+        return None, ('Assigned user is inactive and cannot receive tasks', 400)
+    return assignee, None
+
+
+def _validate_department(department_id):
+    """Return ``(department_id | None, None)`` or ``(None, (message, status))``."""
+    if department_id in (None, '', 0, '0'):
+        return None, None
+    dept_id = _to_int(department_id)
+    if dept_id is None or not db.session.get(Department, dept_id):
+        return None, ('department_id does not match an existing department', 400)
+    return dept_id, None
 
 
 def _parse_date(value):
@@ -165,7 +242,7 @@ def _notify_status_change(user, task, new_status):
 def my_tasks():
     _apply_overdue_delay()
     user_id = get_jwt_identity()
-    tasks = Task.query.filter_by(assigned_to=user_id).order_by(Task.created_at.desc()).all()
+    tasks = Task.query.filter_by(assigned_to=user_id).order_by(Task.created_at.desc(), Task.id.desc()).all()
     return success([t.to_dict() for t in tasks])
 
 
@@ -180,7 +257,7 @@ def tasks_by_dept(dept_id):
     if not _is_elevated(user) and user.department_id != dept_id:
         return error('Forbidden', 403)
 
-    tasks = Task.query.filter_by(department_id=dept_id).order_by(Task.created_at.desc()).all()
+    tasks = Task.query.filter_by(department_id=dept_id).order_by(Task.created_at.desc(), Task.id.desc()).all()
     return success([t.to_dict() for t in tasks])
 
 
@@ -206,27 +283,44 @@ def list_tasks():
 
     dept_id = request.args.get('department_id')
     if dept_id:
-        query = query.filter_by(department_id=int(dept_id))
+        dept_id = _to_int(dept_id)
+        if dept_id is None:
+            return error('department_id must be an integer', 400)
+        query = query.filter_by(department_id=dept_id)
 
     assigned_to = request.args.get('assigned_to')
     if assigned_to:
-        query = query.filter_by(assigned_to=int(assigned_to))
+        assigned_to = _to_int(assigned_to)
+        if assigned_to is None:
+            return error('assigned_to must be an integer', 400)
+        query = query.filter_by(assigned_to=assigned_to)
 
-    date_from = request.args.get('from')
+    date_from = _range_bound(request.args.get('from'), end_of_day=False)
+    if request.args.get('from') and date_from is None:
+        return error('from must be a valid date (YYYY-MM-DD)', 400)
     if date_from:
         query = query.filter(Task.due_date >= date_from)
 
-    date_to = request.args.get('to')
+    date_to = _range_bound(request.args.get('to'), end_of_day=True)
+    if request.args.get('to') and date_to is None:
+        return error('to must be a valid date (YYYY-MM-DD)', 400)
     if date_to:
         query = query.filter(Task.due_date <= date_to)
 
-    search = request.args.get('search')
+    search = (request.args.get('search') or '').strip()
     if search:
+        # Escape LIKE wildcards so a search for "50%" or "a_b" matches literally.
+        escaped = search.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        pattern = f'%{escaped}%'
         query = query.filter(
-            or_(Task.title.ilike(f'%{search}%'), Task.description.ilike(f'%{search}%'))
+            or_(
+                Task.title.ilike(pattern, escape='\\'),
+                Task.description.ilike(pattern, escape='\\'),
+            )
         )
 
-    tasks = query.order_by(Task.created_at.desc()).all()
+    # id is a tie-breaker so ordering is stable when created_at values collide.
+    tasks = query.order_by(Task.created_at.desc(), Task.id.desc()).all()
     return success([t.to_dict() for t in tasks])
 
 
@@ -267,7 +361,7 @@ def get_task_history(task_id):
 @tasks_bp.route('', methods=['POST'])
 @jwt_required()
 def create_task():
-    user_id = get_jwt_identity()
+    user_id = int(get_jwt_identity())
     user = db.session.get(User, user_id)
     if not user or user.role != 'CHAIRMAN':
         return error('Only Chairman can create tasks', 403)
@@ -282,26 +376,53 @@ def create_task():
         if not data.get(field):
             return error(f'{field} is required', 400)
 
-    assignee = db.session.get(User, data['assigned_to'])
-    if not assignee:
-        return error('Assigned user not found', 404)
+    title = str(data['title']).strip()
+    if not title:
+        return error('title is required', 400)
+
+    assignee, problem = _validate_assignee(data['assigned_to'])
+    if problem:
+        return error(problem[0], problem[1])
+
+    priority = str(data['priority']).upper()
+    if priority not in VALID_PRIORITIES:
+        return error(f"priority must be one of: {', '.join(sorted(VALID_PRIORITIES))}", 400)
+
+    cadence = str(data['cadence']).upper() if data.get('cadence') else None
+    if cadence and cadence not in VALID_CADENCES:
+        return error(f"cadence must be one of: {', '.join(sorted(VALID_CADENCES))}", 400)
+
+    department_id, problem = _validate_department(data.get('department_id'))
+    if problem:
+        return error(problem[0], problem[1])
+
+    start_date = _parse_date(data.get('start_date'))
+    due_date = _parse_date(data.get('due_date'))
+    if start_date is None or due_date is None:
+        return error('start_date and due_date must be valid dates (YYYY-MM-DD)', 400)
+    if due_date < start_date:
+        return error('due_date must be on or after start_date', 400)
+
+    # Same assignee + same title + same dates while still open = a double submit
+    # (double click, page refresh, two chairmen) rather than a new assignment.
+    if _find_duplicate(title, assignee.id, start_date, due_date):
+        return error(
+            f'"{title}" is already assigned to {assignee.name} with the same dates',
+            409,
+        )
 
     task = Task(
-        title=data['title'],
+        title=title,
         description=data.get('description'),
         assigned_by=user_id,
-        assigned_to=int(data['assigned_to']),
-        department_id=int(data['department_id']) if data.get('department_id') else None,
-        priority=data['priority'],
+        assigned_to=assignee.id,
+        department_id=department_id,
+        priority=priority,
         status='PENDING',
-        cadence=data.get('cadence'),
-        start_date=_parse_date(data.get('start_date')),
-        due_date=_parse_date(data.get('due_date'))
+        cadence=cadence,
+        start_date=start_date,
+        due_date=due_date
     )
-
-    # Validate date ordering
-    if task.start_date and task.due_date and task.due_date < task.start_date:
-        return error('due_date must be on or after start_date', 400)
     db.session.add(task)
     db.session.flush()
 
@@ -355,26 +476,108 @@ def update_task(task_id):
         if problem:
             return error(problem[0], problem[1])
 
+    # ---- validate everything first, so a rejected request changes nothing ----
+    new_assignee = None
+    if 'assigned_to' in data and is_assigner and _to_int(data['assigned_to']) != task.assigned_to:
+        new_assignee, problem = _validate_assignee(data['assigned_to'])
+        if problem:
+            return error(problem[0], problem[1])
+
+    if 'priority' in data and is_assigner:
+        if str(data['priority']).upper() not in VALID_PRIORITIES:
+            return error(f"priority must be one of: {', '.join(sorted(VALID_PRIORITIES))}", 400)
+
+    if 'cadence' in data and is_assigner and data['cadence']:
+        if str(data['cadence']).upper() not in VALID_CADENCES:
+            return error(f"cadence must be one of: {', '.join(sorted(VALID_CADENCES))}", 400)
+
+    if 'title' in data and is_assigner and not str(data['title'] or '').strip():
+        return error('title cannot be empty', 400)
+
+    new_department_id = task.department_id
+    if 'department_id' in data and is_assigner:
+        new_department_id, problem = _validate_department(data['department_id'])
+        if problem:
+            return error(problem[0], problem[1])
+
+    new_start, new_due = task.start_date, task.due_date
+    if 'start_date' in data and data['start_date'] and is_assigner:
+        new_start = _parse_date(data['start_date'])
+        if new_start is None:
+            return error('start_date must be a valid date (YYYY-MM-DD)', 400)
+    if 'due_date' in data and data['due_date'] and is_assigner:
+        new_due = _parse_date(data['due_date'])
+        if new_due is None:
+            return error('due_date must be a valid date (YYYY-MM-DD)', 400)
+    if new_start and new_due and _aware(new_due) < _aware(new_start):
+        return error('due_date must be on or after start_date', 400)
+
+    if is_assigner:
+        final_title = str(data['title']).strip() if 'title' in data else task.title
+        final_assignee_id = new_assignee.id if new_assignee else task.assigned_to
+        schedule_changed = (
+            new_assignee is not None
+            or ('title' in data and final_title != task.title)
+            or _aware(new_start) != _aware(task.start_date)
+            or _aware(new_due) != _aware(task.due_date)
+        )
+        if schedule_changed and task.status != 'COMPLETED' and _find_duplicate(
+            final_title, final_assignee_id, new_start, new_due, exclude_id=task.id
+        ):
+            return error('Another open task with the same title, assignee and dates already exists', 409)
+
+    # ---- apply ----
     if 'title' in data and is_assigner:
-        task.title = data['title']
+        task.title = str(data['title']).strip()
     if 'description' in data:
         task.description = data['description']
-    if 'assigned_to' in data and is_assigner:
-        task.assigned_to = int(data['assigned_to'])
+    previous_assignee = task.assignee
+    if new_assignee is not None:
+        task.assigned_to = new_assignee.id
     if 'department_id' in data and is_assigner:
-        task.department_id = int(data['department_id']) if data['department_id'] else None
+        task.department_id = new_department_id
     if 'priority' in data and is_assigner:
-        task.priority = data['priority']
-    if 'start_date' in data and data['start_date'] and is_assigner:
-        task.start_date = _parse_date(data['start_date'])
-    if 'due_date' in data and data['due_date'] and is_assigner:
-        task.due_date = _parse_date(data['due_date'])
-
-    # Validate date ordering after any update
-    if task.start_date and task.due_date and task.due_date < task.start_date:
-        return error('due_date must be on or after start_date', 400)
+        task.priority = str(data['priority']).upper()
+    due_changed = _aware(new_due) != _aware(task.due_date)
+    task.start_date = new_start
+    task.due_date = new_due
     if 'cadence' in data and is_assigner:
-        task.cadence = data['cadence']
+        task.cadence = str(data['cadence']).upper() if data['cadence'] else None
+
+    extra_notifications = []
+    if new_assignee is not None:
+        db.session.add(TaskHistory(
+            task_id=task.id,
+            updated_by=user.id,
+            old_status=task.status,
+            new_status=task.status,
+            comment=f'Reassigned from {previous_assignee.name if previous_assignee else "unknown"} to {new_assignee.name}',
+        ))
+        extra_notifications.append(_create_notification(
+            new_assignee.id, 'TASK_ASSIGNED', f'New task assigned: {task.title}', task.id))
+        if previous_assignee and previous_assignee.id != user.id:
+            extra_notifications.append(_create_notification(
+                previous_assignee.id, 'TASK_UPDATED',
+                f'Task "{task.title}" was reassigned to {new_assignee.name}', task.id))
+
+    # An overdue task is auto-marked DELAYED. If the assigner pushes the due date
+    # into the future (and isn't setting a status themselves), put it back to the
+    # status it had before it was auto-delayed instead of leaving it stuck DELAYED.
+    if (due_changed and is_assigner and not status_changing
+            and task.status == 'DELAYED' and _is_future(task.due_date)):
+        last_delay = (TaskHistory.query
+                      .filter_by(task_id=task.id, new_status='DELAYED')
+                      .order_by(TaskHistory.updated_at.desc(), TaskHistory.id.desc())
+                      .first())
+        restored = last_delay.old_status if last_delay and last_delay.old_status in ('PENDING', 'IN_PROGRESS') else 'PENDING'
+        db.session.add(TaskHistory(
+            task_id=task.id,
+            updated_by=user.id,
+            old_status='DELAYED',
+            new_status=restored,
+            comment='Due date extended: status restored',
+        ))
+        task.status = restored
 
     status_notif = None
     if status_changing:
@@ -402,6 +605,8 @@ def update_task(task_id):
     db.session.commit()
     if status_notif:
         emit_notification(status_notif.user_id, status_notif.to_dict())
+    for notif in extra_notifications:
+        emit_notification(notif.user_id, notif.to_dict())
     emit_task_updated(task.to_dict())
     return success(task.to_dict(include_history=True), 'Task updated')
 
@@ -462,6 +667,10 @@ def delete_task(task_id):
     if not _is_elevated(user):
         return error('Only Chairman or Director can delete tasks', 403)
 
+    # Keep each person's notification history but detach it from the deleted task
+    # (task_id is nullable), so the delete can't trip the foreign key. Task history
+    # rows are removed with the task (cascade).
+    Notification.query.filter_by(task_id=task.id).update({'task_id': None}, synchronize_session=False)
     db.session.delete(task)
     db.session.commit()
     return success({'id': task_id}, 'Task deleted')

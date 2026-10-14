@@ -2,14 +2,19 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Button from '../../components/common/Button';
+import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
+import DeleteButton from '../../components/common/DeleteButton';
 import Modal from '../../components/common/Modal';
 import { getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement } from '../../services/announcementService';
 import type { Announcement, CreateAnnouncementPayload } from '../../types/notification.types';
+import { getApiErrorMessage, isNotFoundError } from '../../utils/apiError';
 
 const DirectorCommunicationsPage: React.FC = () => {
   const qc = useQueryClient();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [filterTarget, setFilterTarget] = useState<'ALL' | 'DEPARTMENT' | 'SCHOOL'>('ALL');
 
   const [form, setForm] = useState<CreateAnnouncementPayload>({
@@ -46,13 +51,33 @@ const DirectorCommunicationsPage: React.FC = () => {
     onError: () => toast.error('Failed to update announcement'),
   });
 
+  const removeFromList = (id: number) =>
+    qc.setQueryData<Announcement[]>(['director-announcements', filterTarget], (old) =>
+      old ? old.filter((item) => item.id !== id) : old
+    );
+
   const deleteMutation = useMutation({
     mutationFn: deleteAnnouncement,
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['director-announcements'] });
+    onSuccess: (_data, id) => {
+      removeFromList(id);
+      setDeleteTarget(null);
+      setDeleteError(null);
       toast.success('Announcement deleted');
+      void qc.invalidateQueries({ queryKey: ['director-announcements'] });
+      void qc.invalidateQueries({ queryKey: ['announcements'] });
     },
-    onError: () => toast.error('Failed to delete announcement'),
+    onError: (err, id) => {
+      if (isNotFoundError(err)) {
+        removeFromList(id);
+        setDeleteTarget(null);
+        setDeleteError(null);
+        toast.success('Announcement was already deleted');
+        return;
+      }
+      const errorMessage = getApiErrorMessage(err, 'Failed to delete announcement. Please try again.');
+      setDeleteError(errorMessage);
+      toast.error(errorMessage);
+    },
   });
 
   const resetForm = () => {
@@ -140,12 +165,13 @@ const DirectorCommunicationsPage: React.FC = () => {
                       >
                         Edit
                       </button>
-                      <button
-                        onClick={() => deleteMutation.mutate(a.id)}
-                        className="text-xs text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
+                      <DeleteButton
+                        label="Delete announcement"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteTarget(a);
+                        }}
+                      />
                     </div>
                   </td>
                 </tr>
@@ -154,6 +180,21 @@ const DirectorCommunicationsPage: React.FC = () => {
           </table>
         )}
       </div>
+
+      <ConfirmDeleteDialog
+        errorMessage={deleteError}
+        isDeleting={deleteMutation.isPending}
+        isOpen={deleteTarget !== null}
+        itemLabel={deleteTarget ? `“${deleteTarget.message.length > 48 ? `${deleteTarget.message.slice(0, 48)}...` : deleteTarget.message}”` : null}
+        itemName="announcement"
+        note="Notifications already sent to staff for this announcement are not removed from their inboxes."
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Announcement"
+      />
 
       <Modal
         isOpen={showCreateModal}

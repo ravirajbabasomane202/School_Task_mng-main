@@ -13,19 +13,6 @@ interface SocketTaskPayload { task?: Task; }
 const resolveTaskPayload = (payload: SocketTaskPayload | Task): Task | undefined =>
   'id' in payload ? payload : payload.task;
 
-const normalizeAnnouncementNotification = (
-  announcement: Announcement,
-  userId: number | undefined
-): Notification => ({
-  id: announcement.id,
-  user_id: userId ?? 0,
-  type: 'ANNOUNCEMENT',
-  message: announcement.message,
-  task_id: null,
-  is_read: false,
-  created_at: announcement.created_at,
-});
-
 /** Query keys invalidated by each notification type */
 const NOTIFICATION_QUERY_MAP: Partial<Record<Notification['type'], string[][]>> = {
   LEAVE_SUBMITTED:       [['leave-requests']],
@@ -46,7 +33,7 @@ const NOTIFICATION_QUERY_MAP: Partial<Record<Notification['type'], string[][]>> 
 export const useSocket = () => {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
-  const { token, user } = useAppSelector((state) => state.auth);
+  const { token } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     if (!token) return undefined;
@@ -73,10 +60,16 @@ export const useSocket = () => {
       }
     });
 
-    socket.on('announcement:new', (announcement: Announcement) => {
-      dispatch(addNotification(normalizeAnnouncementNotification(announcement, user?.id)));
+    // Every recipient already gets a real `notification:new` for an announcement
+    // (persisted, with its own id). The old handler ALSO pushed a fake
+    // notification here using the announcement's id as the notification id, which
+    // duplicated the entry and would make "Delete" target the wrong row.
+    // Just refresh the announcement lists instead.
+    socket.on('announcement:new', (_announcement: Announcement) => {
+      void queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      void queryClient.invalidateQueries({ queryKey: ['director-announcements'] });
     });
 
     return () => { socket.disconnect(); };
-  }, [dispatch, queryClient, token, user?.id]);
+  }, [dispatch, queryClient, token]);
 };

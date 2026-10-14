@@ -3,7 +3,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 
 import Button from '../../components/common/Button';
-import { getAllApprovals, approveApproval, rejectApproval } from '../../services/approvalService';
+import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
+import DeleteButton from '../../components/common/DeleteButton';
+import {
+  getAllApprovals,
+  approveApproval,
+  rejectApproval,
+  deleteApproval
+} from '../../services/approvalService';
+import { getApiErrorMessage, isNotFoundError } from '../../utils/apiError';
 import { APPROVAL_TYPE_META } from '../../types/approval.types';
 import type { Approval, ApprovalStatus } from '../../types/approval.types';
 
@@ -15,6 +23,8 @@ const STATUS_COLOR: Record<ApprovalStatus, string> = {
 
 function ApprovalManagement() {
   const [activeTab, setActiveTab] = useState<'ALL' | 'PENDING' | 'APPROVED' | 'REJECTED'>('ALL');
+  const [deleteTarget, setDeleteTarget] = useState<Approval | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const approvalsQuery = useQuery({
@@ -38,6 +48,38 @@ function ApprovalManagement() {
       await queryClient.invalidateQueries({ queryKey: ['approvals'] });
     },
     onError: () => toast.error('Failed to reject request.')
+  });
+
+  const removeFromList = (id: number) =>
+    queryClient.setQueryData<Approval[]>(['approvals'], (old) =>
+      old ? old.filter((item) => item.id !== id) : old
+    );
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteApproval(id),
+    onSuccess: (_data, id) => {
+      // Drop the row immediately (counts and tabs derive from the list), then re-sync.
+      removeFromList(id);
+      setDeleteTarget(null);
+      setDeleteError(null);
+      toast.success('Approval request deleted.');
+      void queryClient.invalidateQueries({ queryKey: ['approvals'] });
+      void queryClient.invalidateQueries({ queryKey: ['director-approvals'] });
+      void queryClient.invalidateQueries({ queryKey: ['chairman-dashboard'] });
+    },
+    onError: (err, id) => {
+      if (isNotFoundError(err)) {
+        // Already deleted elsewhere: it should not stay in the list.
+        removeFromList(id);
+        setDeleteTarget(null);
+        setDeleteError(null);
+        toast.success('Approval request was already deleted.');
+        return;
+      }
+      const errorMessage = getApiErrorMessage(err, 'Failed to delete approval request. Please try again.');
+      setDeleteError(errorMessage);
+      toast.error(errorMessage);
+    }
   });
 
   const allApprovals = approvalsQuery.data ?? [];
@@ -156,38 +198,66 @@ function ApprovalManagement() {
                   </div>
                 </div>
 
-                {approval.status === 'PENDING' ? (
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={() => approveMutation.mutate(approval.id)}
-                      disabled={approveMutation.isPending}
-                      className="!bg-green-500 !text-white hover:!bg-green-600"
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
+                  {approval.status === 'PENDING' ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => approveMutation.mutate(approval.id)}
+                        disabled={approveMutation.isPending}
+                        className="!bg-green-500 !text-white hover:!bg-green-600"
+                      >
+                        {approveMutation.isPending ? 'Approving…' : 'Approve'}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => rejectMutation.mutate(approval.id)}
+                        disabled={rejectMutation.isPending}
+                      >
+                        {rejectMutation.isPending ? 'Rejecting…' : 'Reject'}
+                      </Button>
+                    </>
+                  ) : (
+                    <span
+                      className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[approval.status]}`}
                     >
-                      {approveMutation.isPending ? 'Approving…' : 'Approve'}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => rejectMutation.mutate(approval.id)}
-                      disabled={rejectMutation.isPending}
-                    >
-                      {rejectMutation.isPending ? 'Rejecting…' : 'Reject'}
-                    </Button>
-                  </div>
-                ) : (
-                  <span
-                    className={`shrink-0 rounded-full px-3 py-1 text-sm font-medium ${STATUS_COLOR[approval.status]}`}
-                  >
-                    {approval.status}
-                  </span>
-                )}
+                      {approval.status}
+                    </span>
+                  )}
+                  <DeleteButton
+                    label="Delete approval request"
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleteTarget(approval);
+                    }}
+                  />
+                </div>
               </div>
             ))
           )}
         </div>
       </div>
+
+      <ConfirmDeleteDialog
+        errorMessage={deleteError}
+        isDeleting={deleteMutation.isPending}
+        isOpen={deleteTarget !== null}
+        itemLabel={deleteTarget ? `“${deleteTarget.title}” (${deleteTarget.status.toLowerCase()})` : null}
+        itemName="approval request"
+        note={
+          deleteTarget?.status === 'PENDING'
+            ? 'This request is still pending; deleting it removes it from the approval queue and the dashboard.'
+            : undefined
+        }
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteError(null);
+        }}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+        title="Delete Approval Request"
+      />
     </div>
   );
 }

@@ -90,9 +90,9 @@ interface RegisterSummary {
   strip: { date: string; color: RegisterDotColor; tooltip: string }[];
 }
 
-/** `roleFilter` is the page-level "Filter Registers by Role" (a role KEY, or 'ALL').
- * It narrows only the per-role Register Performance table, exactly as before. */
-function RegistryPerformancePanel({ roleFilter = 'ALL' }: { roleFilter?: string } = {}) {
+/** Register Performance: one "Filter Registers" bar (date range, Cycle, Head,
+ * Status) drives the cards, both tables and the export. */
+function RegistryPerformancePanel() {
   const today = todayISO();
   const defaultRangeStart = defaultRegisterRange().dateFrom;
 
@@ -200,19 +200,17 @@ function RegistryPerformancePanel({ roleFilter = 'ALL' }: { roleFilter?: string 
   const roleRows = useMemo(
     () =>
       aggregateRegistersByRole(
-        filteredSummaries
-          .filter((s) => roleFilter === 'ALL' || s.register.role === roleFilter)
-          .map((s) => ({
-            role: s.register.role,
-            roleName: s.register.role_name,
-            cycle: s.register.checking_cycle,
-            onTimeChecked: s.onTime,
-            checkedAfterDueDate: s.late,
-            notChecked: s.notChecked,
-          })),
+        filteredSummaries.map((s) => ({
+          role: s.register.role,
+          roleName: s.register.role_name,
+          cycle: s.register.checking_cycle,
+          onTimeChecked: s.onTime,
+          checkedAfterDueDate: s.late,
+          notChecked: s.notChecked,
+        })),
         CYCLE_ORDER
       ),
-    [filteredSummaries, roleFilter]
+    [filteredSummaries]
   );
   const roleTotals = useMemo(() => {
     const sum = (pick: (r: (typeof roleRows)[number]) => number) => roleRows.reduce((acc, r) => acc + pick(r), 0);

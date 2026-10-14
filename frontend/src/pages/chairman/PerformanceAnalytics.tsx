@@ -38,7 +38,6 @@ const CATEGORY_CELL = {
 
 function PerformanceAnalytics() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
-  const [registerRoleFilter, setRegisterRoleFilter] = useState<string>('ALL');
   const { roles, getRoleName } = useRoles();
   // ONE label for a role everywhere on this page (dropdown, both tables, top performer).
   // Department roles read "<Name> Head"; Chairman, Director and Principal stay plain.
@@ -174,28 +173,7 @@ function PerformanceAnalytics() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex flex-col gap-1">
-          <label htmlFor="register-role-filter" className="text-sm font-semibold text-[#1E293B]">
-            Filter Registers by Role
-          </label>
-          <select
-            id="register-role-filter"
-            value={registerRoleFilter}
-            onChange={(e) => setRegisterRoleFilter(e.target.value)}
-            className="rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B]"
-          >
-            <option value="ALL">All Roles</option>
-            {roleOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <RegistryPerformancePanel roleFilter={registerRoleFilter} />
+      <RegistryPerformancePanel />
     </div>
   );
 }

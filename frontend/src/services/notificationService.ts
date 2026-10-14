@@ -24,3 +24,7 @@ export const markAllRead = async () => {
   const response = await api.put<ApiResponse<null>>(API_ENDPOINTS.notifications.markAllRead);
   return response.data.data;
 };
+
+export const deleteNotification = async (id: number): Promise<void> => {
+  await api.delete(API_ENDPOINTS.notifications.delete(id));
+};

@@ -10,6 +10,8 @@ interface DepartmentHealthBarProps {
   departments: Department[];
 }
 
+
+
 const DepartmentHealthBar: React.FC<DepartmentHealthBarProps> = ({ departments }) => {
   return (
     <div className="space-y-4">

@@ -25,6 +25,6 @@ export const updateAnnouncement = async (id: number, payload: Partial<CreateAnno
   return response.data.data;
 };
 
-export const deleteAnnouncement = async (id: number) => {
-  await api.delete(`/announcements/${id}`);
+export const deleteAnnouncement = async (id: number): Promise<void> => {
+  await api.delete(API_ENDPOINTS.announcements.delete(id));
 };

@@ -113,3 +113,23 @@ def reject(approval_id):
     approval.processed_at = datetime.now(timezone.utc)
     db.session.commit()
     return success(approval.to_dict(), 'Rejected')
+
+
+@approvals_bp.route('/<int:approval_id>', methods=['DELETE'])
+@roles_required('CHAIRMAN')
+def delete_approval(approval_id):
+    """Delete an approval request (CHAIRMAN only, same role that processes them).
+
+    Nothing else in the schema holds a foreign key to ``approvals`` (the
+    requester/approver columns point *from* the approval *to* users), so
+    removing the row cannot orphan other records. The dashboard's pending list
+    and counters are computed from this table on every request, so they update
+    automatically.
+    """
+    approval = db.session.get(Approval, approval_id)
+    if not approval:
+        return error('Approval request not found', 404)
+
+    db.session.delete(approval)
+    db.session.commit()
+    return success({'id': approval_id}, 'Approval request deleted')

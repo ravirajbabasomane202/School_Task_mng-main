@@ -99,3 +99,22 @@ def create_announcement():
         emit_notification(recipient_id, notif.to_dict())
 
     return success(ann.to_dict(), 'Announcement broadcast', 201)
+
+
+@announcements_bp.route('/<int:ann_id>', methods=['DELETE'])
+@roles_required('CHAIRMAN', 'DIRECTOR')
+def delete_announcement(ann_id):
+    """Delete one announcement.
+
+    Only CHAIRMAN / DIRECTOR (the roles that can broadcast) may delete. The
+    per-recipient ``ANNOUNCEMENT`` notifications that were generated when it was
+    broadcast are independent rows (no foreign key to the announcement), so they
+    are intentionally left alone: each recipient manages their own inbox.
+    """
+    ann = db.session.get(Announcement, ann_id)
+    if not ann:
+        return error('Announcement not found', 404)
+
+    db.session.delete(ann)
+    db.session.commit()
+    return success({'id': ann_id}, 'Announcement deleted')

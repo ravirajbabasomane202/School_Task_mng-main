@@ -75,9 +75,9 @@ WebSocket URL: `http://localhost:5000` (Socket.IO)
 | Users | GET/POST /api/users, PUT/DELETE /api/users/:id |
 | Departments | GET /api/departments |
 | Tasks | GET/POST /api/tasks, /my-tasks, /dept/:id, /:id |
-| Notifications | GET /api/notifications, PUT /read-all, /:id/read |
-| Approvals | GET/POST /api/approvals, PUT /:id/process |
-| Announcements | GET/POST /api/announcements |
+| Notifications | GET /api/notifications, PUT /read-all, /:id/read, DELETE /:id (owner only) |
+| Approvals | GET/POST /api/approvals, PUT /:id/process, DELETE /:id (Chairman only) |
+| Announcements | GET/POST /api/announcements, GET/DELETE /:id (DELETE: Chairman/Director) |
 | Dashboard | GET /api/dashboard/chairman, /dept/:id, /performance, /monthly-comparison |
 | Reports | GET /api/reports/daily, /weekly, /monthly, /export, /history |
 | Uploads | GET /uploads/<path> (static file serving) |

@@ -39,3 +39,7 @@ export const rejectApproval = async (id: number, comment?: string): Promise<Appr
   });
   return response.data.data;
 };
+
+export const deleteApproval = async (id: number): Promise<void> => {
+  await api.delete(API_ENDPOINTS.approvals.delete(id));
+};

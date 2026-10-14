@@ -3,9 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Badge from '../../components/common/Badge';
 import Button from '../../components/common/Button';
+import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
+import DeleteButton from '../../components/common/DeleteButton';
 import * as announcementService from '../../services/announcementService';
 import * as userService from '../../services/userService';
-import type { AnnouncementTarget } from '../../types/notification.types';
+import type { Announcement, AnnouncementTarget } from '../../types/notification.types';
+import { getApiErrorMessage, isNotFoundError } from '../../utils/apiError';
 import type { User } from '../../types/user.types';
 
 type DepartmentOption = {
@@ -48,10 +51,12 @@ function AnnouncementsPage() {
   const [target, setTarget] = useState<AnnouncementTarget>('ALL');
   const [departmentId, setDepartmentId] = useState('');
   const [message, setMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Announcement | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const announcementsQuery = useQuery({
     queryKey: ['announcements'],
-    queryFn: announcementService.getAnnouncements
+    queryFn: () => announcementService.getAnnouncements()
   });
 
   const usersQuery = useQuery({
@@ -89,6 +94,41 @@ function AnnouncementsPage() {
     },
     onError: () => toast.error('Failed to broadcast announcement. Please try again.'),
   });
+
+  const removeFromList = (id: number) =>
+    queryClient.setQueryData<Announcement[]>(['announcements'], (old) =>
+      old ? old.filter((item) => item.id !== id) : old
+    );
+
+  const deleteAnnouncementMutation = useMutation({
+    mutationFn: announcementService.deleteAnnouncement,
+    onSuccess: (_data, id) => {
+      // Drop the row immediately, then re-sync with the server in the background.
+      removeFromList(id);
+      setDeleteTarget(null);
+      setDeleteError(null);
+      toast.success('Announcement deleted.');
+      void queryClient.invalidateQueries({ queryKey: ['announcements'] });
+    },
+    onError: (err, id) => {
+      if (isNotFoundError(err)) {
+        // Already deleted elsewhere: the list should not show it any more.
+        removeFromList(id);
+        setDeleteTarget(null);
+        setDeleteError(null);
+        toast.success('Announcement was already deleted.');
+        return;
+      }
+      const errorMessage = getApiErrorMessage(err, 'Failed to delete announcement. Please try again.');
+      setDeleteError(errorMessage);
+      toast.error(errorMessage);
+    }
+  });
+
+  const closeDeleteDialog = () => {
+    setDeleteTarget(null);
+    setDeleteError(null);
+  };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -203,7 +243,16 @@ function AnnouncementsPage() {
                       : announcement.department?.name ?? 'Department'}
                   </Badge>
                 </div>
-                <p className="mt-3 text-xs text-[#8A99B0]">{formatDate(announcement.created_at)}</p>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-[#8A99B0]">{formatDate(announcement.created_at)}</p>
+                  <DeleteButton
+                    label="Delete announcement"
+                    onClick={() => {
+                      setDeleteError(null);
+                      setDeleteTarget(announcement);
+                    }}
+                  />
+                </div>
               </div>
             ))
           ) : (
@@ -213,6 +262,18 @@ function AnnouncementsPage() {
           )}
         </div>
       </article>
+
+      <ConfirmDeleteDialog
+        errorMessage={deleteError}
+        isDeleting={deleteAnnouncementMutation.isPending}
+        isOpen={deleteTarget !== null}
+        itemLabel={deleteTarget ? `“${getAnnouncementTitle(deleteTarget.message)}”` : null}
+        itemName="announcement"
+        note="Notifications already sent to staff for this announcement are not removed from their inboxes."
+        onCancel={closeDeleteDialog}
+        onConfirm={() => deleteTarget && deleteAnnouncementMutation.mutate(deleteTarget.id)}
+        title="Delete Announcement"
+      />
     </section>
   );
 }

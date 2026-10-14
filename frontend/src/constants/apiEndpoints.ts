@@ -37,7 +37,8 @@ export const API_ENDPOINTS = {
   notifications: {
     list: '/notifications',
     markRead: (id: number | string) => `/notifications/${id}/read`,
-    markAllRead: '/notifications/read-all'
+    markAllRead: '/notifications/read-all',
+    delete: (id: number | string) => `/notifications/${id}`
   },
   approvals: {
     list: '/approvals',
@@ -45,12 +46,14 @@ export const API_ENDPOINTS = {
     create: '/approvals',
     approve: (id: number | string) => `/approvals/${id}/approve`,
     reject: (id: number | string) => `/approvals/${id}/reject`,
-    process: (id: number | string) => `/approvals/${id}/process`
+    process: (id: number | string) => `/approvals/${id}/process`,
+    delete: (id: number | string) => `/approvals/${id}`
   },
   announcements: {
     list: '/announcements',
     create: '/announcements',
-    detail: (id: number | string) => `/announcements/${id}`
+    detail: (id: number | string) => `/announcements/${id}`,
+    delete: (id: number | string) => `/announcements/${id}`
   },
   dashboard: {
     chairman: '/dashboard/chairman',

@@ -141,4 +141,13 @@ describe('Performance page', () => {
     expect(within(taskTable).queryAllByText('Admission Head', { selector: 'td' })).toHaveLength(0);
     expect(within(taskTable).getAllByText('Library Head', { selector: 'td' }).length).toBeGreaterThan(0);
   });
+
+  it('has no "Filter Registers by Role" dropdown; the single Filter Registers bar remains', async () => {
+    renderPage();
+    await screen.findByText('Admission Register', { selector: 'td' });
+    expect(screen.queryByText('Filter Registers by Role')).toBeNull();
+    expect(document.getElementById('register-role-filter')).toBeNull();
+    expect(screen.getAllByText('Filter Registers')).toHaveLength(1);
+    expect(screen.getByText('Filter Tasks by Role')).toBeInTheDocument();
+  });
 });

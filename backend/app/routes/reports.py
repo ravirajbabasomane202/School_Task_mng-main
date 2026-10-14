@@ -1151,13 +1151,18 @@ def _head_display(head):
 
 
 def _head_matches(head, user_id, name):
-    """The Head filter identifies a person by their user id. Matching on the
-    name text is only kept for old clients that still send a name: names are
-    free text (a register's head_name is a copy that can differ from the
-    user's current name), which is why filtering by name dropped tasks."""
-    if str(head).isdigit():
+    """The Head filter identifies a person by their user id (``"42"``). A register
+    whose head is not linked to a user can only be identified by the name stored on
+    the register, which the screen sends explicitly as ``"name:<text>"``. A bare name
+    is never a key: names are free text (a register's head_name is a copy that can
+    differ from the user's current name), which is why filtering by name dropped tasks.
+    """
+    head = str(head)
+    if head.isdigit():
         return user_id is not None and int(head) == user_id
-    return name == head
+    if head.startswith('name:'):
+        return name == head[len('name:'):]
+    return False
 
 
 def _role_rows_from_summaries(summaries):
