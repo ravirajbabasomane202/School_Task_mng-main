@@ -23,13 +23,15 @@ import PurchaseOrdersPage from '../pages/departments/PurchaseOrdersPage';
 import RegistersPage from '../pages/departments/RegistersPage';
 import ProtectedRoute from './ProtectedRoute';
 import AnalyticsRouter from '../pages/departments/analytics/AnalyticsRouter';
+import AnimatedLogo from '../components/brand/AnimatedLogo';
 
 const DailyReport  = lazy(() => import('../pages/reports/DailyReport'));
 const WeeklyReport = lazy(() => import('../pages/reports/WeeklyReport'));
 
 const PageSpinner = () => (
-  <div className="flex h-64 items-center justify-center">
-    <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+  <div className="flex h-64 flex-col items-center justify-center">
+    <AnimatedLogo variant="subtle" width="120px" />
+    <div className="mt-3 h-1 w-28 overflow-hidden rounded-full bg-[#E6F1FB]"><div className="h-full w-1/2 animate-pulse rounded-full bg-[#185FA5]" /></div>
   </div>
 );
 

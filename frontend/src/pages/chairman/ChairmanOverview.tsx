@@ -8,8 +8,8 @@ import Button from '../../components/common/Button';
 import TaskStatusPieChart from '../../components/charts/TaskStatusPieChart';
 import TaskTable from '../../components/tables/TaskTable';
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
-import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
-import { getRoleLabel } from '../../utils/roleUtils';
+import { ROLE_LABELS } from '../../constants/roles';
+import { useOrderedHeads } from '../../constants/headOrder';
 import { approveApproval, rejectApproval } from '../../services/approvalService';
 import api from '../../services/api';
 import { getStaffPerformance } from '../../services/dashboardService';
@@ -74,6 +74,7 @@ const severityVariantMap = {
 } as const;
 
 function ChairmanOverview() {
+  const { data: orderedHeads = [] } = useOrderedHeads();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const currentUser = useAppSelector((state) => state.auth.user);
@@ -146,12 +147,9 @@ function ChairmanOverview() {
   const dashboardData = dashboardQuery.data;
   const performanceData = useMemo(() => {
     return [...asArray(performanceQuery.data as PerformanceRow[] | undefined)]
-      .sort((left, right) => {
-        const leftIndex = TASK_ASSIGNABLE_ROLES.indexOf(left.role);
-        const rightIndex = TASK_ASSIGNABLE_ROLES.indexOf(right.role);
-        return leftIndex - rightIndex;
-      });
-  }, [performanceQuery.data]);
+      .filter((row) => orderedHeads.some((head) => head.id === row.userId))
+      .sort((left, right) => orderedHeads.findIndex((head) => head.id === left.userId) - orderedHeads.findIndex((head) => head.id === right.userId));
+  }, [performanceQuery.data, orderedHeads]);
 
   const topPerformers = useMemo(
     () =>
@@ -293,7 +291,7 @@ function ChairmanOverview() {
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#1E293B]">{user.name}</p>
-                  <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
+                  <p className="text-sm text-[#5B6E8C]">{orderedHeads.find((head) => head.id === user.userId)?.label ?? user.name}</p>
                 </div>
                 <div className="shrink-0 text-right">
                   <p className="text-sm font-semibold text-[#1E293B]">{user.performanceScore}%</p>
@@ -340,7 +338,7 @@ function ChairmanOverview() {
                 >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-[#1E293B]">{user.name}</p>
-                    <p className="text-sm text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
+                    <p className="text-sm text-[#5B6E8C]">{orderedHeads.find((head) => head.id === user.userId)?.label ?? user.name}</p>
                   </div>
                   <div className="shrink-0 text-right">
                     <p className="text-sm font-semibold text-[#1E293B]">{user.registerPerformance}%</p>

@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DEPARTMENT_HEAD_ROLES, ROLES } from '../constants/roles';
 import * as authService from '../services/authService';
-import { logout as clearCredentials, setCredentials } from '../store/authSlice';
+import { manualLogout, setCredentials } from '../store/authSlice';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import type { ChangePasswordPayload, LoginPayload } from '../types/user.types';
 
@@ -19,7 +19,7 @@ const getDashboardPath = (role: string) => {
     return '/department';
   }
 
-  return '/login';
+  return '/';
 };
 
 export const useAuth = () => {
@@ -47,8 +47,8 @@ export const useAuth = () => {
     try {
       await authService.logout();
     } finally {
-      dispatch(clearCredentials());
       navigate('/', { replace: true });
+      dispatch(manualLogout());
     }
   }, [dispatch, navigate]);
 

@@ -83,7 +83,7 @@ def test_performance_export_head_filter_narrows_records(app, client, auth_header
 
     resp = client.get(
         '/api/reports/performance/export',
-        query_string={'head': hr_head.name},
+        query_string={'head': str(hr_head.id)},
         headers=auth_headers['chairman'],
     )
     assert resp.status_code == 200

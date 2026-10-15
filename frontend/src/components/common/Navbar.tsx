@@ -8,6 +8,7 @@ import { useAppSelector } from '../../store/hooks';
 import Badge from './Badge';
 import Button from './Button';
 import NotificationBell from './NotificationBell';
+import AnimatedLogo from '../brand/AnimatedLogo';
 
 interface NavbarProps {
   actions?: ReactNode;
@@ -112,7 +113,10 @@ function Navbar({ actions, onMenuClick, title }: NavbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-b-[0.5px] border-[#EFF2F6] bg-white px-3 py-[11px] pt-[calc(11px+env(safe-area-inset-top))] sm:gap-3 sm:px-[18px]">
+    <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-b-[0.5px] border-[#EFF2F6] bg-white px-3 pb-[11px] pt-[55px] sm:gap-3 sm:px-[18px] sm:pb-[11px] sm:pt-[60px]">
+      <div className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 sm:top-2">
+        <AnimatedLogo variant="subtle" width="clamp(88px, 11vw, 108px)" duration={0.8} />
+      </div>
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <button
           aria-label="Open navigation menu"

@@ -5,6 +5,7 @@ interface AuthState {
   user: AuthUser | null;
   token: string | null;
   isAuthenticated: boolean;
+  explicitlyLoggedOut: boolean;
 }
 
 const userJson = localStorage.getItem('authUser');
@@ -13,7 +14,8 @@ const storedAccessToken = sessionStorage.getItem('accessToken');
 const initialState: AuthState = {
   user: userJson && storedAccessToken ? (JSON.parse(userJson) as AuthUser) : null,
   token: storedAccessToken,
-  isAuthenticated: Boolean(userJson && storedAccessToken)
+  isAuthenticated: Boolean(userJson && storedAccessToken),
+  explicitlyLoggedOut: false
 };
 
 const authSlice = createSlice({
@@ -27,6 +29,7 @@ const authSlice = createSlice({
       state.user = action.payload.user;
       state.token = action.payload.accessToken;
       state.isAuthenticated = true;
+      state.explicitlyLoggedOut = false;
       localStorage.setItem('authUser', JSON.stringify(action.payload.user));
       sessionStorage.setItem('accessToken', action.payload.accessToken);
 
@@ -38,6 +41,16 @@ const authSlice = createSlice({
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.explicitlyLoggedOut = false;
+      localStorage.removeItem('authUser');
+      localStorage.removeItem('refreshToken');
+      sessionStorage.removeItem('accessToken');
+    },
+    manualLogout: (state) => {
+      state.user = null;
+      state.token = null;
+      state.isAuthenticated = false;
+      state.explicitlyLoggedOut = true;
       localStorage.removeItem('authUser');
       localStorage.removeItem('refreshToken');
       sessionStorage.removeItem('accessToken');
@@ -45,5 +58,5 @@ const authSlice = createSlice({
   }
 });
 
-export const { setCredentials, logout } = authSlice.actions;
+export const { setCredentials, logout, manualLogout } = authSlice.actions;
 export default authSlice.reducer;

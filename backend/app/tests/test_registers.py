@@ -209,14 +209,17 @@ class TestRegisterHeads:
         resp = client.get('/api/registers/heads')
         assert resp.status_code == 401
 
-    def test_returns_active_department_head_users(self, client, auth_headers):
+    def test_returns_only_configured_head_emails_in_order(self, client, auth_headers):
         resp = client.get('/api/registers/heads', headers=auth_headers['chairman'])
         assert resp.status_code == 200
         body = resp.get_json()
         assert body['success'] is True
-        # Every seeded department-head-role test user (hr, finance, it, purchase, regular) should appear.
-        names = {u['name'] for u in body['data']}
-        assert 'Hr Test' in names
+        from app.commands import DEFAULT_USERS
+        expected_emails = [u['email'] for u in DEFAULT_USERS if u.get('head_type')]
+        assert [u['email'] for u in body['data']] == [
+            email for email in expected_emails if any(row['email'] == email for row in body['data'])
+        ]
+        assert all(user['head_type'] for user in body['data'])
 
 
 class TestCreateRegisterWithHeadId:

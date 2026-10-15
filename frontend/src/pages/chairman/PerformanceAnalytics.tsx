@@ -7,10 +7,10 @@ import { useRoles } from '../../hooks/useRoles';
 import { getStaffPerformance, type StaffPerformance } from '../../services/dashboardService';
 import ResponsiveTable from '../../components/common/ResponsiveTable';
 import PageContainer from '../../components/common/PageContainer';
+import { useOrderedHeads } from '../../constants/headOrder';
 import {
   aggregateByRole,
-  buildRoleOptions,
-  filterRowsByRole,
+  filterRowsByUserId,
   summarizeTaskTotals,
   toHeadLabel
 } from '../../utils/performanceUtils';
@@ -40,10 +40,9 @@ const CATEGORY_CELL = {
 
 function PerformanceAnalytics() {
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
+  const { data: orderedHeads = [] } = useOrderedHeads();
   const { roles, getRoleName } = useRoles();
-  // ONE label for a role everywhere on this page (dropdown, both tables, top performer).
-  // Department roles read "<Name> Head"; Chairman, Director and Principal stay plain.
-  const roleLabel = (key: string, rowName?: string | null) => toHeadLabel(getRoleName(key, rowName));
+  const roleLabel = (key: string, rowName?: string | null) => rowName ?? toHeadLabel(getRoleName(key, rowName));
   const { data: performanceData, isLoading: performanceLoading } = useQuery({
     queryKey: ['staffPerformance'],
     queryFn: () => getStaffPerformance()
@@ -55,11 +54,18 @@ function PerformanceAnalytics() {
     return <div className="p-4 sm:p-6">Loading...</div>;
   }
 
-  // Role list comes from the backend; the filter value is the role KEY, so
-  // renaming a role changes only its label.
-  const roleOptions = buildRoleOptions(roles, allRows);
-  const staffRows = filterRowsByRole(allRows, roleFilter);
-  const roleRows = aggregateByRole(staffRows, roles);
+  // Filter by user id so multiple people with the same role stay separate.
+  const roleOptions = orderedHeads;
+  const staffRows = filterRowsByUserId(allRows, roleFilter === 'ALL' ? 'ALL' : Number(roleFilter))
+    .filter((row) => orderedHeads.some((head) => head.id === row.userId));
+  const headRank = new Map(orderedHeads.map((head, index) => [head.id, index]));
+  const roleRows = staffRows
+    .filter((row) => orderedHeads.some((head) => head.id === row.userId))
+    .sort((a, b) => (headRank.get(a.userId) ?? 99) - (headRank.get(b.userId) ?? 99))
+    .map((row) => {
+      const head = orderedHeads.find((item) => item.id === row.userId);
+      return { ...aggregateByRole([row], roles)[0], roleName: head?.label ?? row.name };
+    });
 
   const sum = (pick: (row: (typeof roleRows)[number]) => number) =>
     roleRows.reduce((acc, row) => acc + pick(row), 0);
@@ -76,7 +82,7 @@ function PerformanceAnalytics() {
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex w-full flex-col gap-1 sm:w-auto">
           <label htmlFor="performance-role-filter" className="text-sm font-semibold text-[#1E293B]">
-            Filter Tasks by Role
+            Filter Tasks by Head
           </label>
           <select
             id="performance-role-filter"
@@ -84,9 +90,9 @@ function PerformanceAnalytics() {
             onChange={(e) => setRoleFilter(e.target.value)}
             className="w-full rounded-lg border border-[#E4EAF2] bg-white px-3 py-1.5 text-sm text-[#1E293B] sm:w-auto"
           >
-            <option value="ALL">All Roles</option>
+            <option value="ALL">All Heads</option>
             {roleOptions.map((option) => (
-              <option key={option.key} value={option.key}>
+              <option key={option.id} value={option.id}>
                 {option.label}
               </option>
             ))}
@@ -158,7 +164,7 @@ function PerformanceAnalytics() {
               </thead>
               <tbody>
                 {roleRows.map((row) => (
-                  <tr key={row.role} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
+                  <tr key={row.roleName} className="border-b border-[#EFF2F6] hover:bg-[#FAFCFE]">
                     <td className="sticky left-0 z-[1] bg-white py-3 pl-3 pr-4 text-left text-[#5B6E8C] sm:pl-6">{roleLabel(row.role, row.roleName)}</td>
                     <td className={`px-4 py-3 text-center ${STAFF_COLUMN_COLOR.blue.text}`}>{row.totalTasks}</td>
                     <td className={`px-4 py-3 text-center ${CATEGORY_CELL.onTime}`}>{row.onTimeCompleteTasks}</td>

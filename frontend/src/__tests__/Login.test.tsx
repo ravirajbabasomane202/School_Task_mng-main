@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import Login from '../pages/auth/Login';
 import * as authService from '../services/authService';
 import { Provider } from 'react-redux';
@@ -31,12 +31,15 @@ vi.mock('../hooks/useAuth', () => ({
 const renderLogin = () => {
   return render(
     <Provider store={store}>
-      <BrowserRouter>
+      <MemoryRouter initialEntries={['/login']}>
         <Login />
-      </BrowserRouter>
+        <Location />
+      </MemoryRouter>
     </Provider>
   );
 };
+
+const Location = () => <output data-testid="location">{useLocation().pathname}</output>;
 
 describe('Login Component', () => {
   beforeEach(() => {
@@ -47,10 +50,18 @@ describe('Login Component', () => {
   it('should render login form with email and password fields', () => {
     renderLogin();
 
-    expect(screen.getByRole('heading', { name: /EduTask Pro/i })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: /Adhira International School/i })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Back to Home/i })).toHaveAttribute('href', '/');
     expect(screen.getByLabelText(/Email/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Password/i)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Sign in/i })).toBeInTheDocument();
+  });
+
+  it('Back to Home returns to /', async () => {
+    const user = userEvent.setup();
+    renderLogin();
+    await user.click(screen.getByRole('link', { name: /Back to Home/i }));
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
   });
 
   it('should show validation error when submitting with empty fields', async () => {
@@ -151,8 +162,8 @@ describe('Login Component', () => {
     const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement;
     const passwordInput = screen.getByLabelText(/Password/i) as HTMLInputElement;
 
-    expect(emailInput.value).toBe('chairman@adhira.edu');
-    expect(passwordInput.value).toBe('Admin@123');
+    expect(emailInput.value).toBe('chairman@school.com');
+    expect(passwordInput.value).toBe('chairman123');
   });
 
   it('should disable submit button while loading', async () => {

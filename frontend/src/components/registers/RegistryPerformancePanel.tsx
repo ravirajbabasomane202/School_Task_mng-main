@@ -4,7 +4,6 @@ import {
   defaultRegisterRange,
   latestEntries,
   summarizeRegisterTotals,
-  toHeadLabel,
 } from '../../utils/performanceUtils';
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -20,6 +19,7 @@ import { todayISO } from '../../utils/dateUtils';
 import type { RegisterCycle, RegisterDotColor } from '../../types/register.types';
 
 import ResponsiveTable from '../common/ResponsiveTable';
+import { useOrderedHeads } from '../../constants/headOrder';
 const CYCLE_LABEL: Record<RegisterCycle, string> = {
   DAILY: 'Daily',
   WEEKLY: 'Weekly',
@@ -94,6 +94,7 @@ interface RegisterSummary {
 /** Register Performance: one "Filter Registers" bar (date range, Cycle, Head,
  * Status) drives the cards, both tables and the export. */
 function RegistryPerformancePanel() {
+  const { data: orderedHeads = [] } = useOrderedHeads();
   const today = todayISO();
   const defaultRangeStart = defaultRegisterRange().dateFrom;
 
@@ -123,16 +124,10 @@ function RegistryPerformancePanel() {
   // text: names are free text and can differ between a register and the user,
   // which is what made the filter drop tasks. Registers without a linked head
   // fall back to their stored name so they can still be filtered.
-  const headOptions = useMemo(() => {
-    const options = new Map<string, string>();
-    for (const register of registers) {
-      if (register.head_id) options.set(String(register.head_id), register.head_name);
-      else if (register.head_name) options.set(`name:${register.head_name}`, register.head_name);
-    }
-    return Array.from(options, ([value, label]) => ({ value, label })).sort((a, b) =>
-      a.label.localeCompare(b.label)
-    );
-  }, [registers]);
+  const headOptions = useMemo(
+    () => orderedHeads.map((head) => ({ value: String(head.id), label: head.label })),
+    [orderedHeads]
+  );
 
   const summaries = useMemo<RegisterSummary[]>(() => {
     const items = (registerPerformance?.summaries ?? []).map<RegisterSummary>((item) => ({
@@ -202,16 +197,20 @@ function RegistryPerformancePanel() {
     () =>
       aggregateRegistersByRole(
         filteredSummaries.map((s) => ({
-          role: s.register.role,
-          roleName: s.register.role_name,
+          role: s.register.head_id ? String(s.register.head_id) : s.register.role,
+          roleName: orderedHeads.find((head) => head.id === s.register.head_id)?.label ?? s.register.role_name,
           cycle: s.register.checking_cycle,
           onTimeChecked: s.onTime,
           checkedAfterDueDate: s.late,
           notChecked: s.notChecked,
         })),
         CYCLE_ORDER
-      ),
-    [filteredSummaries]
+      ).sort((a, b) => {
+        const aIndex = orderedHeads.findIndex((head) => String(head.id) === a.role);
+        const bIndex = orderedHeads.findIndex((head) => String(head.id) === b.role);
+        return (aIndex < 0 ? 99 : aIndex) - (bIndex < 0 ? 99 : bIndex);
+      }),
+    [filteredSummaries, orderedHeads]
   );
   const roleTotals = useMemo(() => {
     const sum = (pick: (r: (typeof roleRows)[number]) => number) => roleRows.reduce((acc, r) => acc + pick(r), 0);
@@ -393,7 +392,7 @@ function RegistryPerformancePanel() {
               <tbody>
                 {roleRows.map((row) => (
                   <tr key={row.role} className="border-b border-[#EFF2F6]">
-                    <td className="sticky left-0 z-[1] bg-white py-3 pl-3 pr-4 text-left text-[#5B6E8C] sm:pl-6">{toHeadLabel(row.roleName)}</td>
+                    <td className="sticky left-0 z-[1] bg-white py-3 pl-3 pr-4 text-left text-[#5B6E8C] sm:pl-6">{row.roleName}</td>
                     <td className="px-4 py-3 text-center text-cyan-700">{row.totalRegisters}</td>
                     <td className="px-4 py-3 text-center text-blue-700">
                       {row.checkingCycles.map((c) => CYCLE_LABEL[c as RegisterCycle] ?? c).join(', ') || 'N/A'}

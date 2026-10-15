@@ -13,7 +13,6 @@ import { downloadCsv } from '../../utils/fileDownload';
 import { currentCycleOccurrenceDate, formatPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
 import {
   deleteRegister,
-  getRegisterHeads,
   getRegisters,
   updateOccurrenceStatus,
   updateRegister,
@@ -22,9 +21,10 @@ import { getStaffPerformance } from '../../services/dashboardService';
 import { checkedOnText, dueDateText, timingLabel } from '../../utils/registerCheckUtils';
 import { PERFORMANCE_LABELS as L } from '../../constants/performanceLabels';
 import { useRoles } from '../../hooks/useRoles';
-import { aggregateByRole, filterRowsByRole } from '../../utils/performanceUtils';
+import { aggregateByRole } from '../../utils/performanceUtils';
 import ResponsiveTable from '../../components/common/ResponsiveTable';
 import PageContainer from '../../components/common/PageContainer';
+import { useOrderedHeads } from '../../constants/headOrder';
 import {
   REGISTER_CYCLES,
   REGISTER_PRIORITIES,
@@ -107,10 +107,7 @@ function RegisterMonitoring() {
   // Active Head Names — used both by the edit-form dropdown AND by the
   // "All Head" filter dropdown above the table, so both always show
   // whatever active heads currently exist in the database.
-  const { data: heads = [] } = useQuery({
-    queryKey: ['register-heads'],
-    queryFn: getRegisterHeads,
-  });
+  const { data: heads = [] } = useOrderedHeads();
 
   // Staff Performance values, folded into the Export below instead of
   // having a second, separate "Export Performance Report" flow on the
@@ -130,14 +127,20 @@ function RegisterMonitoring() {
   // what's currently on screen. The match is on the role KEY (identity from
   // the backend), never on a display name, and rows are grouped per role so
   // everyone holding that role is counted (two people / two tasks => 2).
-  const { roles, getRoleName } = useRoles();
+  const { roles } = useRoles();
   const filteredStaffPerformance = useMemo(() => {
     const rows =
       headFilter === 'ALL' || !selectedHead
         ? staffPerformance
-        : filterRowsByRole(staffPerformance, selectedHead.role);
-    return aggregateByRole(rows, roles);
-  }, [staffPerformance, headFilter, selectedHead, roles]);
+        : staffPerformance.filter((row) => row.userId === selectedHead.id);
+    const orderedIds = new Map(heads.map((head, index) => [head.id, index]));
+    return [...rows]
+      .sort((a, b) => (orderedIds.get(a.userId) ?? 99) - (orderedIds.get(b.userId) ?? 99))
+      .map((row) => ({
+        ...aggregateByRole([row], roles)[0],
+        roleName: heads.find((head) => head.id === row.userId)?.label ?? row.name
+      }));
+  }, [staffPerformance, headFilter, selectedHead, roles, heads]);
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: number; data: Record<string, unknown> }) => updateRegister(id, data),
@@ -272,7 +275,7 @@ function RegisterMonitoring() {
       [
         headFilter === 'ALL'
           ? 'Staff Performance (all heads)'
-          : `Staff Performance (${selectedHead?.name ?? headFilter})`,
+          : `Staff Performance (${selectedHead?.label ?? headFilter})`,
       ],
       [
         L.role,
@@ -285,7 +288,7 @@ function RegisterMonitoring() {
         'Completed Registers',
       ],
       ...filteredStaffPerformance.map((p) => [
-        getRoleName(p.role, p.roleName),
+        p.roleName,
         p.totalTasks,
         p.completedTasks,
         p.inProgressTasks,
@@ -365,7 +368,7 @@ function RegisterMonitoring() {
           <option value="ALL">All Head</option>
           {heads.map((h) => (
             <option key={h.id} value={h.id}>
-              {h.name}
+              {h.label}
             </option>
           ))}
         </select>
@@ -516,8 +519,7 @@ function RegisterMonitoring() {
                 <option value="">Select the person responsible</option>
                 {heads.map((h) => (
                   <option key={h.id} value={h.id}>
-                    {h.name}
-                    {h.department_name ? ` (${h.department_name})` : ''}
+                    {h.label}
                   </option>
                 ))}
               </select>

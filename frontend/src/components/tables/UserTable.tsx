@@ -4,6 +4,12 @@ import Badge from '../common/Badge';
 import Button from '../common/Button';
 import ResponsiveTable from '../common/ResponsiveTable';
 import { useIsMobile } from '../../hooks/useMediaQuery';
+import { HEAD_ORDER, formatHeadLabel } from '../../constants/headOrder';
+
+const displayUserName = (user: User) => {
+  const headType = user.head_type || HEAD_ORDER.find((head) => head.email === user.email)?.headType;
+  return headType ? formatHeadLabel(headType, user.name) : user.name;
+};
 
 interface UserTableProps {
   onDeactivate?: (user: User) => void;
@@ -41,7 +47,7 @@ function UserTable({ onDeactivate, onEdit, users }: UserTableProps) {
                   {getInitials(user.name)}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-[#1E293B]">{user.name}</p>
+                  <p className="truncate text-sm font-medium text-[#1E293B]">{displayUserName(user)}</p>
                   <p className="truncate text-xs text-[#5B6E8C]">{getRoleLabel(user.role)}</p>
                 </div>
               </div>
@@ -68,7 +74,7 @@ function UserTable({ onDeactivate, onEdit, users }: UserTableProps) {
         <table className="min-w-full border-collapse">
           <thead>
             <tr className="bg-[#F8F9FC] text-left">
-              {['Name', 'Role', 'Email', 'Status', 'Actions'].map((heading) => (
+              {['Head Type - Name', 'Role', 'Email', 'Status', 'Actions'].map((heading) => (
                 <th
                   className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8A99B0]"
                   key={heading}
@@ -86,7 +92,7 @@ function UserTable({ onDeactivate, onEdit, users }: UserTableProps) {
                     <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#E6F1FB] text-xs font-semibold text-[#0C447C]">
                       {getInitials(user.name)}
                     </div>
-                    <span className="text-sm font-medium text-[#1E293B]">{user.name}</span>
+                    <span className="text-sm font-medium text-[#1E293B]">{displayUserName(user)}</span>
                   </div>
                 </td>
                 <td className="px-4 py-3.5 text-sm text-[#36506C]">{getRoleLabel(user.role)}</td>

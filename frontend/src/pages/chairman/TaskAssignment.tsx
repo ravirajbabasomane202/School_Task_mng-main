@@ -6,7 +6,8 @@ import Button from '../../components/common/Button';
 import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
 import Input from '../../components/common/Input';
 import TaskTable from '../../components/tables/TaskTable';
-import { ROLES, ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
+import { ROLES } from '../../constants/roles';
+import { useOrderedHeads } from '../../constants/headOrder';
 import { PREDEFINED_TASK_TITLES, TASK_TITLE_GROUPS as MODULE_TASK_TITLE_GROUPS } from '../../constants/moduleTasks';
 import * as taskService from '../../services/taskService';
 import * as userService from '../../services/userService';
@@ -215,40 +216,12 @@ const makeInitialForm = (): CreateTaskPayload => ({
   due_date: ''
 });
 
-const formatAssignableUserLabel = (user: {
-  role?: string | null;
-  name?: string | null;
-}) => {
-  const label = ROLE_LABELS[user.role as keyof typeof ROLE_LABELS] ?? String(user.role ?? '').trim();
-  const name = String(user.name ?? '').trim();
-
-  if (!name) {
-    return label;
-  }
-
-  const normalizedLabel = label.toLowerCase();
-  const normalizedName = name.toLowerCase();
-
-  if (
-    normalizedName === normalizedLabel ||
-    normalizedName.includes(normalizedLabel) ||
-    normalizedLabel.includes(normalizedName)
-  ) {
-    return name;
-  }
-
-  if (name.includes(' - ')) {
-    return name.split(' - ')[0].trim();
-  }
-
-  return `${label} - ${name}`;
-};
-
 function TaskAssignment() {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
   const users = useAppSelector((state) => state.users.users);
+  const { data: orderedHeads = [] } = useOrderedHeads();
   const user = useAppSelector((state) => state.auth.user);
   const [activeStatus, setActiveStatus] = useState<TaskStatus | 'ALL'>('ALL');
   const [file, setFile] = useState<File | undefined>();
@@ -297,38 +270,9 @@ function TaskAssignment() {
       .replace(/\s+/g, '_')
       .toUpperCase();
 
-  const isAssignableRole = (normalizedRole: string, departmentName?: string | null) =>
-    TASK_ASSIGNABLE_ROLES.includes(normalizedRole as any) ||
-    ['HOUSEKEEPING', 'HOUSEKEEPING_HEAD', 'HOUSE_KEEPING', 'HOUSE_KEEPING_HEAD', 'HOUSE KEEPING', 'HOUSE KEEPING HEAD'].includes(normalizedRole) ||
-    departmentName?.toLowerCase().includes('housekeep');
-
-  const assignableUsers = Array.from(
-    users
-      .filter((user) => {
-        if (user.is_active === false && user.id !== form.assigned_to) return false;
-        const normalizedRole = normalizeRole(user.role);
-        return isAssignableRole(normalizedRole, user.departmentName ?? user.department?.name);
-      })
-      .reduce((map, user) => {
-        const label = formatAssignableUserLabel(user);
-        const key = label.toLowerCase();
-        if (!map.has(key)) {
-          map.set(key, user);
-        }
-        return map;
-      }, new Map<string, any>())
-      .values()
-  ).sort((left, right) => {
-    const leftRole = normalizeRole(left.role);
-    const rightRole = normalizeRole(right.role);
-    const leftIndex = TASK_ASSIGNABLE_ROLES.indexOf(leftRole as any);
-    const rightIndex = TASK_ASSIGNABLE_ROLES.indexOf(rightRole as any);
-
-    if (leftIndex !== rightIndex) {
-      return leftIndex - rightIndex;
-    }
-
-    return left.name.localeCompare(right.name);
+  const assignableUsers = orderedHeads.flatMap((head) => {
+    const source = users.find((candidate) => candidate.id === head.id);
+    return source ? [{ ...source, label: head.label }] : [];
   });
 
   const TITLE_GROUP_FILTER: Record<string, string[]> = {
@@ -622,7 +566,7 @@ function TaskAssignment() {
               </option>
               {assignableUsers.map((user) => (
                 <option key={user.id} value={user.id}>
-                  {formatAssignableUserLabel(user)}
+                  {user.label}
                 </option>
               ))}
             </select>

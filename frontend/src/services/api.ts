@@ -2,6 +2,7 @@ import axios from 'axios';
 import { logout, setCredentials } from '../store/authSlice';
 import { store } from '../store';
 import { getApiBaseUrl } from '../utils/apiBase';
+import toast from 'react-hot-toast';
 
 const api = axios.create({
   baseURL: getApiBaseUrl(),
@@ -47,6 +48,7 @@ api.interceptors.response.use(
 
       if (!storedRefreshToken) {
         store.dispatch(logout());
+        toast.error('Session expired, please sign in');
         window.location.assign('/');
         return Promise.reject(error);
       }
@@ -97,7 +99,8 @@ api.interceptors.response.use(
         store.dispatch(logout());
         localStorage.removeItem('refreshToken');
         sessionStorage.removeItem('accessToken');
-        window.location.assign('/login');
+        toast.error('Session expired, please sign in');
+        window.location.assign('/');
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -9,6 +9,7 @@ import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
 import { createRole, getAllRoles } from '../../services/roleService';
 import api from '../../services/api';
 import type { User } from '../../types/user.types';
+import { HEAD_ORDER } from '../../constants/headOrder';
 
 import PageContainer from '../../components/common/PageContainer';
 interface AddUserForm {
@@ -16,6 +17,7 @@ interface AddUserForm {
   email: string;
   role: string;
   password: string;
+  head_type?: string;
 }
 
 interface EditUserForm {
@@ -23,6 +25,7 @@ interface EditUserForm {
   email: string;
   role: string;
   password?: string;
+  head_type?: string;
 }
 
 interface ApiResponse<T> {
@@ -46,7 +49,8 @@ const UserManagement: React.FC = () => {
   const [editForm, setEditForm] = useState<EditUserForm>({
     name: '',
     email: '',
-    role: ''
+    role: '',
+    head_type: ''
   });
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
@@ -74,6 +78,7 @@ const UserManagement: React.FC = () => {
       .map((role) => ({ label: role.name, value: role.name }));
     return [...builtIn, ...custom];
   }, [customRoles]);
+  const orderedUsers = useMemo(() => [...(users ?? [])].sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999)), [users]);
 
   const handleCreateRole = async (name: string) => {
     const role = await createRole(name);
@@ -159,7 +164,8 @@ const UserManagement: React.FC = () => {
     setEditForm({
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      head_type: user.head_type ?? HEAD_ORDER.find((head) => head.email === user.email)?.headType ?? ''
     });
     setIsEditModalOpen(true);
   };
@@ -181,7 +187,7 @@ const UserManagement: React.FC = () => {
       </div>
 
       <UserTable
-        users={users || []}
+        users={orderedUsers}
         onEdit={openEditModal}
         onDeactivate={openDeactivateModal}
       />
@@ -300,6 +306,10 @@ const UserManagement: React.FC = () => {
               selectPlaceholder="Select Role"
               value={editForm.role}
             />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Head Type</label>
+            <input type="text" value={editForm.head_type ?? ''} onChange={(event) => setEditForm({ ...editForm, head_type: event.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700">

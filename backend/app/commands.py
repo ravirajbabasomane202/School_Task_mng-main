@@ -20,104 +20,18 @@ DEPARTMENTS = [
 ]
 
 DEFAULT_USERS = [
-    {
-        'name': 'Chairman',
-        'email': 'chairman@school.com',
-        'role': 'CHAIRMAN',
-        'department': None,
-        'password': 'chairman123'
-    },
-    # NOTE: the default "School Director" seed user was removed per request —
-    # the DIRECTOR role and all of its pages/permissions remain fully
-    # functional; only this specific placeholder seed account was dropped so
-    # it's no longer (re)created by `flask seed`. Add a real Director user via
-    # User Management whenever one is needed.
-    {
-        'name': 'Property & Maintenance Head',
-        'email': 'property@school.com',
-        'role': 'PROPERTY',
-        'department': 'Property',
-        'password': 'property123'
-    },
-    {
-        'name': 'Finance Head',
-        'email': 'finance@school.com',
-        'role': 'FINANCE',
-        'department': 'Finance',
-        'password': 'finance123'
-    },
-    {
-        'name': 'Admin Head',
-        'email': 'admin@school.com',
-        'role': 'ADMIN',
-        'department': 'Operations',
-        'password': 'admin123'
-    },
-    {
-        'name': 'Admin Assistance',
-        'email': 'admin.assistance@school.com',
-        'role': 'ADMIN',
-        'department': 'Operations',
-        'password': 'admin123'
-    },
-    {
-        'name': 'Principal',
-        'email': 'principal@school.com',
-        'role': 'PRINCIPAL',
-        'department': 'Principal',
-        'password': 'principal123'
-    },
-    {
-        'name': 'Admission Head',
-        'email': 'admission@school.com',
-        'role': 'ADMISSION',
-        'department': 'Admission',
-        'password': 'admission123'
-    },
-    {
-        'name': 'HR Head',
-        'email': 'hr@school.com',
-        'role': 'HR',
-        'department': 'HR',
-        'password': 'hr123'
-    },
-    {
-        'name': 'Purchase Head / Jr. Accountant / Store',
-        'email': 'purchase@school.com',
-        'role': 'PURCHASE',
-        'department': 'Purchase',
-        'password': 'purchase123'
-    },
-    {
-        'name': 'IT Head',
-        'email': 'it@school.com',
-        'role': 'IT',
-        'department': 'IT',
-        'password': 'it123'
-    },
-    {
-        'name': 'Transport Head',
-        'email': 'transport@school.com',
-        'role': 'TRANSPORT',
-        'department': 'Transport',
-        'password': 'transport123'
-    },
-    {
-        'name': 'Front Desk / Reception / Jr. Clerk',
-        'email': 'frontdesk@school.com',
-        'role': 'FRONT_DESK',
-        'department': 'Front Desk',
-        'password': 'frontdesk123'
-    },
-    {
-        'name': 'HouseKeeping Head',
-        'email': 'housekeeping@school.com',
-        'role': 'HOUSEKEEPING',
-        'department': 'Housekeeping',
-        'password': 'housekeeping123'
-    }
+    {'name': 'Chairman', 'email': 'chairman@school.com', 'role': 'CHAIRMAN', 'department': None, 'password': 'chairman123', 'head_type': None, 'sort_order': None},
+    {'name': 'Prachi Pande', 'email': 'principal@school.com', 'role': 'PRINCIPAL', 'department': 'Principal', 'password': 'principal123', 'head_type': 'Principal', 'sort_order': 1},
+    {'name': 'Shruti Shah', 'email': 'admin@school.com', 'role': 'ADMIN', 'department': 'Operations', 'password': 'admin123', 'head_type': 'Admin Head', 'sort_order': 2},
+    {'name': 'Snehal Madam', 'email': 'finance@school.com', 'role': 'FINANCE', 'department': 'Finance', 'password': 'finance123', 'head_type': 'Finance Head', 'sort_order': 3},
+    {'name': 'Thite Sir', 'email': 'transport@school.com', 'role': 'TRANSPORT', 'department': 'Transport', 'password': 'transport123', 'head_type': 'Transport & Property Head', 'sort_order': 4},
+    {'name': 'Kruhika Madam', 'email': 'admission@school.com', 'role': 'ADMISSION', 'department': 'Admission', 'password': 'admission123', 'head_type': 'Admission & HR Head', 'sort_order': 5},
+    {'name': 'Mallika Madam', 'email': 'admin.assistance@school.com', 'role': 'ADMIN', 'department': 'Operations', 'password': 'admin123', 'head_type': 'Jr. Clerk (Admin Assistance)', 'sort_order': 6},
+    {'name': 'Ekta Madam', 'email': 'it@school.com', 'role': 'IT', 'department': 'IT', 'password': 'it123', 'head_type': 'IT & ERP Head', 'sort_order': 7},
+    {'name': 'Shipral Madam', 'email': 'frontdesk@school.com', 'role': 'FRONT_DESK', 'department': 'Front Desk', 'password': 'frontdesk123', 'head_type': 'Front Desk / Reception', 'sort_order': 8},
+    {'name': 'Pallavi Madam', 'email': 'purchase@school.com', 'role': 'PURCHASE', 'department': 'Purchase', 'password': 'purchase123', 'head_type': 'Accountant & Store Fund', 'sort_order': 9},
+    {'name': 'Savita Patlnane Madam', 'email': 'housekeeping@school.com', 'role': 'HOUSEKEEPING', 'department': 'Housekeeping', 'password': 'housekeeping123', 'head_type': 'House Keeping Head', 'sort_order': 10},
 ]
-
 MODULE_TASKS = [
     {
         'head': 'School Director',
@@ -352,7 +266,9 @@ def register_commands(app: Flask):
                     email=user_data['email'],
                     role=user_data['role'],
                     department_id=department_id,
-                    is_active=True
+                    is_active=True,
+                    head_type=user_data.get('head_type'),
+                    sort_order=user_data.get('sort_order')
                 )
                 user.set_password(user_data['password'])
                 db.session.add(user)
@@ -364,6 +280,8 @@ def register_commands(app: Flask):
                 user.role = user_data['role']
                 user.department_id = department_id
                 user.is_active = True
+                user.head_type = user_data.get('head_type')
+                user.sort_order = user_data.get('sort_order')
                 click.echo(f"  ~ {user_data['email']} ({user_data['role']})")
 
         db.session.commit()
@@ -430,6 +348,31 @@ def register_commands(app: Flask):
             click.echo(f'  + {created_count} created, {updated_count} already present/updated, {skipped_count} skipped')
 
         click.echo('\nDone.')
+
+    @app.cli.command('keep-only-heads')
+    @click.option('--confirm', is_flag=True, default=False, help='Deactivate all users except the ten heads and Chairman.')
+    def keep_only_heads(confirm: bool):
+        """Preview, then deactivate non-head users and revoke their refresh tokens."""
+        from app.models.user import User
+        from app.models.refresh_token import RefreshToken
+        emails = {row['email'] for row in DEFAULT_USERS if row.get('head_type')}
+        emails.add('chairman@school.com')
+        keep = User.query.filter(User.email.in_(emails)).all()
+        keep_ids = {user.id for user in keep}
+        targets = User.query.filter(User.id.notin_(keep_ids)).all() if keep_ids else User.query.all()
+        deactivated_count = 0
+        for user in targets:
+            if user.is_active:
+                click.echo(f"{'DEACTIVATE' if confirm else 'WOULD DEACTIVATE'} id={user.id} name=\"{user.name}\" role={user.role} email={user.email}")
+            if confirm:
+                user.is_active = False
+                RefreshToken.query.filter_by(user_id=user.id).update({'revoked': True}, synchronize_session=False)
+                deactivated_count += 1
+        if confirm:
+            db.session.commit()
+            click.echo(f'Deactivated {deactivated_count} user(s); their refresh tokens were revoked.')
+        else:
+            click.echo('Dry run only. Re-run with --confirm to apply.')
 
     @app.cli.command('link-register-heads')
     @click.option('--dry-run', is_flag=True, default=False,

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
-import { createRegister, getRegisterHeads } from '../../services/registerService';
+import { createRegister } from '../../services/registerService';
+import { useOrderedHeads } from '../../constants/headOrder';
 import { REGISTER_CYCLES, REGISTER_PRIORITIES } from '../../types/register.types';
 import type { CreateRegisterPayload, RegisterCycle, RegisterPriority } from '../../types/register.types';
 
@@ -23,10 +24,7 @@ function AddRegister() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   // Load only active Head Names from the API for the dropdown (Section 1 of the spec).
-  const { data: heads = [], isLoading: headsLoading } = useQuery({
-    queryKey: ['register-heads'],
-    queryFn: getRegisterHeads,
-  });
+  const { data: heads = [], isLoading: headsLoading } = useOrderedHeads();
 
   const createMutation = useMutation({
     mutationFn: createRegister,
@@ -106,8 +104,7 @@ function AddRegister() {
             <option value="">{headsLoading ? 'Loading…' : 'Select the person responsible'}</option>
             {heads.map((h) => (
               <option key={h.id} value={h.id}>
-                {h.name}
-                {h.department_name ? ` (${h.department_name})` : ''}
+                {h.label}
               </option>
             ))}
           </select>

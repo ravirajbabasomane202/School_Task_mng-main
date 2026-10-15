@@ -65,6 +65,11 @@ export function filterRowsByRole(rows: StaffPerformance[], roleKey: string): Sta
   return roleKey === 'ALL' ? rows : rows.filter((row) => row.role === roleKey);
 }
 
+/** Filter an individual head by user id; multiple people can share one role key. */
+export function filterRowsByUserId(rows: StaffPerformance[], userId: number | 'ALL'): StaffPerformance[] {
+  return userId === 'ALL' ? rows : rows.filter((row) => row.userId === userId);
+}
+
 export interface RoleRow {
   role: string;
   roleId: number | null;

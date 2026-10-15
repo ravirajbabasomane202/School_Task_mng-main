@@ -43,7 +43,7 @@ def list_users():
         query = query.filter_by(department_id=int(dept_id))
     if role:
         query = query.filter_by(role=role)
-    users = query.order_by(User.name).all()
+    users = query.filter(User.is_active.is_(True)).order_by(User.sort_order.asc().nullslast(), User.name).all()
     # Include nested department object (needed by AnnouncementsPage via userService.getAllUsers())
     # userService reads response.data.data — serve wrapped format.
     # UserManagement list query uses axios.get('/api/users') and reads response.data as User[]:
@@ -118,6 +118,10 @@ def update_user(user_id):
         if new_key == 'CHAIRMAN':
             return error('Cannot assign CHAIRMAN role via this endpoint', 403)
         user.role = new_key
+    if 'head_type' in data:
+        user.head_type = (data['head_type'] or '').strip() or None
+    if 'sort_order' in data:
+        user.sort_order = data['sort_order']
     if 'password' in data and data['password']:
         user.set_password(data['password'])
 

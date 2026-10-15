@@ -568,19 +568,18 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
 @registers_bp.route('/heads', methods=['GET'])
 @jwt_required()
 def list_register_heads():
-    """Active users eligible to be selected as a Register's Head Name."""
-    # Any active user except the school owner can head a register -- not a
-    # hard-coded list of roles, so a newly created role works immediately.
+    """Return the fixed, active school head list in its configured order."""
+    from app.commands import DEFAULT_USERS
     roles_by_key = sync_roles()
-    query = User.query.filter(
-        User.is_active.is_(True),
-        User.role != 'CHAIRMAN',
-    )
-    users = query.order_by(User.name).all()
+    head_emails = [row['email'] for row in DEFAULT_USERS if row.get('head_type')]
+    users = User.query.filter(User.is_active.is_(True), User.email.in_(head_emails)).order_by(User.sort_order.asc().nullslast()).all()
     return success([
         {
             'id': u.id,
+              'email': u.email,
             'name': u.name,
+              'head_type': u.head_type,
+              'sort_order': u.sort_order,
             'role': u.role,
             'role_id': roles_by_key[u.role].id if u.role in roles_by_key else None,
             'role_name': roles_by_key[u.role].name if u.role in roles_by_key else u.role,

@@ -6,15 +6,13 @@ import toast from 'react-hot-toast';
 import Button from '../../components/common/Button';
 import TaskTable from '../../components/tables/TaskTable';
 import { ROLE_LABELS, ROLES } from '../../constants/roles';
-import { getRoleLabel } from '../../utils/roleUtils';
 import * as reportService from '../../services/reportService';
 import * as taskService from '../../services/taskService';
 import { getStatusErrorMessage } from '../../utils/taskStatus';
-import * as userService from '../../services/userService';
+import { useOrderedHeads } from '../../constants/headOrder';
 import { setTasks } from '../../store/taskSlice';
 import { useAppDispatch, useAppSelector } from '../../store/hooks';
 import type { Task, TaskStatus } from '../../types/task.types';
-import type { User } from '../../types/user.types';
 
 import PageContainer from '../../components/common/PageContainer';
 const statCards: Array<{ color: string; key: TaskStatus; label: string }> = [
@@ -79,10 +77,7 @@ function TaskMonitoring() {
     queryFn: () => taskService.getAllTasks()
   });
 
-  const usersQuery = useQuery({
-    queryKey: ['users', 'monitoring'],
-    queryFn: () => userService.getAllUsers()
-  });
+  const { data: assignableUsers = [] } = useOrderedHeads();
 
   useEffect(() => {
     if (taskQuery.data) {
@@ -106,11 +101,6 @@ function TaskMonitoring() {
         }
       ),
     [tasks]
-  );
-
-  const assignableUsers = useMemo(
-    () => (usersQuery.data ?? []).filter((user: User) => user.is_active),
-    [usersQuery.data]
   );
 
   const filteredTasks = useMemo(() => {
@@ -288,9 +278,9 @@ function TaskMonitoring() {
               value={assigneeFilter}
             >
               <option value="all">All Head</option>
-              {assignableUsers.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name} - {getRoleLabel(user.role)}
+              {assignableUsers.map((head) => (
+                <option key={head.id} value={head.id}>
+                  {head.label}
                 </option>
               ))}
             </select>

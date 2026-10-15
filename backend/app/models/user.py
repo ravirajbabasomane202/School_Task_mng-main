@@ -24,6 +24,8 @@ class User(db.Model):
     email = db.Column(db.String(150), nullable=False, unique=True)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(30), nullable=False)
+    head_type = db.Column(db.String(60), nullable=True)
+    sort_order = db.Column(db.Integer, nullable=True)
     department_id = db.Column(db.Integer, db.ForeignKey('departments.id'), nullable=True)
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_login = db.Column(db.DateTime, nullable=True)
@@ -47,6 +49,8 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'head_type': self.head_type,
+            'sort_order': self.sort_order,
             'department_id': self.department_id,
             'departmentName': self.department.name if self.department else None,
             'is_active': self.is_active,
@@ -62,6 +66,8 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'head_type': self.head_type,
+            'sort_order': self.sort_order,
             'department_id': self.department_id
         }
 
@@ -71,6 +77,8 @@ class User(db.Model):
             'name': self.name,
             'email': self.email,
             'role': self.role,
+            'head_type': self.head_type,
+            'sort_order': self.sort_order,
             'department_id': self.department_id,
             'departmentName': self.department.name if self.department else None
         }

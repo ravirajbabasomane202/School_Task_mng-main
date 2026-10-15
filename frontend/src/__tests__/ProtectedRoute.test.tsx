@@ -1,112 +1,64 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import ProtectedRoute from '../routes/ProtectedRoute';
 import { Provider } from 'react-redux';
 import { ROLES } from '../constants/roles';
 import { store } from '../store';
-import { setCredentials, logout } from '../store/authSlice';
+import { setCredentials, logout as clearCredentials } from '../store/authSlice';
+import { useAuth } from '../hooks/useAuth';
+import * as authService from '../services/authService';
 
-const DummyPage = () => <div>Protected Content</div>;
-const LoginPage = () => <div>Login Page</div>;
+vi.mock('../services/authService', async () => {
+  const actual = await vi.importActual<typeof import('../services/authService')>('../services/authService');
+  return { ...actual, logout: vi.fn(async () => undefined) };
+});
 
-const renderWithRouter = (initialAuth: any = null) => {
-  const testStore = store;
-  
-  if (initialAuth) {
-    testStore.dispatch(setCredentials(initialAuth));
-  } else {
-    testStore.dispatch(logout());
-  }
-
-  return render(
-    <Provider store={testStore}>
-      <BrowserRouter>
-        <Routes>
-          <Route element={<ProtectedRoute />}>
-            <Route path="/protected" element={<DummyPage />} />
-          </Route>
-          <Route path="/login" element={<LoginPage />} />
-        </Routes>
-      </BrowserRouter>
-    </Provider>
-  );
+const Location = () => <output data-testid="location">{useLocation().pathname}</output>;
+const Landing = () => <><h1>Home</h1><Location /></>;
+const LoginPage = () => <><h1>Login Page</h1><output data-testid="from">{useLocation().state?.from?.pathname}</output><Location /></>;
+const ProtectedPage = () => {
+  const { logout } = useAuth();
+  return <><h1>Protected Content</h1><button onClick={() => void logout()}>Logout</button><Location /></>;
 };
+
+function renderRoutes(initialEntries: string[] = ['/protected'], authenticated = false) {
+  store.dispatch(clearCredentials());
+  if (authenticated) {
+    store.dispatch(setCredentials({
+      user: { id: 1, role: ROLES.CHAIRMAN, name: 'Test User', email: 'test@school.com', department_id: null },
+      accessToken: 'token', refreshToken: 'refresh'
+    }));
+  }
+  return render(<Provider store={store}><MemoryRouter initialEntries={initialEntries}><Routes>
+    <Route path="/" element={<Landing />} />
+    <Route path="/login" element={<LoginPage />} />
+    <Route element={<ProtectedRoute />}><Route path="/protected" element={<ProtectedPage />} /></Route>
+  </Routes></MemoryRouter></Provider>);
+}
 
 describe('ProtectedRoute Component', () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.clearAllMocks();
   });
 
-  it('should redirect unauthenticated user to /login', () => {
-    renderWithRouter(null);
-    
-    // Navigate to protected route
-    window.history.pushState({}, 'Protected', '/protected');
-    
-    screen.debug();
+  it('sends a directly opened protected URL to login and preserves its origin', async () => {
+    renderRoutes();
+    expect(await screen.findByRole('heading', { name: 'Login Page' })).toBeInTheDocument();
+    expect(screen.getByTestId('from')).toHaveTextContent('/protected');
   });
 
-  it('should render children when user is authenticated', () => {
-    const authData = {
-      user: {
-        id: 1,
-        role: ROLES.CHAIRMAN,
-        name: 'Test User',
-        email: 'test.user@school.com',
-        department_id: null
-      },
-      accessToken: 'valid-token',
-      refreshToken: 'refresh-token'
-    };
-
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<ProtectedRoute />}>
-              <Route path="/protected" element={<DummyPage />} />
-            </Route>
-            <Route path="/login" element={<LoginPage />} />
-          </Routes>
-        </BrowserRouter>
-      </Provider>
-    );
-
-    store.dispatch(setCredentials(authData));
-    window.history.pushState({}, 'Protected', '/protected');
-
-    // When navigated and authenticated, should see protected content
-    // This would be verified in integration test with full routing
+  it('renders children when the user is authenticated', () => {
+    renderRoutes(['/protected'], true);
+    expect(screen.getByRole('heading', { name: 'Protected Content' })).toBeInTheDocument();
   });
 
-  it('should redirect when user lacks required role', () => {
-    const authData = {
-      user: {
-        id: 1,
-        role: ROLES.HR,
-        name: 'Dept Head User',
-        email: 'dept.head@school.com',
-        department_id: 2
-      },
-      accessToken: 'valid-token',
-      refreshToken: 'refresh-token'
-    };
-
-    render(
-      <Provider store={store}>
-        <BrowserRouter>
-          <Routes>
-            <Route element={<ProtectedRoute allowedRoles={[ROLES.CHAIRMAN]} />}>
-              <Route path="/chairman" element={<DummyPage />} />
-            </Route>
-            <Route path="/login" element={<LoginPage />} />
-          </Routes>
-        </BrowserRouter>
-      </Provider>
-    );
-
-    store.dispatch(setCredentials(authData));
-    window.history.pushState({}, 'Chairman', '/chairman');
+  it('clicking Logout lands on / without routing through login', async () => {
+    renderRoutes(['/protected'], true);
+    fireEvent.click(screen.getByRole('button', { name: 'Logout' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/'));
+    expect(authService.logout).toHaveBeenCalled();
+    expect(screen.queryByRole('heading', { name: 'Login Page' })).not.toBeInTheDocument();
   });
 });

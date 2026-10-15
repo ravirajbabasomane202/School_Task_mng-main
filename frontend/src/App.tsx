@@ -8,6 +8,7 @@ import { logout, setCredentials } from './store/authSlice';
 import { useAppDispatch } from './store/hooks';
 import { store } from './store';
 import type { AuthUser } from './types/user.types';
+import AnimatedLogo from './components/brand/AnimatedLogo';
 
 const queryClient = new QueryClient();
 
@@ -49,8 +50,10 @@ function AppBootstrap() {
   if (isBootstrapping) {
     return (
       <main className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] text-[#1E293B]">
-        <div className="rounded-[18px] border border-[#EFF2F6] bg-white px-5 py-4 text-sm font-medium shadow-sm">
-          Restoring your session...
+        <div className="flex flex-col items-center rounded-[18px] border border-[#EFF2F6] bg-white px-8 py-6 text-sm font-medium shadow-sm">
+          <AnimatedLogo variant="subtle" width="150px" />
+          <div className="mt-5 h-1 w-36 overflow-hidden rounded-full bg-[#E6F1FB]"><div className="h-full w-1/2 animate-pulse rounded-full bg-[#185FA5]" /></div>
+          <span className="sr-only">Restoring your session...</span>
         </div>
       </main>
     );

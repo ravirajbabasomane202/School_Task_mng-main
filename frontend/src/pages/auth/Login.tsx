@@ -1,6 +1,8 @@
 import { FormEvent, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../../hooks/useAuth';
+import { Link } from 'react-router-dom';
+import AnimatedLogo from '../../components/brand/AnimatedLogo';
 
 function Login() {
   const { login } = useAuth();
@@ -36,11 +38,12 @@ function Login() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] p-4 sm:py-10 text-[#1E293B]">
       <section className="w-full max-w-[420px] rounded-lg border border-[#EFF2F6] bg-[#FFFFFF] px-5 py-7 shadow-sm sm:px-8 sm:py-9">
+        <Link to="/" aria-label="Back to Home" className="mb-5 inline-flex min-h-10 items-center rounded-md px-2 text-sm font-semibold text-[#185FA5] hover:bg-[#F1F4F9] focus:outline-none focus:ring-2 focus:ring-[#185FA5]">
+          ← Back to Home
+        </Link>
         <div className="flex flex-col items-center text-center">
-          <div className="flex h-[30px] w-[30px] items-center justify-center rounded-md bg-[#185FA5] text-[11px] font-bold text-white">
-            EP
-          </div>
-          <h1 className="mt-4 text-2xl font-bold leading-8 text-[#1E293B]">EduTask Pro</h1>
+          <AnimatedLogo variant="full" width="min(260px, 80%)" />
+          <h1 className="sr-only">Adhira International School</h1>
           <p className="mt-1 text-sm font-medium text-[#5B6E8C]">School Staff Task Management</p>
         </div>
 

@@ -5,6 +5,7 @@ import { ROLES } from '../constants/roles';
 import { SCHOOL_INFO } from '../constants/schoolInfo';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
+import AnimatedLogo from '../components/brand/AnimatedLogo';
 
 // Floating shape animations
 const FloatingShape = ({ className, delay }: { className: string; delay: number }) => (
@@ -180,15 +181,7 @@ function LandingPage() {
         className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/50 shadow-sm"
       >
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 px-4 py-3 pt-[calc(0.75rem+env(safe-area-inset-top))] sm:px-8 sm:py-4">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="h-8 w-8 shrink-0 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 shadow-lg" />
-            <div className="min-w-0">
-              <span className="block truncate text-xs font-medium text-slate-500">{schoolInfo.name}</span>
-              <span className="block truncate text-base font-bold sm:text-lg bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-transparent">
-                {schoolInfo.appName}
-              </span>
-            </div>
-          </div>
+          <AnimatedLogo animated={false} width="clamp(130px, 18vw, 210px)" variant="subtle" />
           <div className="hidden md:flex items-center gap-6 text-sm font-medium">
             {navItems.map((item) => {
               const id = item.toLowerCase().replace(/ /g, "-");
@@ -261,6 +254,7 @@ function LandingPage() {
             transition={{ duration: 0.6 }}
             className="flex-1"
           >
+              <AnimatedLogo variant="full" idleShimmer width="min(420px, 100%)" className="mb-6" />
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 border border-blue-100">
               ✨ Next-Gen School Operations
             </div>

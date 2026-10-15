@@ -5,6 +5,8 @@ export interface User {
   name: string;
   email: string;
   role: Role;
+  head_type?: string | null;
+  sort_order?: number | null;
   department_id: number | null;
   departmentName?: string;
   department?: {
