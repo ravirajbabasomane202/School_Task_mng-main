@@ -38,13 +38,10 @@ function Login() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-[#F1F4F9] p-4 sm:py-10 text-[#1E293B]">
       <section className="w-full max-w-[420px] rounded-lg border border-[#EFF2F6] bg-[#FFFFFF] px-5 py-7 shadow-sm sm:px-8 sm:py-9">
-        <Link to="/" aria-label="Back to Home" className="mb-5 inline-flex min-h-10 items-center rounded-md px-2 text-sm font-semibold text-[#185FA5] hover:bg-[#F1F4F9] focus:outline-none focus:ring-2 focus:ring-[#185FA5]">
-          ← Back to Home
-        </Link>
         <div className="flex flex-col items-center text-center">
           <AnimatedLogo variant="full" width="min(260px, 80%)" />
-          <h1 className="sr-only">Adhira International School</h1>
-          <p className="mt-1 text-sm font-medium text-[#5B6E8C]">School Staff Task Management</p>
+          <h1 className="mt-3 text-2xl font-bold tracking-tight text-[#1E293B]">EduTaskPro</h1>
+          <p className="mt-1 text-sm font-medium text-[#5B6E8C]">Assign. Track. Complete. Achieve.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="mt-8">
@@ -113,6 +110,16 @@ function Login() {
             )}
           </button>
         </form>
+
+        <div className="mt-6 flex justify-center border-t border-[#EFF2F6] pt-5">
+          <Link
+            to="/"
+            aria-label="Back to Home"
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-md border border-[#D5DDE8] px-4 text-sm font-semibold text-[#185FA5] transition hover:bg-[#F1F4F9] focus:outline-none focus:ring-2 focus:ring-[#185FA5] sm:w-auto sm:min-w-[180px]"
+          >
+            ← Back to Home
+          </Link>
+        </div>
       </section>
     </main>
   );

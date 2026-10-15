@@ -254,7 +254,6 @@ function LandingPage() {
             transition={{ duration: 0.6 }}
             className="flex-1"
           >
-              <AnimatedLogo variant="full" idleShimmer width="min(420px, 100%)" className="mb-6" />
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-600 border border-blue-100">
               ✨ Next-Gen School Operations
             </div>
@@ -515,7 +514,7 @@ function LandingPage() {
         <div className="mx-auto max-w-7xl px-6 sm:px-8">
           <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-5">
             <div className="lg:col-span-2">
-              <div className="flex items-center gap-2"><div className="h-6 w-6 rounded-lg bg-gradient-to-br from-blue-600 to-indigo-600" /><span className="font-bold text-slate-900">{schoolInfo.appName}</span></div>
+              <span className="font-bold text-slate-900">{schoolInfo.appName}</span>
               <div className="mt-2">
                 <p className="text-sm font-semibold text-slate-700">{schoolInfo.name}</p>
                 <p className="text-sm text-slate-500">Chairman: {schoolInfo.chairmanName}</p>

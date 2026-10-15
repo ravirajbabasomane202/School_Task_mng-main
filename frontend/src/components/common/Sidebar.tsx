@@ -7,6 +7,7 @@ import { getRoleLabel } from '../../utils/roleUtils';
 import { getAllApprovals } from '../../services/approvalService';
 import { useAppSelector } from '../../store/hooks';
 import Badge from './Badge';
+import AnimatedLogo from '../brand/AnimatedLogo';
 
 interface NavItem {
   badge?: { tone: 'amber' | 'red'; value: number };
@@ -144,6 +145,13 @@ function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       data-testid="sidebar"
       role={isDrawerOpen ? 'dialog' : undefined}
     >
+      <div
+        className="flex shrink-0 justify-center border-b border-b-[0.5px] border-[#EFF2F6] pb-3 pt-[calc(1rem+env(safe-area-inset-top))]"
+        data-testid="sidebar-logo"
+      >
+        <AnimatedLogo animated={false} variant="subtle" width="88%" />
+      </div>
+
       <div className="shrink-0 border-b border-b-[0.5px] border-[#EFF2F6] px-4 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[10px] bg-[#185FA5] text-xs font-semibold text-white">
