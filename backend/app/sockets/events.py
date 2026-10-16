@@ -1,8 +1,11 @@
+import logging
 from flask_socketio import join_room, disconnect
 from flask_jwt_extended import decode_token
-from jwt.exceptions import InvalidTokenError
+from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 from app.extensions import socketio, db
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 
 @socketio.on('connect')
@@ -13,6 +16,7 @@ def handle_connect(auth):
         token = auth.get('token')
 
     if not token:
+        logger.info('[socket] rejected connection: no token supplied')
         disconnect()
         return False
 
@@ -40,7 +44,14 @@ def handle_connect(auth):
         if user.department_id:
             join_room(f'dept_{user.department_id}')
 
-    except (InvalidTokenError, Exception):
+    except ExpiredSignatureError:
+        # Expected every ~15 min; the client reconnects after its REST call
+        # refreshes the access token.
+        logger.info('[socket] rejected connection: access token expired')
+        disconnect()
+        return False
+    except (InvalidTokenError, Exception) as exc:
+        logger.info('[socket] rejected connection: %s', type(exc).__name__)
         disconnect()
         return False
 

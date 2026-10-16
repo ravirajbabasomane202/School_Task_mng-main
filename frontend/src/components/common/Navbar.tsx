@@ -18,23 +18,40 @@ interface NavbarProps {
 
 const pageTitles: Record<string, string> = {
   '/chairman': 'Dashboard',
+  '/chairman/add-register': 'Add Register',
   '/chairman/alerts': 'Alerts',
   '/chairman/announcements': 'Announcements',
   '/chairman/approvals': 'Approvals',
+  '/chairman/leave': 'Leave Management',
   '/chairman/meetings': 'Schedule Meeting',
   '/chairman/performance': 'Performance',
+  '/chairman/register-monitoring': 'Register Monitoring',
   '/chairman/reports': 'MIS Reports',
   '/chairman/task-assignment': 'Task Assignment',
   '/chairman/task-monitor': 'Task Monitor',
   '/chairman/users': 'User Management',
   '/department': 'Dashboard',
+  '/department/analytics': 'Analytics',
   '/department/announcements': 'Announcements',
+  '/department/approvals': 'Approvals',
+  '/department/assets': 'Asset Management',
+  '/department/leave': 'Leave',
   '/department/my-tasks': 'My Tasks',
   '/department/notifications': 'Notifications',
+  '/department/purchase': 'Purchase Orders',
+  '/department/recruitment': 'Recruitment',
+  '/department/registers': 'Registers',
+  '/department/salary': 'Salary Increments',
   '/director': 'Dashboard',
   '/director/announcements': 'Announcements',
+  '/director/approvals': 'Approvals',
+  '/director/communications': 'Communications',
+  '/director/leave': 'Leave Management',
+  '/director/meetings': 'Meetings',
   '/director/my-tasks': 'My Tasks',
   '/director/notifications': 'Notifications',
+  '/director/registers': 'Registers',
+  '/director/reports': 'Reports',
   '/notifications': 'Notifications',
   '/task': 'Task Detail'
 };
@@ -95,7 +112,11 @@ function Navbar({ actions, onMenuClick, title }: NavbarProps) {
   const resolvedTitle =
     title ??
     pageTitles[location.pathname] ??
-    Object.entries(pageTitles).find(([path]) => location.pathname.startsWith(path))?.[1] ??
+    // Fallback: most specific (longest) matching prefix, so '/chairman/xyz' never
+    // degrades to the generic '/chairman' -> 'Dashboard' entry when a longer one exists.
+    Object.entries(pageTitles)
+      .filter(([path]) => location.pathname.startsWith(path))
+      .sort((a, b) => b[0].length - a[0].length)[0]?.[1] ??
     'Dashboard';
   const subtitleParts = [
     formatNavbarDate(),

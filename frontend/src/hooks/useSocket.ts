@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { io } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import toast from 'react-hot-toast';
 import { addNotification } from '../store/notificationSlice';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
@@ -33,13 +33,30 @@ const NOTIFICATION_QUERY_MAP: Partial<Record<Notification['type'], string[][]>> 
 export const useSocket = () => {
   const dispatch = useAppDispatch();
   const queryClient = useQueryClient();
-  const { token } = useAppSelector((state) => state.auth);
+  const { token, isAuthenticated } = useAppSelector((state) => state.auth);
+  const tokenRef = useRef<string | null>(token);
+  const socketRef = useRef<Socket | null>(null);
+  tokenRef.current = token;
 
+  // The access token is short-lived (15 min) and is silently refreshed by the
+  // axios interceptor. Previously `token` was an effect dependency, so every
+  // refresh tore the socket down and opened a brand-new Engine.IO session (a
+  // new `sid`), each of which then tried - and failed - to upgrade to
+  // WebSocket. Now the socket lives for the whole login session and reads the
+  // *current* token through a callback each time it (re)connects.
   useEffect(() => {
-    if (!token) return undefined;
+    if (!isAuthenticated) return undefined;
 
     const socketBaseUrl = getBackendBaseUrl();
-    const socket = io(socketBaseUrl, { auth: { token } });
+    // Polling only: the Flask dev server (python run.py) cannot close a
+    // WebSocket cleanly - it writes an HTTP 500 into the upgraded connection,
+    // which the browser reports as "Invalid frame header". Long-polling is
+    // reliable through Cloudflare and just as quick for notifications.
+    const socket = io(socketBaseUrl, {
+      transports: ['polling'],
+      auth: (cb) => cb({ token: tokenRef.current })
+    });
+    socketRef.current = socket;
 
     socket.on('notification:new', (notification: Notification) => {
       dispatch(addNotification(notification));
@@ -70,6 +87,18 @@ export const useSocket = () => {
       void queryClient.invalidateQueries({ queryKey: ['director-announcements'] });
     });
 
-    return () => { socket.disconnect(); };
-  }, [dispatch, queryClient, token]);
+    return () => {
+      socket.disconnect();
+      if (socketRef.current === socket) socketRef.current = null;
+    };
+  }, [dispatch, queryClient, isAuthenticated]);
+
+  // If the server dropped us because the token had expired ("io server
+  // disconnect" does not auto-reconnect), reconnect once a fresh token exists.
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (token && socket && !socket.connected && socket.active === false) {
+      socket.connect();
+    }
+  }, [token]);
 };
