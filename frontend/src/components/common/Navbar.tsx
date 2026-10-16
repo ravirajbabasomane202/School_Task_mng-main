@@ -112,7 +112,7 @@ function Navbar({ actions, onMenuClick, title }: NavbarProps) {
   };
 
   return (
-    <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-b-[0.5px] border-[#EFF2F6] bg-white px-3 py-[11px] sm:gap-3 sm:px-[18px]">
+    <header className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-b-[0.5px] border-[#EFF2F6] bg-white h-16 px-3 sm:gap-3 sm:px-[18px]">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <button
           aria-label="Open navigation menu"

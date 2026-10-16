@@ -146,32 +146,18 @@ function Sidebar({ isOpen = false, onClose }: SidebarProps) {
       role={isDrawerOpen ? 'dialog' : undefined}
     >
       <div
-        className="flex shrink-0 justify-center border-b border-b-[0.5px] border-[#EFF2F6] pb-3 pt-[calc(1rem+env(safe-area-inset-top))]"
+        className="relative flex h-16 shrink-0 items-center justify-center border-b border-b-[0.5px] border-[#EFF2F6]"
         data-testid="sidebar-logo"
       >
-        <AnimatedLogo animated={false} variant="subtle" width="88%" />
-      </div>
-
-      <div className="shrink-0 border-b border-b-[0.5px] border-[#EFF2F6] px-4 py-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-[30px] w-[30px] items-center justify-center rounded-[10px] bg-[#185FA5] text-xs font-semibold text-white">
-            ET
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[14px] font-semibold text-[#1E293B]">EduTask Pro</p>
-            <p className="truncate text-[11px] text-[#8A99B0]">
-              {user ? getRoleLabel(user.role) : 'Master access'}
-            </p>
-          </div>
-          <button
-            aria-label="Close navigation menu"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#5B6E8C] transition hover:bg-white lg:hidden"
-            onClick={onClose}
-            type="button"
-          >
-            <X size={20} />
-          </button>
-        </div>
+        <AnimatedLogo animated={false} variant="subtle" width="min(172px, 100%)" />
+        <button
+          aria-label="Close navigation menu"
+          className="absolute right-1 top-1/2 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-[#5B6E8C] transition hover:bg-white lg:hidden"
+          onClick={onClose}
+          type="button"
+        >
+          <X size={20} />
+        </button>
       </div>
 
       <nav className="custom-scrollbar min-h-0 flex-1 px-3 py-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
