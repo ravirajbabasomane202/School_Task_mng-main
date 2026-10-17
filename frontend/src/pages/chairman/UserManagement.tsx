@@ -9,7 +9,6 @@ import { ROLE_LABELS, TASK_ASSIGNABLE_ROLES } from '../../constants/roles';
 import { createRole, getAllRoles } from '../../services/roleService';
 import api from '../../services/api';
 import type { User } from '../../types/user.types';
-import { HEAD_ORDER } from '../../constants/headOrder';
 
 import PageContainer from '../../components/common/PageContainer';
 interface AddUserForm {
@@ -93,6 +92,7 @@ const UserManagement: React.FC = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setIsAddModalOpen(false);
       setAddForm({ name: '', email: '', role: '', password: '' });
       setAddErrors({});
@@ -114,6 +114,7 @@ const UserManagement: React.FC = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setIsEditModalOpen(false);
       setSelectedUser(null);
       setEditErrors({});
@@ -134,6 +135,7 @@ const UserManagement: React.FC = () => {
     },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
+      void queryClient.invalidateQueries({ queryKey: ['tasks'] });
       setIsDeactivateModalOpen(false);
       setSelectedUser(null);
       toast.success('User deactivated successfully');
@@ -165,7 +167,7 @@ const UserManagement: React.FC = () => {
       name: user.name,
       email: user.email,
       role: user.role,
-      head_type: user.head_type ?? HEAD_ORDER.find((head) => head.email === user.email)?.headType ?? ''
+      head_type: user.head_type ?? ''
     });
     setIsEditModalOpen(true);
   };

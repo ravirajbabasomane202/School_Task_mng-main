@@ -4,10 +4,10 @@ import Badge from '../common/Badge';
 import Button from '../common/Button';
 import ResponsiveTable from '../common/ResponsiveTable';
 import { useIsMobile } from '../../hooks/useMediaQuery';
-import { HEAD_ORDER, formatHeadLabel } from '../../constants/headOrder';
+import { formatHeadLabel } from '../../constants/headOrder';
 
 const displayUserName = (user: User) => {
-  const headType = user.head_type || HEAD_ORDER.find((head) => head.email === user.email)?.headType;
+  const headType = user.head_type?.trim();
   return headType ? formatHeadLabel(headType, user.name) : user.name;
 };
 
