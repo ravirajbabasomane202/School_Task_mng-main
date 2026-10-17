@@ -84,7 +84,9 @@ def create_user():
     user = User(
         name=data['name'].strip(),
         email=data['email'].lower().strip(),
-        role=resolve_role_key(data['role'])
+        role=resolve_role_key(data['role']),
+        head_type=(data.get('head_type') or '').strip() or None,
+        sort_order=data.get('sort_order')
     )
     user.set_password(data['password'])
     db.session.add(user)

@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { getAllUsers } from '../services/userService';
-import { TASK_ASSIGNABLE_ROLES } from './roles';
 import type { User } from '../types/user.types';
 
 /**
@@ -22,7 +21,7 @@ export const HEAD_ORDER = [
 
 export const formatHeadLabel = (headType: string, name: string) => `${headType} - ${name}`;
 
-const normalizeRole = (role?: string | null) => String(role ?? '').trim().toUpperCase();
+const normalizeRole = (role?: string | null) => String(role ?? '').trim().replace(/\s+/g, '_').toUpperCase();
 
 /** Active task-assignable users are fetched from the backend on every query refresh.
  * No email/name whitelist is used, so newly created eligible users appear naturally.
@@ -34,7 +33,10 @@ export function useOrderedHeads() {
       const users: User[] = await getAllUsers();
       const seen = new Set<number>();
       return users
-        .filter((user) => user.is_active && (TASK_ASSIGNABLE_ROLES.includes(user.role) || Boolean(user.head_type?.trim())))
+        // Every active user except the Chairman (the assigner) is assignable.
+        // Do NOT restrict to built-in roles: users with custom roles (added via
+        // "Other") or no head_type were silently dropped before.
+        .filter((user) => user.is_active && normalizeRole(user.role) !== 'CHAIRMAN')
         .filter((user) => {
           if (seen.has(user.id)) return false;
           seen.add(user.id);
