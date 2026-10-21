@@ -7,6 +7,7 @@ from app.models.department import Department
 from app.models.notification import Notification
 from app.models.task import Task, TaskHistory
 from app.models.user import User
+from app.task_catalog import is_valid_task_selection
 from app.sockets.emitter import emit_notification, emit_task_updated
 from app.utils.file_utils import save_task_attachment
 from app.utils.response import error, success
@@ -61,11 +62,12 @@ def _is_future(moment):
     return moment is not None and _aware(moment) > datetime.now(timezone.utc)
 
 
-def _find_duplicate(title, assigned_to, start_date, due_date, exclude_id=None):
-    """An open (not COMPLETED) task with the same title, assignee and dates."""
+def _find_duplicate(task_headline, sub_task, assigned_to, start_date, due_date, exclude_id=None):
+    """An open task with the same headline, subtask, assignee and dates."""
     query = Task.query.filter(
         Task.assigned_to == assigned_to,
-        func.lower(Task.title) == (title or '').strip().lower(),
+        Task.task_headline == task_headline,
+        func.lower(Task.title) == (sub_task or '').strip().lower(),
         Task.start_date == start_date,
         Task.due_date == due_date,
         Task.status != 'COMPLETED',
@@ -371,14 +373,18 @@ def create_task():
     else:
         data = request.get_json() or {}
 
-    required = ['title', 'assigned_to', 'priority', 'start_date', 'due_date']
+    if 'title' in data:
+        return error('Use task_headline and sub_task instead of title', 400)
+
+    required = ['task_headline', 'sub_task', 'assigned_to', 'priority', 'start_date', 'due_date']
     for field in required:
         if not data.get(field):
             return error(f'{field} is required', 400)
 
-    title = str(data['title']).strip()
-    if not title:
-        return error('title is required', 400)
+    task_headline = str(data['task_headline']).strip()
+    sub_task = str(data['sub_task']).strip()
+    if not is_valid_task_selection(task_headline, sub_task):
+        return error('sub_task must belong to the selected task_headline', 400)
 
     assignee, problem = _validate_assignee(data['assigned_to'])
     if problem:
@@ -405,14 +411,15 @@ def create_task():
 
     # Same assignee + same title + same dates while still open = a double submit
     # (double click, page refresh, two chairmen) rather than a new assignment.
-    if _find_duplicate(title, assignee.id, start_date, due_date):
+    if _find_duplicate(task_headline, sub_task, assignee.id, start_date, due_date):
         return error(
-            f'"{title}" is already assigned to {assignee.name} with the same dates',
+            f'"{sub_task}" is already assigned to {assignee.name} with the same dates',
             409,
         )
 
     task = Task(
-        title=title,
+        title=sub_task,
+        task_headline=task_headline,
         description=data.get('description'),
         assigned_by=user_id,
         assigned_to=assignee.id,
@@ -464,6 +471,9 @@ def update_task(task_id):
         data = request.get_json() or {}
         file = None
 
+    if 'title' in data:
+        return error('Use task_headline and sub_task instead of title', 400)
+
     old_status = task.status
     is_assigner = _is_assigner(user, task)
 
@@ -491,8 +501,16 @@ def update_task(task_id):
         if str(data['cadence']).upper() not in VALID_CADENCES:
             return error(f"cadence must be one of: {', '.join(sorted(VALID_CADENCES))}", 400)
 
-    if 'title' in data and is_assigner and not str(data['title'] or '').strip():
-        return error('title cannot be empty', 400)
+    if is_assigner and ('task_headline' in data or 'sub_task' in data):
+        task_headline = str(data.get('task_headline', task.task_headline or '')).strip()
+        sub_task = str(data.get('sub_task', task.title or '')).strip()
+        if not task_headline or not sub_task:
+            return error('task_headline and sub_task are both required when changing task selection', 400)
+        if not is_valid_task_selection(task_headline, sub_task):
+            return error('sub_task must belong to the selected task_headline', 400)
+    else:
+        task_headline = task.task_headline
+        sub_task = task.title
 
     new_department_id = task.department_id
     if 'department_id' in data and is_assigner:
@@ -513,22 +531,23 @@ def update_task(task_id):
         return error('due_date must be on or after start_date', 400)
 
     if is_assigner:
-        final_title = str(data['title']).strip() if 'title' in data else task.title
         final_assignee_id = new_assignee.id if new_assignee else task.assigned_to
         schedule_changed = (
             new_assignee is not None
-            or ('title' in data and final_title != task.title)
+            or ('task_headline' in data and task_headline != task.task_headline)
+            or ('sub_task' in data and sub_task != task.title)
             or _aware(new_start) != _aware(task.start_date)
             or _aware(new_due) != _aware(task.due_date)
         )
         if schedule_changed and task.status != 'COMPLETED' and _find_duplicate(
-            final_title, final_assignee_id, new_start, new_due, exclude_id=task.id
+            task_headline, sub_task, final_assignee_id, new_start, new_due, exclude_id=task.id
         ):
             return error('Another open task with the same title, assignee and dates already exists', 409)
 
     # ---- apply ----
-    if 'title' in data and is_assigner:
-        task.title = str(data['title']).strip()
+    if is_assigner and ('task_headline' in data or 'sub_task' in data):
+        task.task_headline = task_headline
+        task.title = sub_task
     if 'description' in data:
         task.description = data['description']
     previous_assignee = task.assignee

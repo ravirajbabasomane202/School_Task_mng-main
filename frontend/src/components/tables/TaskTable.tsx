@@ -189,7 +189,7 @@ function TaskTable({
   const actionsEnabled = typeof showActions === 'function' ? tasks.some(showActions) : Boolean(showActions);
 
   const headers = [
-    'Task Title',
+    'Sub Task',
     'Assigned To',
     'Priority',
     'Type',

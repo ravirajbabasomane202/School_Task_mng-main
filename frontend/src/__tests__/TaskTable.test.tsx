@@ -175,7 +175,7 @@ describe('TaskTable Component', () => {
   it('should render table headers correctly', () => {
     render(<TaskTable tasks={mockTasks} />);
 
-    expect(screen.getByText('Task Title')).toBeInTheDocument();
+    expect(screen.getByText('Sub Task')).toBeInTheDocument();
     expect(screen.getByText('Assigned To')).toBeInTheDocument();
     expect(screen.getByText('Priority')).toBeInTheDocument();
     expect(screen.getByText('Type')).toBeInTheDocument();

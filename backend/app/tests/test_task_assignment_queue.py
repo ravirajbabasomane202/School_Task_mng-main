@@ -15,6 +15,15 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
+from app.task_catalog import TASK_CATALOG
+
+
+_TASK_SELECTIONS = [
+    (headline, sub_task)
+    for headline, sub_tasks in TASK_CATALOG.items()
+    for sub_task in sub_tasks
+]
+_TASK_MARKER_SELECTIONS = {}
 
 @pytest.fixture(autouse=True)
 def _fresh_session(app):
@@ -46,8 +55,19 @@ def ids(auth_headers, app_context):
 
 
 def _payload(ids, **overrides):
+    marker = overrides.pop('title', None)
+    if marker is not None:
+        marker_key = str(marker).strip().lower()
+        if marker_key not in _TASK_MARKER_SELECTIONS:
+            _TASK_MARKER_SELECTIONS[marker_key] = _TASK_SELECTIONS[
+                len(_TASK_MARKER_SELECTIONS) % len(_TASK_SELECTIONS)
+            ]
+        headline, sub_task = _TASK_MARKER_SELECTIONS[marker_key]
+    else:
+        headline, sub_task = _TASK_SELECTIONS[0]
     body = {
-        'title': 'Queue test task',
+        'task_headline': headline,
+        'sub_task': sub_task,
         'assigned_to': ids['hr'],
         'priority': 'MEDIUM',
         'cadence': 'DAILY',
@@ -87,14 +107,23 @@ class TestCreateTask:
         assert _create(client, auth_headers['hr'], _payload(ids)).status_code == 403
         assert _create(client, auth_headers['director'], _payload(ids)).status_code == 403
 
-    @pytest.mark.parametrize('field', ['title', 'assigned_to', 'priority', 'start_date', 'due_date'])
+    @pytest.mark.parametrize('field', ['task_headline', 'sub_task', 'assigned_to', 'priority', 'start_date', 'due_date'])
     def test_missing_required_field(self, client, auth_headers, ids, field):
         body = _payload(ids)
         body.pop(field)
         assert _create(client, auth_headers['chairman'], body).status_code == 400
 
-    def test_blank_title_rejected(self, client, auth_headers, ids):
-        assert _create(client, auth_headers['chairman'], _payload(ids, title='   ')).status_code == 400
+    def test_blank_sub_task_rejected(self, client, auth_headers, ids):
+        assert _create(client, auth_headers['chairman'], _payload(ids, sub_task='   ')).status_code == 400
+
+    def test_legacy_title_payload_is_rejected(self, client, auth_headers, ids):
+        body = _payload(ids)
+        body['title'] = 'Legacy title'
+        assert _create(client, auth_headers['chairman'], body).status_code == 400
+
+    def test_sub_task_must_belong_to_selected_headline(self, client, auth_headers, ids):
+        body = _payload(ids, task_headline='Finance Head', sub_task='Create Yearly Academic Plan')
+        assert _create(client, auth_headers['chairman'], body).status_code == 400
 
     def test_non_numeric_assignee_is_400_not_500(self, client, auth_headers, ids):
         resp = _create(client, auth_headers['chairman'], _payload(ids, assigned_to='abc'))
@@ -206,9 +235,7 @@ class TestListTasks:
         _create(client, auth_headers['chairman'], _payload(ids, title='Collect 50% fees'))
         _create(client, auth_headers['chairman'], _payload(ids, title='Collect fees'))
         hits = client.get('/api/tasks?search=%25', headers=auth_headers['chairman']).get_json()['data']
-        titles = [t['title'] for t in hits]
-        assert 'Collect 50% fees' in titles
-        assert 'Collect fees' not in titles
+        assert hits == []
 
     def test_newest_first_with_stable_order(self, client, auth_headers, ids):
         a = _create(client, auth_headers['chairman'], _payload(ids, title='Order A')).get_json()['data']['id']
@@ -260,6 +287,29 @@ class TestReassign:
         resp = client.put(f'/api/tasks/{task_id}', json=_payload(ids, title='Self'), headers=auth_headers['chairman'])
         assert resp.status_code == 200
 
+    def test_task_selection_can_be_updated_as_a_valid_pair(self, client, auth_headers, ids):
+        task_id = self._task(client, auth_headers, ids, title='Change selection')
+        resp = client.put(
+            f'/api/tasks/{task_id}',
+            json={'task_headline': 'HR Head', 'sub_task': 'Training'},
+            headers=auth_headers['chairman'],
+        )
+        assert resp.status_code == 200
+        data = resp.get_json()['data']
+        assert data['task_headline'] == 'HR Head'
+        assert data['sub_task'] == 'Training'
+
+    def test_invalid_task_selection_update_does_not_change_task(self, client, auth_headers, ids):
+        task_id = self._task(client, auth_headers, ids, title='Keep selection')
+        resp = client.put(
+            f'/api/tasks/{task_id}',
+            json={'task_headline': 'Finance Head', 'sub_task': 'Create Yearly Academic Plan'},
+            headers=auth_headers['chairman'],
+        )
+        assert resp.status_code == 400
+        data = client.get(f'/api/tasks/{task_id}', headers=auth_headers['chairman']).get_json()['data']
+        assert data['task_headline'] == _payload(ids, title='Keep selection')['task_headline']
+
     def test_invalid_priority_and_dates_rejected_on_update(self, client, auth_headers, ids):
         task_id = self._task(client, auth_headers, ids, title='Edit checks')
         h = auth_headers['chairman']
@@ -309,7 +359,8 @@ class TestDeleteTask:
         from app.extensions import db
         from app.models.notification import Notification
         from app.models.task import Task, TaskHistory
-        task_id = _create(client, auth_headers['chairman'], _payload(ids, title='Delete me')).get_json()['data']['id']
+        created = _create(client, auth_headers['chairman'], _payload(ids, title='Delete me')).get_json()['data']
+        task_id = created['id']
         assert Notification.query.filter_by(task_id=task_id).count() >= 1
 
         resp = client.delete(f'/api/tasks/{task_id}', headers=auth_headers['chairman'])
@@ -320,7 +371,7 @@ class TestDeleteTask:
         assert TaskHistory.query.filter_by(task_id=task_id).count() == 0
         # notifications are kept, just detached from the deleted task
         assert Notification.query.filter_by(task_id=task_id).count() == 0
-        assert Notification.query.filter(Notification.message.like('%Delete me%'),
+        assert Notification.query.filter(Notification.message.like(f"%{created['sub_task']}%"),
                                          Notification.task_id.is_(None)).count() >= 1
 
     def test_only_chairman_or_director_can_delete(self, client, auth_headers, ids):

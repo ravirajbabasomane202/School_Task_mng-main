@@ -7,6 +7,7 @@ class Task(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(255), nullable=False)
+    task_headline = db.Column(db.String(255), nullable=True)
     description = db.Column(db.Text, nullable=True)
     assigned_by = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     assigned_to = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
@@ -32,6 +33,8 @@ class Task(db.Model):
         data = {
             'id': self.id,
             'title': self.title,
+            'task_headline': self.task_headline,
+            'sub_task': self.title,
             'description': self.description,
             'assigned_by': self.assigned_by,
             'assigned_to': self.assigned_to,

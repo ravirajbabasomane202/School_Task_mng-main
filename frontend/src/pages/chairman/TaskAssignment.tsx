@@ -8,7 +8,7 @@ import Input from '../../components/common/Input';
 import TaskTable from '../../components/tables/TaskTable';
 import { ROLES } from '../../constants/roles';
 import { useOrderedHeads } from '../../constants/headOrder';
-import { PREDEFINED_TASK_TITLES, TASK_TITLE_GROUPS as MODULE_TASK_TITLE_GROUPS } from '../../constants/moduleTasks';
+import { MODULE_TASK_GROUPS } from '../../constants/moduleTasks';
 import * as taskService from '../../services/taskService';
 import * as userService from '../../services/userService';
 import { setUsers } from '../../store/userSlice';
@@ -41,173 +41,9 @@ const getToday = () =>
     day: '2-digit'
   }).format(new Date());
 
-// ── Predefined task titles grouped by module/head ──────────────────────────
-const TASK_TITLE_GROUPS: Array<{ group: string; titles: string[] }> = [
-  {
-    group: 'School Director',
-    titles: [
-      'Academic PPT Submission (Every Month 1st Tuesday)',
-      'Checking all Academic Registers',
-      'Academic Syllabus Status Reporting (Monthly)',
-      'Create Yearly Academic Plan',
-      'Create Academic Time Table',
-      'Teachers Workload Status',
-      'Event Calendar',
-      'Admission Status',
-      'LC Report',
-      'Parent Grievance Mgt',
-      'Class Observation',
-      'Teachers Recruitment Chart',
-      'Teachers Appraisal',
-      'Exam Mgt',
-      'Competition Mgt',
-      'Campus Visit Status',
-      'MCB (MyClassBoard) Notification Status',
-      'Inspection Status',
-      'Extra Curriculum',
-      'All Committee Status',
-    ],
-  },
-  {
-    group: 'Admin Head',
-    titles: [
-      'CBSC Affiliation File Status (Yearly)',
-      'School Documents Files Mgt',
-      'Govt Permission Renewal',
-      'Master Policy File Mgt',
-      'Central Register Completion Status (Monthly)',
-      'Vendor Management',
-      'ID Card Distribution Status',
-      'Uniform Distribution Status',
-      'Books Distribution Status',
-      'Fire Safety Report Status',
-      'Lift Safety Report Status',
-    ],
-  },
-  {
-    group: 'Admin Assistance',
-    titles: [
-      'GR Records Maintenance',
-      'LC Records Maintenance',
-      'UDIS (Student) Records',
-      'Teachers Training Status',
-      'Outword & Inword Mgt',
-      'Bonafide Application File',
-      'Original Docs Return Register',
-      'Service Book Status',
-      'All Staff File Record Keeping',
-    ],
-  },
-  {
-    group: 'Finance Head',
-    titles: [
-      'Fees Collection Status',
-      'Salary Mgt',
-      'Vendor Payment Mgt',
-      'Vendor Payment Approval',
-      'ITR File (Yearly)',
-      'Professional TAX and TDS Filling Status (Monthly)',
-      'Yearly Budget',
-      'Monthly Income and Expenses Status',
-      'Event & Celebration Expenses',
-      'Property Tax, Light Bill and Water Bill Payment Status',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'Admission Head / Marketing Executive',
-    titles: [
-      'Admission Status',
-      'Admission Enquiry (Daily)',
-      'School Marketing on Facebook, Instagram and LinkedIn',
-      'Marketing Banner Design',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'HR Head',
-    titles: [
-      'New Appointment Status',
-      'Training',
-      'PR',
-      'Staff Grievance',
-      'Leave Application Status',
-      'Employee Engagement Program',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'Purchase Head / Jr. Accountant / Store',
-    titles: [
-      'Student Academic Fee Collection',
-      'Student Transport Fee Collection',
-      'Store Stock Status',
-      'Cheque Deposit Status',
-      'Petty Cash Status',
-      'Stock Issue',
-      'Fees Followup Status',
-      'Petrol / Diesel Expenses',
-      'Purchase Order Status',
-      'Purchase Approval / Requisition Request',
-      'Inventory Mgt',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'Transport Head',
-    titles: [
-      'Transport Admission Status',
-      'Bus Route Finalisation',
-      'Daily Transport Summary Submission',
-      'Transport Compliance Status',
-      'Individual Vehicle Record',
-      'Vehicle Maintenance',
-      'Vehicle Petrol / Diesel Expenses Demand',
-      'Bus Cleaning Status',
-      'School Bus Record File (With Driver and Mavshi Details)',
-      'Driver and Mavshi Safety Training Status',
-    ],
-  },
-  {
-    group: 'IT Head',
-    titles: [
-      'Website Maintenance',
-      'MCB (MyClassBoard) Monitoring',
-      'Firewall (Internet) Service Mgt',
-      'School Mail_ID Creation',
-      'All Gadget Mgt (Computer / Desktop, CCTV, Intercom and Mobile)',
-      'Gadget Issue',
-      'IT Related Grievance Records',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'Front Desk / Reception / Jr. Clerk',
-    titles: [
-      'Guest Welcome',
-      'Visitor Register Mgt',
-      'Student Halfday Register Mgt',
-      'Inword',
-      'Staff Movement Register',
-      'Permission for Child in School Campus',
-      'Early Pickup',
-      'HOD Register',
-    ],
-  },
-  {
-    group: 'HouseKeeping Head',
-    titles: [
-      'Daily Cleaning Report',
-      'Daily Duty Assignment Report',
-      'HK Material Outword',
-      'Toilet Washroom Cleaning Report',
-      'School Premises (Inside and Outside) Cleaning Report',
-    ],
-  },
-];
-
 const makeInitialForm = (): CreateTaskPayload => ({
-  title: '',
+  task_headline: '',
+  sub_task: '',
   description: '',
   assigned_to: 0,
   priority: 'MEDIUM',
@@ -232,7 +68,6 @@ function TaskAssignment() {
   const [page, setPage] = useState(1);
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [titleMode, setTitleMode] = useState<'preset' | 'custom'>('preset');
   const [editingTask, setEditingTask] = useState<number | null>(null);
 
   const taskQuery = useQuery({
@@ -358,12 +193,13 @@ function TaskAssignment() {
 
   const roleTitleKeywords = getAssigneeTitleKeywords();
   const titleGroups = roleTitleKeywords
-    ? MODULE_TASK_TITLE_GROUPS.filter((group) =>
-        roleTitleKeywords.some((keyword) => group.group.includes(keyword))
+    ? MODULE_TASK_GROUPS.filter((group) =>
+        roleTitleKeywords.some((keyword) => group.head.includes(keyword))
       )
-    : MODULE_TASK_TITLE_GROUPS;
+    : MODULE_TASK_GROUPS;
 
-  const visibleTaskGroups = roleTitleKeywords ? titleGroups : MODULE_TASK_TITLE_GROUPS;
+  const visibleTaskGroups = roleTitleKeywords ? titleGroups : MODULE_TASK_GROUPS;
+  const selectedTaskGroup = MODULE_TASK_GROUPS.find((group) => group.head === form.task_headline);
 
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED');
   const filteredTasks =
@@ -386,20 +222,9 @@ function TaskAssignment() {
     }));
   };
 
-  const handleTitleSelect = (value: string) => {
-    if (value === '__other__') {
-      setTitleMode('custom');
-      handleChange('title', '');
-    } else {
-      setTitleMode('preset');
-      handleChange('title', value);
-    }
-  };
-
   const resetForm = () => {
     setEditingTask(null);
     setForm(makeInitialForm());
-    setTitleMode('preset');
     setFile(undefined);
     setFileInputKey((current) => current + 1);
     setError(null);
@@ -415,8 +240,8 @@ function TaskAssignment() {
       return;
     }
 
-    if (!form.title.trim()) {
-      setError('Enter or choose a task title.');
+    if (!form.task_headline || !form.sub_task) {
+      setError('Choose a Task Headline and Sub Task.');
       return;
     }
 
@@ -429,7 +254,7 @@ function TaskAssignment() {
 
     try {
       if (editingTask !== null) {
-        const updated = await taskService.updateTask(editingTask, form as any, file);
+        const updated = await taskService.updateTask(editingTask, form, file);
         dispatch(updateTask(updated));
         updateQueue((current) => current.map((item) => (item.id === updated.id ? updated : item)));
         toast.success('Task updated.');
@@ -462,7 +287,8 @@ function TaskAssignment() {
   const handleEdit = (task: any) => {
     setEditingTask(task.id);
     setForm({
-      title: task.title,
+      task_headline: task.task_headline ?? '',
+      sub_task: task.sub_task ?? task.title,
       description: task.description ?? '',
       assigned_to: task.assigned_to,
       priority: task.priority,
@@ -471,12 +297,6 @@ function TaskAssignment() {
       due_date: task.due_date?.slice(0, 10) ?? '',
       department_id: task.department_id ?? null,
     });
-    // detect if title is a preset
-    if (PREDEFINED_TASK_TITLES.includes(task.title)) {
-      setTitleMode('preset');
-    } else {
-      setTitleMode('custom');
-    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -553,8 +373,8 @@ function TaskAssignment() {
                 );
                 handleChange('assigned_to', Number(event.target.value));
                 handleChange('department_id', selectedUser?.department_id ?? null);
-                setTitleMode('preset');
-                handleChange('title', '');
+                handleChange('task_headline', '');
+                handleChange('sub_task', '');
               }}
               required
               value={form.assigned_to || ''}
@@ -577,36 +397,42 @@ function TaskAssignment() {
             ) : null}
           </label>
 
-          {/* ── 2. Task title with predefined dropdown ── */}
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Task title</span>
+          {/* ── 2. Task Headline and Sub Task ── */}
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-[#36506C]">Task Headline</span>
             <select
               className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-              value={titleMode === 'custom' ? '__other__' : form.title}
-              onChange={(e) => handleTitleSelect(e.target.value)}
-              required={titleMode !== 'custom'}
+              value={form.task_headline}
+              onChange={(event) => {
+                handleChange('task_headline', event.target.value);
+                handleChange('sub_task', '');
+              }}
+              required
             >
-              <option value="">— Select a predefined title —</option>
+              <option value="">— Select a Task Headline —</option>
               {visibleTaskGroups.map((group) => (
-                <optgroup key={group.group} label={group.group}>
-                  {group.titles.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
-                </optgroup>
+                <option key={group.head} value={group.head}>{group.head}</option>
               ))}
-              <option value="__other__">Other (type manually)</option>
             </select>
+          </label>
 
-            {titleMode === 'custom' && (
-              <input
-                className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-                placeholder="Enter custom task title"
-                required
-                value={form.title}
-                onChange={(e) => handleChange('title', e.target.value)}
-              />
-            )}
-          </div>
+          <label className="flex flex-col gap-1.5">
+            <span className="text-[12px] font-medium text-[#36506C]">Sub Task</span>
+            <select
+              className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!selectedTaskGroup}
+              value={form.sub_task}
+              onChange={(event) => handleChange('sub_task', event.target.value)}
+              required
+            >
+              <option value="">
+                {selectedTaskGroup ? '— Select a Sub Task —' : 'Select a Task Headline first'}
+              </option>
+              {selectedTaskGroup?.tasks.map((subTask) => (
+                <option key={subTask} value={subTask}>{subTask}</option>
+              ))}
+            </select>
+          </label>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Description</span>

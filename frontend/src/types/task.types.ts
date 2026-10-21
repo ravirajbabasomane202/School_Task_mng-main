@@ -19,6 +19,8 @@ export interface TaskDepartmentSummary {
 export interface Task {
   id: number;
   title: string;
+  task_headline?: string | null;
+  sub_task?: string | null;
   description: string | null;
   assigned_by: number;
   assigned_to: number;
@@ -55,7 +57,8 @@ export interface TaskHistory {
 }
 
 export interface CreateTaskPayload {
-  title: string;
+  task_headline: string;
+  sub_task: string;
   description?: string;
   assigned_to: number;
   department_id?: number | null;
@@ -67,7 +70,8 @@ export interface CreateTaskPayload {
 }
 
 export interface UpdateTaskPayload {
-  title?: string;
+  task_headline?: string;
+  sub_task?: string;
   description?: string;
   assigned_to?: number;
   department_id?: number | null;

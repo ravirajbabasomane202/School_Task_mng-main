@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Provider } from 'react-redux';
@@ -73,6 +73,48 @@ describe('Assignment Queue', () => {
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
     renderPage();
     expect(await screen.findByText('Newly assigned tasks will appear here.')).toBeInTheDocument();
+  });
+
+  it('filters Sub Task choices by the selected Task Headline', async () => {
+    vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    vi.mocked(userService.getAllUsers).mockResolvedValue([{
+      id: 2,
+      name: 'Anita',
+      email: 'anita@school.test',
+      role: 'HR',
+      is_active: true,
+      head_type: 'HR Head',
+      sort_order: 1,
+      department_id: null
+    }] as never);
+    renderPage();
+
+    const assignee = await screen.findByLabelText('Assign to');
+    await userEvent.selectOptions(assignee, '2');
+    const headline = screen.getByLabelText('Task Headline');
+    const subTask = screen.getByLabelText('Sub Task');
+
+    expect(subTask).toBeDisabled();
+    await userEvent.selectOptions(headline, 'HR Head');
+    expect(subTask).toBeEnabled();
+    expect(within(subTask).getByRole('option', { name: 'Training' })).toBeInTheDocument();
+    expect(within(subTask).queryByRole('option', { name: 'Fees Collection Status' })).toBeNull();
+    expect(screen.queryByPlaceholderText('Enter custom task title')).toBeNull();
+
+    await userEvent.selectOptions(subTask, 'Training');
+    const assignDate = screen.getByLabelText('Assign Date');
+    fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: assignDate.value } });
+    vi.mocked(taskService.createTask).mockResolvedValue(makeTask(99, {
+      title: 'Training',
+      task_headline: 'HR Head',
+      sub_task: 'Training'
+    }) as never);
+    await userEvent.click(screen.getByRole('button', { name: 'Submit Task' }));
+
+    await waitFor(() => expect(taskService.createTask).toHaveBeenCalled());
+    const payload = vi.mocked(taskService.createTask).mock.calls[0][0];
+    expect(payload).toMatchObject({ task_headline: 'HR Head', sub_task: 'Training' });
+    expect(payload).not.toHaveProperty('title');
   });
 
   it('shows per-status counts, an Escalated tab, and a tab-specific empty message', async () => {

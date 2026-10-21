@@ -245,7 +245,7 @@ function TaskMonitoring() {
             <input
               className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
               onChange={(event) => setSearchFilter(event.target.value)}
-              placeholder="Task title, assign head"
+              placeholder="Sub Task, assign head"
               value={searchFilter}
             />
           </label>
