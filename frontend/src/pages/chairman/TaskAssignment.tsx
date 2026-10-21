@@ -199,7 +199,16 @@ function TaskAssignment() {
     : MODULE_TASK_GROUPS;
 
   const visibleTaskGroups = roleHeadlineKeywords ? headlineGroups : MODULE_TASK_GROUPS;
-  const selectedTaskGroup = MODULE_TASK_GROUPS.find((group) => group.head === form.task_headline);
+  const taskOptions = visibleTaskGroups.flatMap((group) =>
+    group.tasks.map((subTask) => ({
+      taskHeadline: group.head,
+      subTask,
+      value: JSON.stringify([group.head, subTask])
+    }))
+  );
+  const selectedTaskOption = taskOptions.find(
+    (option) => option.taskHeadline === form.task_headline && option.subTask === form.sub_task
+  );
 
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED');
   const filteredTasks =
@@ -240,8 +249,8 @@ function TaskAssignment() {
       return;
     }
 
-    if (!form.task_headline || !form.sub_task) {
-      setError('Choose a Task Headline and Sub Task.');
+    if (!selectedTaskOption) {
+      setError('Choose a Sub Task from a Task Headline.');
       return;
     }
 
@@ -397,39 +406,36 @@ function TaskAssignment() {
             ) : null}
           </label>
 
-          {/* ── 2. Task Headline and Sub Task ── */}
+          {/* ── 2. Hierarchical task selection ── */}
           <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Task Headline</span>
+            <span className="text-[12px] font-medium text-[#36506C]">Task Headline / Sub Task</span>
             <select
               className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-              value={form.task_headline}
+              value={selectedTaskOption?.value ?? ''}
               onChange={(event) => {
-                handleChange('task_headline', event.target.value);
-                handleChange('sub_task', '');
+                const selectedOption = taskOptions.find((option) => option.value === event.target.value);
+                if (selectedOption) {
+                  setForm((current) => ({
+                    ...current,
+                    task_headline: selectedOption.taskHeadline,
+                    sub_task: selectedOption.subTask
+                  }));
+                }
               }}
               required
             >
-              <option value="">— Select a Task Headline —</option>
+              <option value="">— Select a Task Headline and Sub Task —</option>
               {visibleTaskGroups.map((group) => (
-                <option key={group.head} value={group.head}>{group.head}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="flex flex-col gap-1.5">
-            <span className="text-[12px] font-medium text-[#36506C]">Sub Task</span>
-            <select
-              className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!selectedTaskGroup}
-              value={form.sub_task}
-              onChange={(event) => handleChange('sub_task', event.target.value)}
-              required
-            >
-              <option value="">
-                {selectedTaskGroup ? '— Select a Sub Task —' : 'Select a Task Headline first'}
-              </option>
-              {selectedTaskGroup?.tasks.map((subTask) => (
-                <option key={subTask} value={subTask}>{subTask}</option>
+                <optgroup key={group.head} label={group.head}>
+                  {group.tasks.map((subTask) => (
+                    <option
+                      key={subTask}
+                      value={JSON.stringify([group.head, subTask])}
+                    >
+                      {subTask}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>

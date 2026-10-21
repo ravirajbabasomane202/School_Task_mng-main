@@ -75,7 +75,7 @@ describe('Assignment Queue', () => {
     expect(await screen.findByText('Newly assigned tasks will appear here.')).toBeInTheDocument();
   });
 
-  it('filters Sub Task choices by the selected Task Headline', async () => {
+  it('shows subtasks hierarchically in one dropdown and sends both selections', async () => {
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
     vi.mocked(userService.getAllUsers).mockResolvedValue([{
       id: 2,
@@ -91,17 +91,14 @@ describe('Assignment Queue', () => {
 
     const assignee = await screen.findByLabelText('Assign to');
     await userEvent.selectOptions(assignee, '2');
-    const headline = screen.getByLabelText('Task Headline');
-    const subTask = screen.getByLabelText('Sub Task');
-
-    expect(subTask).toBeDisabled();
-    await userEvent.selectOptions(headline, 'HR Head');
-    expect(subTask).toBeEnabled();
-    expect(within(subTask).getByRole('option', { name: 'Training' })).toBeInTheDocument();
-    expect(within(subTask).queryByRole('option', { name: 'Fees Collection Status' })).toBeNull();
+    const taskSelection = screen.getByLabelText('Task Headline / Sub Task');
+    expect(within(taskSelection).getByRole('group', { name: 'HR Head' })).toBeInTheDocument();
+    expect(within(taskSelection).getByRole('option', { name: 'Training' })).toBeInTheDocument();
+    expect(within(taskSelection).queryByRole('option', { name: 'Fees Collection Status' })).toBeNull();
+    expect(screen.queryByLabelText('Sub Task')).toBeNull();
     expect(screen.queryByRole('textbox', { name: /task title/i })).toBeNull();
 
-    await userEvent.selectOptions(subTask, 'Training');
+    await userEvent.selectOptions(taskSelection, JSON.stringify(['HR Head', 'Training']));
     const assignDate = screen.getByLabelText('Assign Date');
     fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: assignDate.value } });
     vi.mocked(taskService.createTask).mockResolvedValue(makeTask(99, {
