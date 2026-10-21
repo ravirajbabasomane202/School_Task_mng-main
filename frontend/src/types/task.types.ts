@@ -24,6 +24,9 @@ export interface TaskCatalogSubTask {
 export interface TaskCatalogHeadline {
   id: number;
   name: string;
+  /** User roles this headline is visible to. Empty/absent = global (everyone). */
+  roles?: string[];
+  is_global?: boolean;
   subtasks: TaskCatalogSubTask[];
 }
 

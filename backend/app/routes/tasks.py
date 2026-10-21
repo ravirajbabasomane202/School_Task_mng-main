@@ -8,7 +8,7 @@ from app.models.department import Department
 from app.models.notification import Notification
 from app.models.task import Task, TaskHistory
 from app.models.task_catalog import TaskHeadline, TaskSubTask
-from app.models.user import User
+from app.models.user import TASK_ASSIGNABLE_ROLES, User
 from app.sockets.emitter import emit_notification, emit_task_updated
 from app.utils.file_utils import save_task_attachment
 from app.utils.response import error, success
@@ -83,6 +83,34 @@ def _valid_task_selection(task_headline, sub_task):
         func.lower(TaskHeadline.name) == task_headline.lower(),
         func.lower(TaskSubTask.name) == sub_task.lower(),
     ).first() is not None
+
+
+def _headline_allowed_for(task_headline, assignee_role):
+    """True when the headline is global or scoped to ``assignee_role``."""
+    headline = TaskHeadline.query.filter(
+        func.lower(TaskHeadline.name) == task_headline.lower()
+    ).first()
+    return headline is not None and headline.is_visible_to_role(assignee_role)
+
+
+def _parse_scope_roles(data):
+    """Read ``roles`` from a request body.
+
+    Returns ``(roles, None)`` or ``(None, message)``. A missing/empty list, or
+    ``is_global: true``, means the headline is global.
+    """
+    if data.get('is_global') is True:
+        return [], None
+    raw = data.get('roles')
+    if raw in (None, ''):
+        return [], None
+    if not isinstance(raw, list) or not all(isinstance(item, str) for item in raw):
+        return None, 'roles must be a list of role names'
+    roles = sorted({item.strip().upper() for item in raw if item.strip()})
+    invalid = [role for role in roles if role not in TASK_ASSIGNABLE_ROLES]
+    if invalid:
+        return None, f"Unknown or non-assignable role(s): {', '.join(invalid)}"
+    return roles, None
 
 
 def _catalog_name(value):
@@ -286,7 +314,12 @@ def create_task_headline():
     if TaskHeadline.query.filter(func.lower(TaskHeadline.name) == name.lower()).first():
         return error('A Task Headline with that name already exists', 409)
 
+    roles, problem = _parse_scope_roles(data)
+    if problem:
+        return error(problem, 400)
+
     headline = TaskHeadline(name=name)
+    headline.set_roles(roles)
     db.session.add(headline)
     try:
         db.session.commit()
@@ -294,6 +327,29 @@ def create_task_headline():
         db.session.rollback()
         return error('A Task Headline with that name already exists', 409)
     return success(headline.to_dict(), 'Task Headline added', 201)
+
+
+@tasks_bp.route('/catalog/headlines/<int:headline_id>/roles', methods=['PUT'])
+@jwt_required()
+def update_task_headline_roles(headline_id):
+    """Replace which roles a headline is visible to (empty list = global)."""
+    user = _current_user()
+    if not user:
+        return error('User not found', 401)
+    if user.role != 'CHAIRMAN':
+        return error('Only Chairman can change task headline visibility', 403)
+
+    headline = db.session.get(TaskHeadline, headline_id)
+    if not headline:
+        return error('Task Headline not found', 404)
+
+    roles, problem = _parse_scope_roles(request.get_json() or {})
+    if problem:
+        return error(problem, 400)
+
+    headline.set_roles(roles)
+    db.session.commit()
+    return success(headline.to_dict(), 'Task Headline visibility updated')
 
 
 @tasks_bp.route('/catalog/headlines/<int:headline_id>/subtasks', methods=['POST'])
@@ -510,6 +566,9 @@ def create_task():
     if problem:
         return error(problem[0], problem[1])
 
+    if not _headline_allowed_for(task_headline, assignee.role):
+        return error('task_headline is not available for the selected assignee', 400)
+
     priority = str(data['priority']).upper()
     if priority not in VALID_PRIORITIES:
         return error(f"priority must be one of: {', '.join(sorted(VALID_PRIORITIES))}", 400)
@@ -628,6 +687,18 @@ def update_task(task_id):
             return error('task_headline and sub_task are both required when changing task selection', 400)
         if not _valid_task_selection(task_headline, sub_task):
             return error('sub_task must belong to the selected task_headline', 400)
+        # Scope applies when the selection or the assignee changes. Re-saving a
+        # task with its existing selection stays allowed even if the headline
+        # was scoped away from that assignee afterwards.
+        selection_changed = (
+            task_headline != (task.task_headline or '') or sub_task != (task.title or '')
+        )
+        if selection_changed or new_assignee is not None:
+            effective_role = new_assignee.role if new_assignee else (
+                task.assignee.role if task.assignee else None
+            )
+            if effective_role and not _headline_allowed_for(task_headline, effective_role):
+                return error('task_headline is not available for the selected assignee', 400)
     else:
         task_headline = task.task_headline
         sub_task = task.title

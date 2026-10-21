@@ -2,7 +2,7 @@ from app.models.department import Department
 from app.models.role import Role
 from app.models.user import User
 from app.models.task import Task, TaskHistory
-from app.models.task_catalog import TaskHeadline, TaskSubTask
+from app.models.task_catalog import TaskHeadline, TaskHeadlineRole, TaskSubTask
 from app.models.notification import Notification, Announcement
 from app.models.approval import Approval
 from app.models.report import ReportHistory
@@ -18,7 +18,7 @@ from app.models.login_attempt import LoginAttempt
 from app.models.register import Register, RegisterOccurrence
 
 __all__ = [
-    'Department', 'Role', 'User', 'Task', 'TaskHistory', 'TaskHeadline', 'TaskSubTask',
+    'Department', 'Role', 'User', 'Task', 'TaskHistory', 'TaskHeadline', 'TaskHeadlineRole', 'TaskSubTask',
     'Notification', 'Announcement', 'Approval',
     'ReportHistory', 'RefreshToken',
     'Meeting', 'MeetingAttendee', 'HousekeepingTask',

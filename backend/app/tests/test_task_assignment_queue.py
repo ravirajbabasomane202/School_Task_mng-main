@@ -472,3 +472,79 @@ class TestDeleteTask:
 
     def test_unknown_task_is_404(self, client, auth_headers):
         assert client.delete('/api/tasks/999999', headers=auth_headers['chairman']).status_code == 404
+
+
+class TestTaskCatalogScope:
+    """Headlines can be scoped to roles; no scope means global."""
+
+    def _headline(self, client, headers, name, **extra):
+        response = client.post(
+            '/api/tasks/catalog/headlines', json={'name': name, **extra}, headers=headers
+        )
+        assert response.status_code == 201, response.get_json()
+        headline = response.get_json()['data']
+        sub = client.post(
+            f"/api/tasks/catalog/headlines/{headline['id']}/subtasks",
+            json={'name': f'{name} item'},
+            headers=headers,
+        )
+        assert sub.status_code == 201
+        return headline
+
+    def test_new_headline_is_global_by_default(self, client, auth_headers):
+        headline = self._headline(client, auth_headers['chairman'], 'Scope Default Group')
+        assert headline['roles'] == []
+        assert headline['is_global'] is True
+
+    def test_scoped_headline_is_returned_with_roles(self, client, auth_headers):
+        headline = self._headline(
+            client, auth_headers['chairman'], 'Scope Finance Group', roles=['finance']
+        )
+        assert headline['roles'] == ['FINANCE']
+        assert headline['is_global'] is False
+
+    def test_unknown_role_is_rejected(self, client, auth_headers):
+        response = client.post(
+            '/api/tasks/catalog/headlines',
+            json={'name': 'Scope Bad Role Group', 'roles': ['WIZARD']},
+            headers=auth_headers['chairman'],
+        )
+        assert response.status_code == 400
+
+    def test_cannot_assign_scoped_headline_to_other_role(self, client, auth_headers, ids):
+        headline = self._headline(
+            client, auth_headers['chairman'], 'Scope HR Only Group', roles=['HR']
+        )
+        body = _payload(
+            ids,
+            task_headline=headline['name'],
+            sub_task=f"{headline['name']} item",
+        )
+        body['assigned_to'] = ids['finance']
+        rejected = _create(client, auth_headers['chairman'], body)
+        assert rejected.status_code == 400
+
+        body['assigned_to'] = ids['hr']
+        assert _create(client, auth_headers['chairman'], body).status_code == 201
+
+    def test_global_headline_can_go_to_anyone(self, client, auth_headers, ids):
+        headline = self._headline(client, auth_headers['chairman'], 'Scope Global Group')
+        body = _payload(
+            ids, task_headline=headline['name'], sub_task=f"{headline['name']} item"
+        )
+        for key in ('hr', 'finance', 'it'):
+            body['assigned_to'] = ids[key]
+            assert _create(client, auth_headers['chairman'], body).status_code == 201
+
+    def test_chairman_can_change_visibility(self, client, auth_headers):
+        headline = self._headline(client, auth_headers['chairman'], 'Scope Editable Group')
+        url = f"/api/tasks/catalog/headlines/{headline['id']}/roles"
+
+        scoped = client.put(url, json={'roles': ['IT', 'HR']}, headers=auth_headers['chairman'])
+        assert scoped.status_code == 200
+        assert scoped.get_json()['data']['roles'] == ['HR', 'IT']
+
+        reset = client.put(url, json={'is_global': True}, headers=auth_headers['chairman'])
+        assert reset.get_json()['data']['is_global'] is True
+
+        assert client.put(url, json={'roles': ['HR']}, headers=auth_headers['hr']).status_code == 403

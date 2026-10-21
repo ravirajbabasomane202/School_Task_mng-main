@@ -17,6 +17,7 @@ export const API_ENDPOINTS = {
     list: '/tasks',
     catalog: '/tasks/catalog',
     createHeadline: '/tasks/catalog/headlines',
+    headlineRoles: (headlineId: number | string) => `/tasks/catalog/headlines/${headlineId}/roles`,
     deleteHeadline: (headlineId: number | string) => `/tasks/catalog/headlines/${headlineId}`,
     createSubTask: (headlineId: number | string) => `/tasks/catalog/headlines/${headlineId}/subtasks`,
     deleteSubTask: (headlineId: number | string, subtaskId: number | string) =>

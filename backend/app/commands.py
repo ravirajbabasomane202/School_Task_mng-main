@@ -459,6 +459,62 @@ def register_commands(app: Flask):
             for register in skipped:
                 click.echo(f"  - #{register.id} {register.register_no} \"{register.name}\" (label: {register.head_name!r})")
 
+    @app.cli.command('scope-task-catalog')
+    @click.option('--confirm', is_flag=True, default=False,
+                  help='Apply the scoping. Without it, only print what would change.')
+    def scope_task_catalog(confirm: bool):
+        """Scope the seeded Task Headlines to the heads they were written for.
+
+        The migration leaves every headline global. This opt-in command reads
+        app/task_catalog.py (whose keys are head titles; each became a headline)
+        and limits that headline to the matching user roles. Headlines added by
+        the Chairman afterwards are left untouched.
+        """
+        from app.models.task_catalog import TaskHeadline
+        from app.task_catalog import TASK_CATALOG
+
+        # head title in TASK_CATALOG -> user roles that hold that head. 'HR Head'
+        # also maps to ADMISSION because the combined 'Admission & HR Head' user
+        # has role ADMISSION.
+        head_roles = {
+            'School Director': ['DIRECTOR'],
+            'Admin Head': ['ADMIN'],
+            'Admin Assistance': ['ADMIN'],
+            'Finance Head': ['FINANCE'],
+            'Admission Head / Marketing Executive': ['ADMISSION'],
+            'HR Head': ['HR', 'ADMISSION'],
+            'Purchase Head / Jr. Accountant / Store': ['PURCHASE'],
+            'Transport Head': ['TRANSPORT'],
+            'IT Head': ['IT'],
+            'Front Desk / Reception / Jr. Clerk': ['FRONT_DESK'],
+            'HouseKeeping Head': ['HOUSEKEEPING'],
+        }
+
+        planned = {}
+        for head_title in TASK_CATALOG:
+            roles = head_roles.get(head_title)
+            if not roles:
+                continue
+            # Seeded headlines are named after the head title itself.
+            planned.setdefault(head_title, set()).update(roles)
+
+        changed = 0
+        for headline_name, roles in sorted(planned.items()):
+            headline = TaskHeadline.query.filter_by(name=headline_name).first()
+            if not headline:
+                click.echo(f'  ! headline "{headline_name}" not found; skipped')
+                continue
+            click.echo(f"{'SCOPE' if confirm else 'WOULD SCOPE'} \"{headline_name}\" -> {', '.join(sorted(roles))}")
+            if confirm:
+                headline.set_roles(roles)
+            changed += 1
+
+        if confirm:
+            db.session.commit()
+            click.echo(f'Scoped {changed} headline(s).')
+        else:
+            click.echo('Dry run only. Re-run with --confirm to apply.')
+
     @app.cli.command('clear-login-attempts')
     @click.option('--ip', help='Clear only the failed login attempts for a single IP address.')
     def clear_login_attempts(ip: str | None):

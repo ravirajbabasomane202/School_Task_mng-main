@@ -67,10 +67,19 @@ export const getTaskCatalog = async () => {
   return response.data.data;
 };
 
-export const createTaskHeadline = async (name: string) => {
+/** `roles` scopes the headline to those user roles; omit or pass [] for global. */
+export const createTaskHeadline = async (name: string, roles: string[] = []) => {
   const response = await api.post<ApiResponse<TaskCatalogHeadline>>(
     API_ENDPOINTS.tasks.createHeadline,
-    { name }
+    { name, roles }
+  );
+  return response.data.data;
+};
+
+export const updateTaskHeadlineRoles = async (headlineId: number, roles: string[]) => {
+  const response = await api.put<ApiResponse<TaskCatalogHeadline>>(
+    API_ENDPOINTS.tasks.headlineRoles(headlineId),
+    { roles }
   );
   return response.data.data;
 };

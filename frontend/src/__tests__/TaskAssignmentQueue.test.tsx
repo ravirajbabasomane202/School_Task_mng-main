@@ -41,6 +41,33 @@ const initialCatalog = [
   }
 ];
 
+const hrUser = {
+  id: 2, name: 'Anita', email: 'anita@school.test', role: 'HR', is_active: true,
+  head_type: 'HR Head', sort_order: 1, department_id: null
+};
+const financeUser = {
+  id: 3, name: 'Farah', email: 'farah@school.test', role: 'FINANCE', is_active: true,
+  head_type: 'Finance Head', sort_order: 2, department_id: null
+};
+
+/** Catalog where each headline is scoped to one role, plus one global headline. */
+const scopedCatalog = [
+  { id: 1, name: 'HR Head', roles: ['HR'], is_global: false, subtasks: [{ id: 1, name: 'Training' }] },
+  { id: 2, name: 'Finance Head', roles: ['FINANCE'], is_global: false, subtasks: [{ id: 3, name: 'Fees Collection Status' }] },
+  { id: 4, name: 'Shared Work', roles: [], is_global: true, subtasks: [{ id: 5, name: 'Weekly Report' }] }
+];
+
+const chairmanLogin = () =>
+  store.dispatch(setCredentials({
+    user: { id: 1, name: 'Chairman', email: 'chairman@school.test', role: 'CHAIRMAN', department_id: null },
+    accessToken: 'test-token'
+  }));
+
+const openTaskPicker = async () => {
+  await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+  return screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+};
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -169,7 +196,8 @@ describe('Assignment Queue', () => {
       user: { id: 1, name: 'Chairman', email: 'chairman@school.test', role: 'CHAIRMAN', department_id: null },
       accessToken: 'test-token'
     }));
-    const newHeadline = { id: 3, name: 'New Dynamic Headline', subtasks: [] };
+    const newHeadline = { id: 3, name: 'New Dynamic Headline', roles: ['HR'], subtasks: [] };
+    vi.mocked(userService.getAllUsers).mockResolvedValue([hrUser] as never);
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
     vi.mocked(taskService.getTaskCatalog)
       .mockResolvedValueOnce(initialCatalog)
@@ -177,21 +205,24 @@ describe('Assignment Queue', () => {
     vi.mocked(taskService.createTaskHeadline).mockResolvedValue(newHeadline);
     renderPage();
 
-    await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
-    const dialog = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+    const dialog = await openTaskPicker();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Add Task Headline' }));
     await userEvent.type(screen.getByRole('textbox', { name: 'New Task Headline' }), newHeadline.name);
     await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
 
-    await waitFor(() => expect(taskService.createTaskHeadline).toHaveBeenCalledWith(newHeadline.name));
+    // Not marked Global, so it is scoped to the selected assignee's role.
+    await waitFor(() => expect(taskService.createTaskHeadline).toHaveBeenCalledWith(newHeadline.name, ['HR']));
     expect(await within(dialog).findByText(newHeadline.name)).toBeInTheDocument();
     expect(await within(dialog).findByRole('textbox', { name: 'New Sub Task for New Dynamic Headline' })).toBeInTheDocument();
   });
 
   it('closes the task dropdown when clicking outside it', async () => {
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    vi.mocked(userService.getAllUsers).mockResolvedValue([hrUser] as never);
     renderPage();
 
+    await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
     await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
     expect(screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' })).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText('Priority'));
@@ -205,10 +236,11 @@ describe('Assignment Queue', () => {
     }));
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
     vi.mocked(taskService.deleteTaskSubTask).mockResolvedValue();
+    vi.mocked(userService.getAllUsers).mockResolvedValue([hrUser] as never);
     renderPage();
 
-    await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
-    const dialog = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+    const dialog = await openTaskPicker();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Delete Sub Task Training' }));
     const dialogs = await screen.findAllByRole('dialog');
     const confirmation = dialogs[dialogs.length - 1];
@@ -268,5 +300,100 @@ describe('Assignment Queue', () => {
     await userEvent.click(screen.getAllByTitle('Delete task')[0]);
     await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Delete' }));
     await waitFor(() => expect(screen.queryByText('Task 1')).toBeNull());
+  });
+
+  describe('filtering by Assign to', () => {
+    beforeEach(() => {
+      vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+      vi.mocked(userService.getAllUsers).mockResolvedValue([hrUser, financeUser] as never);
+      vi.mocked(taskService.getTaskCatalog).mockResolvedValue(scopedCatalog);
+    });
+
+    it('disables the picker with a hint until an assignee is chosen', async () => {
+      renderPage();
+      const picker = await screen.findByRole('button', { name: /Select Assign to first/ });
+      expect(picker).toBeDisabled();
+    });
+
+    it('shows only global headlines and the assignee\'s own headlines', async () => {
+      renderPage();
+      await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+      const dialog = await openTaskPicker();
+
+      expect(within(dialog).getByText('HR Head')).toBeInTheDocument();
+      expect(within(dialog).getByRole('button', { name: 'Training' })).toBeInTheDocument();
+      expect(within(dialog).getByText('Shared Work')).toBeInTheDocument();
+      expect(within(dialog).queryByText('Finance Head')).toBeNull();
+      expect(within(dialog).queryByRole('button', { name: 'Fees Collection Status' })).toBeNull();
+      expect(screen.getByText('2 Task Headlines available for this assignee')).toBeInTheDocument();
+    });
+
+    it('re-filters and clears an invalid selection when the assignee changes', async () => {
+      renderPage();
+      const assignee = await screen.findByLabelText('Assign to');
+      await userEvent.selectOptions(assignee, '2');
+      const dialog = await openTaskPicker();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Training' }));
+      expect(screen.getByRole('button', { name: /HR Head\s+\/\s+Training/ })).toBeInTheDocument();
+
+      await userEvent.selectOptions(assignee, '3');
+      expect(screen.queryByRole('button', { name: /HR Head\s+\/\s+Training/ })).toBeNull();
+      const financeDialog = await openTaskPicker();
+      expect(within(financeDialog).getByText('Finance Head')).toBeInTheDocument();
+      expect(within(financeDialog).queryByText('HR Head')).toBeNull();
+    });
+
+    it('keeps the selection when it is global and the assignee changes', async () => {
+      renderPage();
+      const assignee = await screen.findByLabelText('Assign to');
+      await userEvent.selectOptions(assignee, '2');
+      const dialog = await openTaskPicker();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Weekly Report' }));
+
+      await userEvent.selectOptions(assignee, '3');
+      expect(screen.getByRole('button', { name: /Shared Work\s+\/\s+Weekly Report/ })).toBeInTheDocument();
+    });
+
+    it('shows an empty state when nothing is defined for the assignee', async () => {
+      vi.mocked(taskService.getTaskCatalog).mockResolvedValue([scopedCatalog[1]]);
+      renderPage();
+      await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+      const dialog = await openTaskPicker();
+      expect(
+        within(dialog).getByText('No tasks defined for this head. Add a Task Headline first.')
+      ).toBeInTheDocument();
+    });
+
+    it('lets the Chairman mark a new headline Global', async () => {
+      chairmanLogin();
+      const created = { id: 9, name: 'Everyone Headline', roles: [], is_global: true, subtasks: [] };
+      vi.mocked(taskService.createTaskHeadline).mockResolvedValue(created);
+      renderPage();
+      await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+      const dialog = await openTaskPicker();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Add Task Headline' }));
+      await userEvent.type(screen.getByRole('textbox', { name: 'New Task Headline' }), created.name);
+      await userEvent.click(within(dialog).getByRole('checkbox', { name: /Global/ }));
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+      await waitFor(() => expect(taskService.createTaskHeadline).toHaveBeenCalledWith(created.name, []));
+    });
+
+    it('lets the Chairman change a headline\'s visibility', async () => {
+      chairmanLogin();
+      vi.mocked(taskService.updateTaskHeadlineRoles).mockResolvedValue({
+        ...scopedCatalog[2], roles: ['FINANCE'], is_global: false
+      });
+      renderPage();
+      await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+      const dialog = await openTaskPicker();
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Edit visibility of Shared Work' }));
+      await userEvent.click(within(dialog).getByRole('checkbox', { name: 'Finance Head' }));
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Save visibility' }));
+
+      await waitFor(() =>
+        expect(taskService.updateTaskHeadlineRoles).toHaveBeenCalledWith(4, ['FINANCE'])
+      );
+    });
   });
 });
