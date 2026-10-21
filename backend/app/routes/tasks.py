@@ -329,6 +329,45 @@ def create_task_subtask(headline_id):
     return success(subtask.to_dict(), 'Sub Task added', 201)
 
 
+@tasks_bp.route('/catalog/headlines/<int:headline_id>', methods=['DELETE'])
+@jwt_required()
+def delete_task_headline(headline_id):
+    user = _current_user()
+    if not user:
+        return error('User not found', 401)
+    if user.role != 'CHAIRMAN':
+        return error('Only Chairman can delete task headlines', 403)
+
+    headline = db.session.get(TaskHeadline, headline_id)
+    if not headline:
+        return error('Task Headline not found', 404)
+
+    db.session.delete(headline)
+    db.session.commit()
+    return success({'id': headline_id}, 'Task Headline deleted')
+
+
+@tasks_bp.route(
+    '/catalog/headlines/<int:headline_id>/subtasks/<int:subtask_id>',
+    methods=['DELETE'],
+)
+@jwt_required()
+def delete_task_subtask(headline_id, subtask_id):
+    user = _current_user()
+    if not user:
+        return error('User not found', 401)
+    if user.role != 'CHAIRMAN':
+        return error('Only Chairman can delete Sub Tasks', 403)
+
+    subtask = TaskSubTask.query.filter_by(id=subtask_id, headline_id=headline_id).first()
+    if not subtask:
+        return error('Sub Task not found under this Task Headline', 404)
+
+    db.session.delete(subtask)
+    db.session.commit()
+    return success({'id': subtask_id, 'headline_id': headline_id}, 'Sub Task deleted')
+
+
 @tasks_bp.route('/dept/<int:dept_id>', methods=['GET'])
 @jwt_required()
 def tasks_by_dept(dept_id):

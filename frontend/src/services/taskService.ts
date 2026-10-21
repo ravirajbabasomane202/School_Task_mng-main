@@ -83,6 +83,14 @@ export const createTaskSubTask = async (headlineId: number, name: string) => {
   return response.data.data;
 };
 
+export const deleteTaskHeadline = async (headlineId: number) => {
+  await api.delete(API_ENDPOINTS.tasks.deleteHeadline(headlineId));
+};
+
+export const deleteTaskSubTask = async (headlineId: number, subtaskId: number) => {
+  await api.delete(API_ENDPOINTS.tasks.deleteSubTask(headlineId, subtaskId));
+};
+
 export const createTask = async (payload: CreateTaskPayload, file?: File) => {
   const formData = new FormData();
   appendTaskPayload(formData, payload);

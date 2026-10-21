@@ -128,6 +128,50 @@ class TestTaskCatalog:
             json={'name': 'Forbidden Group'},
             headers=auth_headers['hr'],
         ).status_code == 403
+        assert client.delete('/api/tasks/catalog/headlines/1', headers=auth_headers['hr']).status_code == 403
+
+    def test_chairman_can_delete_one_subtask(self, client, auth_headers):
+        headline = client.post(
+            '/api/tasks/catalog/headlines',
+            json={'name': 'Headline for subtask delete'},
+            headers=auth_headers['chairman'],
+        ).get_json()['data']
+        subtask = client.post(
+            f"/api/tasks/catalog/headlines/{headline['id']}/subtasks",
+            json={'name': 'Subtask to remove'},
+            headers=auth_headers['chairman'],
+        ).get_json()['data']
+
+        response = client.delete(
+            f"/api/tasks/catalog/headlines/{headline['id']}/subtasks/{subtask['id']}",
+            headers=auth_headers['chairman'],
+        )
+        assert response.status_code == 200
+
+        refreshed = client.get('/api/tasks/catalog', headers=auth_headers['chairman']).get_json()['data']
+        remaining_headline = next(item for item in refreshed if item['id'] == headline['id'])
+        assert all(item['id'] != subtask['id'] for item in remaining_headline['subtasks'])
+        assert any(item['id'] == headline['id'] for item in refreshed)
+
+    def test_chairman_can_delete_headline_and_its_subtasks(self, client, auth_headers):
+        headline = client.post(
+            '/api/tasks/catalog/headlines',
+            json={'name': 'Headline to delete'},
+            headers=auth_headers['chairman'],
+        ).get_json()['data']
+        client.post(
+            f"/api/tasks/catalog/headlines/{headline['id']}/subtasks",
+            json={'name': 'Subtask to delete'},
+            headers=auth_headers['chairman'],
+        )
+
+        response = client.delete(
+            f"/api/tasks/catalog/headlines/{headline['id']}",
+            headers=auth_headers['chairman'],
+        )
+        assert response.status_code == 200
+        refreshed = client.get('/api/tasks/catalog', headers=auth_headers['chairman']).get_json()['data']
+        assert all(item['id'] != headline['id'] for item in refreshed)
 
 
 # ---------------------------------------------------------------------------

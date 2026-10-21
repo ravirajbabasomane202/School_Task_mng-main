@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
-import { Check, ChevronDown, Plus } from 'lucide-react';
+import { Check, ChevronDown, Plus, Trash2 } from 'lucide-react';
 import Button from '../../components/common/Button';
 import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
 import Input from '../../components/common/Input';
@@ -75,6 +75,16 @@ function TaskAssignment() {
   const [catalogDraft, setCatalogDraft] = useState('');
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogDeleteTarget, setCatalogDeleteTarget] = useState<{
+    type: 'headline' | 'subtask';
+    headlineId: number;
+    id: number;
+    name: string;
+    headlineName?: string;
+  } | null>(null);
+  const [catalogDeleteError, setCatalogDeleteError] = useState<string | null>(null);
+  const [catalogDeleting, setCatalogDeleting] = useState(false);
+  const taskDropdownRef = useRef<HTMLDivElement>(null);
 
   const taskQuery = useQuery({
     queryKey: QUEUE_QUERY_KEY,
@@ -97,6 +107,36 @@ function TaskAssignment() {
     queryKey: ['tasks', 'catalog'],
     queryFn: taskService.getTaskCatalog
   });
+
+  useEffect(() => {
+    if (!taskDropdownOpen) return;
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!taskDropdownRef.current?.contains(event.target as Node)) {
+        setTaskDropdownOpen(false);
+        setAddingHeadline(false);
+        setAddingSubtaskHeadlineId(null);
+        setCatalogDraft('');
+        setCatalogError(null);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setTaskDropdownOpen(false);
+        setAddingHeadline(false);
+        setAddingSubtaskHeadlineId(null);
+        setCatalogDraft('');
+        setCatalogError(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [taskDropdownOpen]);
 
   useEffect(() => {
     if (taskQuery.data) {
@@ -267,6 +307,37 @@ function TaskAssignment() {
     }
   };
 
+  const handleDeleteCatalogEntry = async () => {
+    if (!catalogDeleteTarget) return;
+
+    setCatalogDeleteError(null);
+    setCatalogDeleting(true);
+    try {
+      if (catalogDeleteTarget.type === 'headline') {
+        await taskService.deleteTaskHeadline(catalogDeleteTarget.id);
+        if (form.task_headline === catalogDeleteTarget.name) {
+          setForm((current) => ({ ...current, task_headline: '', sub_task: '' }));
+        }
+      } else {
+        await taskService.deleteTaskSubTask(catalogDeleteTarget.headlineId, catalogDeleteTarget.id);
+        if (
+          form.task_headline === catalogDeleteTarget.headlineName &&
+          form.sub_task === catalogDeleteTarget.name
+        ) {
+          setForm((current) => ({ ...current, task_headline: '', sub_task: '' }));
+        }
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['tasks', 'catalog'] });
+      toast.success(`${catalogDeleteTarget.type === 'headline' ? 'Task Headline' : 'Sub Task'} deleted.`);
+      setCatalogDeleteTarget(null);
+    } catch (err) {
+      setCatalogDeleteError(getApiErrorMessage(err, 'Unable to delete this catalog item.'));
+    } finally {
+      setCatalogDeleting(false);
+    }
+  };
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => taskService.deleteTask(id),
     onSuccess: (_data, id) => finishDelete(id, 'Task deleted.'),
@@ -367,7 +438,7 @@ function TaskAssignment() {
           {/* ── 2. Hierarchical task selection ── */}
           <div className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Task Headline / Sub Task</span>
-            <div className="relative">
+            <div className="relative" ref={taskDropdownRef}>
               <button
                 aria-expanded={taskDropdownOpen}
                 aria-haspopup="dialog"
@@ -407,7 +478,28 @@ function TaskAssignment() {
                   {visibleTaskGroups.map((headline) => (
                     <div className="mb-1" key={headline.id}>
                       <div className="rounded-[8px] bg-[#F3F6FA] px-3 py-2">
-                        <span className="text-xs font-bold text-[#36506C]">{headline.name}</span>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-bold text-[#36506C]">{headline.name}</span>
+                          {isChairman && (
+                            <button
+                              aria-label={`Delete Task Headline ${headline.name}`}
+                              className="rounded p-1 text-[#8A99B0] hover:bg-[#FDECEC] hover:text-[#C13F3A]"
+                              onClick={() => {
+                                setCatalogDeleteError(null);
+                                setCatalogDeleteTarget({
+                                  type: 'headline',
+                                  headlineId: headline.id,
+                                  id: headline.id,
+                                  name: headline.name
+                                });
+                              }}
+                              title="Delete Task Headline"
+                              type="button"
+                            >
+                              <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
 
                       <div className="ml-3 border-l border-[#DCE2EA] pl-2">
@@ -415,27 +507,48 @@ function TaskAssignment() {
                           const selected =
                             form.task_headline === headline.name && form.sub_task === subtask.name;
                           return (
-                            <button
-                              aria-pressed={selected}
-                              className={[
-                                'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[#F3F6FA]',
-                                selected ? 'bg-[#EAF3FC] font-semibold text-[#185FA5]' : 'text-[#1E293B]'
-                              ].join(' ')}
-                              key={subtask.id}
-                              onClick={() => {
-                                setForm((current) => ({
-                                  ...current,
-                                  task_headline: headline.name,
-                                  sub_task: subtask.name
-                                }));
-                                setTaskDropdownOpen(false);
-                                cancelCatalogEntry();
-                              }}
-                              type="button"
-                            >
-                              <span>{subtask.name}</span>
-                              {selected && <Check aria-hidden="true" className="h-4 w-4" />}
-                            </button>
+                            <div className="flex items-center gap-1" key={subtask.id}>
+                              <button
+                                aria-pressed={selected}
+                                className={[
+                                  'flex min-w-0 flex-1 items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[#F3F6FA]',
+                                  selected ? 'bg-[#EAF3FC] font-semibold text-[#185FA5]' : 'text-[#1E293B]'
+                                ].join(' ')}
+                                onClick={() => {
+                                  setForm((current) => ({
+                                    ...current,
+                                    task_headline: headline.name,
+                                    sub_task: subtask.name
+                                  }));
+                                  setTaskDropdownOpen(false);
+                                  cancelCatalogEntry();
+                                }}
+                                type="button"
+                              >
+                                <span className="truncate">{subtask.name}</span>
+                                {selected && <Check aria-hidden="true" className="ml-2 h-4 w-4 shrink-0" />}
+                              </button>
+                              {isChairman && (
+                                <button
+                                  aria-label={`Delete Sub Task ${subtask.name}`}
+                                  className="rounded p-1 text-[#8A99B0] hover:bg-[#FDECEC] hover:text-[#C13F3A]"
+                                  onClick={() => {
+                                    setCatalogDeleteError(null);
+                                    setCatalogDeleteTarget({
+                                      type: 'subtask',
+                                      headlineId: headline.id,
+                                      id: subtask.id,
+                                      name: subtask.name,
+                                      headlineName: headline.name
+                                    });
+                                  }}
+                                  title="Delete Sub Task"
+                                  type="button"
+                                >
+                                  <Trash2 aria-hidden="true" className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
                           );
                         })}
 
@@ -742,6 +855,29 @@ function TaskAssignment() {
         }}
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
         title="Delete Task"
+      />
+      <ConfirmDeleteDialog
+        errorMessage={catalogDeleteError}
+        isDeleting={catalogDeleting}
+        isOpen={catalogDeleteTarget !== null}
+        itemLabel={
+          catalogDeleteTarget?.type === 'subtask'
+            ? `${catalogDeleteTarget.headlineName} / ${catalogDeleteTarget.name}`
+            : catalogDeleteTarget?.name
+        }
+        itemName={catalogDeleteTarget?.type === 'headline' ? 'Task Headline' : 'Sub Task'}
+        note={
+          catalogDeleteTarget?.type === 'headline'
+            ? 'Deleting this headline also removes its subtasks from the task selector.'
+            : 'Existing assigned tasks will keep their saved task details.'
+        }
+        onCancel={() => {
+          if (catalogDeleting) return;
+          setCatalogDeleteTarget(null);
+          setCatalogDeleteError(null);
+        }}
+        onConfirm={() => void handleDeleteCatalogEntry()}
+        title={`Delete ${catalogDeleteTarget?.type === 'headline' ? 'Task Headline' : 'Sub Task'}`}
       />
     </section>
   );

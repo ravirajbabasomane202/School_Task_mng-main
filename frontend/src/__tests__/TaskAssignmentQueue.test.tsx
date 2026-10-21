@@ -188,6 +188,35 @@ describe('Assignment Queue', () => {
     expect(await within(dialog).findByRole('textbox', { name: 'New Sub Task for New Dynamic Headline' })).toBeInTheDocument();
   });
 
+  it('closes the task dropdown when clicking outside it', async () => {
+    vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+    expect(screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' })).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText('Priority'));
+    expect(screen.queryByRole('dialog', { name: 'Task Headline and Sub Task options' })).toBeNull();
+  });
+
+  it('lets the Chairman delete an individual subtask from its row', async () => {
+    store.dispatch(setCredentials({
+      user: { id: 1, name: 'Chairman', email: 'chairman@school.test', role: 'CHAIRMAN', department_id: null },
+      accessToken: 'test-token'
+    }));
+    vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    vi.mocked(taskService.deleteTaskSubTask).mockResolvedValue();
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete Sub Task Training' }));
+    const dialogs = await screen.findAllByRole('dialog');
+    const confirmation = dialogs[dialogs.length - 1];
+    await userEvent.click(within(confirmation).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(taskService.deleteTaskSubTask).toHaveBeenCalledWith(1, 1));
+  });
+
   it('shows per-status counts, an Escalated tab, and a tab-specific empty message', async () => {
     vi.mocked(taskService.getAllTasks).mockResolvedValue([
       makeTask(1), makeTask(2, { status: 'ESCALATED' }), makeTask(3, { status: 'COMPLETED' })
