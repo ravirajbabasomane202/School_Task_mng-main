@@ -164,7 +164,11 @@ class TestAssigneeRights:
         task_id = make_task()
         resp = client.put(
             f'/api/tasks/{task_id}',
-            json={'title': 'Hijacked', 'priority': 'LOW'},
+            json={
+                'task_headline': 'HR Head',
+                'sub_task': 'Training',
+                'priority': 'LOW',
+            },
             headers=auth_headers['regular'],
         )
         assert resp.status_code == 200

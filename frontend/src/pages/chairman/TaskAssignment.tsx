@@ -110,7 +110,7 @@ function TaskAssignment() {
     return source ? [{ ...source, label: head.label }] : [];
   });
 
-  const TITLE_GROUP_FILTER: Record<string, string[]> = {
+  const HEADLINE_GROUP_FILTER: Record<string, string[]> = {
     [ROLES.CHAIRMAN]: [
       'School Director',
       'Admin Head',
@@ -148,9 +148,9 @@ function TaskAssignment() {
     ''
   ).toLowerCase();
 
-  const getAssigneeTitleKeywords = () => {
+  const getAssigneeHeadlineKeywords = () => {
     if (!selectedAssignee) {
-      return user?.role ? TITLE_GROUP_FILTER[user.role] : TITLE_GROUP_FILTER[ROLES.CHAIRMAN];
+      return user?.role ? HEADLINE_GROUP_FILTER[user.role] : HEADLINE_GROUP_FILTER[ROLES.CHAIRMAN];
     }
 
     if (selectedAssigneeRole === ROLES.ADMIN) {
@@ -188,17 +188,17 @@ function TaskAssignment() {
       return ['Front Desk'];
     }
 
-    return TITLE_GROUP_FILTER[selectedAssigneeRole] ?? [];
+    return HEADLINE_GROUP_FILTER[selectedAssigneeRole] ?? [];
   };
 
-  const roleTitleKeywords = getAssigneeTitleKeywords();
-  const titleGroups = roleTitleKeywords
+  const roleHeadlineKeywords = getAssigneeHeadlineKeywords();
+  const headlineGroups = roleHeadlineKeywords
     ? MODULE_TASK_GROUPS.filter((group) =>
-        roleTitleKeywords.some((keyword) => group.head.includes(keyword))
+        roleHeadlineKeywords.some((keyword) => group.head.includes(keyword))
       )
     : MODULE_TASK_GROUPS;
 
-  const visibleTaskGroups = roleTitleKeywords ? titleGroups : MODULE_TASK_GROUPS;
+  const visibleTaskGroups = roleHeadlineKeywords ? headlineGroups : MODULE_TASK_GROUPS;
   const selectedTaskGroup = MODULE_TASK_GROUPS.find((group) => group.head === form.task_headline);
 
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED');

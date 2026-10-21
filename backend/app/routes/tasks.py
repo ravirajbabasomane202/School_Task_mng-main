@@ -409,8 +409,8 @@ def create_task():
     if due_date < start_date:
         return error('due_date must be on or after start_date', 400)
 
-    # Same assignee + same title + same dates while still open = a double submit
-    # (double click, page refresh, two chairmen) rather than a new assignment.
+    # Same assignee + same headline/subtask + same dates while still open is a
+    # duplicate submission rather than a new assignment.
     if _find_duplicate(task_headline, sub_task, assignee.id, start_date, due_date):
         return error(
             f'"{sub_task}" is already assigned to {assignee.name} with the same dates',
@@ -542,7 +542,10 @@ def update_task(task_id):
         if schedule_changed and task.status != 'COMPLETED' and _find_duplicate(
             task_headline, sub_task, final_assignee_id, new_start, new_due, exclude_id=task.id
         ):
-            return error('Another open task with the same title, assignee and dates already exists', 409)
+            return error(
+                'Another open task with the same Task Headline, Sub Task, assignee and dates already exists',
+                409,
+            )
 
     # ---- apply ----
     if is_assigner and ('task_headline' in data or 'sub_task' in data):

@@ -99,7 +99,7 @@ describe('Assignment Queue', () => {
     expect(subTask).toBeEnabled();
     expect(within(subTask).getByRole('option', { name: 'Training' })).toBeInTheDocument();
     expect(within(subTask).queryByRole('option', { name: 'Fees Collection Status' })).toBeNull();
-    expect(screen.queryByPlaceholderText('Enter custom task title')).toBeNull();
+    expect(screen.queryByRole('textbox', { name: /task title/i })).toBeNull();
 
     await userEvent.selectOptions(subTask, 'Training');
     const assignDate = screen.getByLabelText('Assign Date');

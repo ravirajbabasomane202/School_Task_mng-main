@@ -166,10 +166,3 @@ export const MODULE_TASK_GROUPS: ModuleTaskGroup[] = [
     ],
   },
 ];
-
-export const TASK_TITLE_GROUPS = MODULE_TASK_GROUPS.map((group) => ({
-  group: group.head,
-  titles: group.tasks,
-}));
-
-export const PREDEFINED_TASK_TITLES = MODULE_TASK_GROUPS.flatMap((group) => group.tasks);
