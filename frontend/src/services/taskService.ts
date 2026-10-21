@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from '../constants/apiEndpoints';
 import type {
   CreateTaskPayload,
+  TaskCatalogHeadline,
   Task,
   TaskFilters,
   UpdateTaskPayload
@@ -59,6 +60,27 @@ const buildTaskFilters = (filters?: TaskFilters) => {
   }
 
   return params;
+};
+
+export const getTaskCatalog = async () => {
+  const response = await api.get<ApiResponse<TaskCatalogHeadline[]>>(API_ENDPOINTS.tasks.catalog);
+  return response.data.data;
+};
+
+export const createTaskHeadline = async (name: string) => {
+  const response = await api.post<ApiResponse<TaskCatalogHeadline>>(
+    API_ENDPOINTS.tasks.createHeadline,
+    { name }
+  );
+  return response.data.data;
+};
+
+export const createTaskSubTask = async (headlineId: number, name: string) => {
+  const response = await api.post<ApiResponse<{ id: number; name: string }>>(
+    API_ENDPOINTS.tasks.createSubTask(headlineId),
+    { name }
+  );
+  return response.data.data;
 };
 
 export const createTask = async (payload: CreateTaskPayload, file?: File) => {

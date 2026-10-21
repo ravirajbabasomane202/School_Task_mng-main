@@ -5,6 +5,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { store } from '../store';
+import { logout, setCredentials } from '../store/authSlice';
 import TaskAssignment from '../pages/chairman/TaskAssignment';
 import * as taskService from '../services/taskService';
 import * as userService from '../services/userService';
@@ -24,6 +25,22 @@ const makeTask = (id: number, over: Record<string, unknown> = {}) => ({
   assignedTo: { id: 2, name: 'Anita' }, ...over
 });
 
+const initialCatalog = [
+  {
+    id: 1,
+    name: 'HR Head',
+    subtasks: [
+      { id: 1, name: 'Training' },
+      { id: 2, name: 'Staff Grievance' }
+    ]
+  },
+  {
+    id: 2,
+    name: 'Finance Head',
+    subtasks: [{ id: 3, name: 'Fees Collection Status' }]
+  }
+];
+
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
@@ -39,7 +56,9 @@ function renderPage() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  store.dispatch(logout());
   vi.mocked(userService.getAllUsers).mockResolvedValue([]);
+  vi.mocked(taskService.getTaskCatalog).mockResolvedValue(initialCatalog);
 });
 
 describe('Assignment Queue', () => {
@@ -75,7 +94,7 @@ describe('Assignment Queue', () => {
     expect(await screen.findByText('Newly assigned tasks will appear here.')).toBeInTheDocument();
   });
 
-  it('shows subtasks hierarchically in one dropdown and sends both selections', async () => {
+  it('shows the hierarchical custom dropdown and sends both selections', async () => {
     vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
     vi.mocked(userService.getAllUsers).mockResolvedValue([{
       id: 2,
@@ -91,14 +110,15 @@ describe('Assignment Queue', () => {
 
     const assignee = await screen.findByLabelText('Assign to');
     await userEvent.selectOptions(assignee, '2');
-    const taskSelection = screen.getByLabelText('Task Headline / Sub Task');
-    expect(within(taskSelection).getByRole('group', { name: 'HR Head' })).toBeInTheDocument();
-    expect(within(taskSelection).getByRole('option', { name: 'Training' })).toBeInTheDocument();
-    expect(within(taskSelection).queryByRole('option', { name: 'Fees Collection Status' })).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+    const taskSelection = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    expect(within(taskSelection).getByText('HR Head')).toBeInTheDocument();
+    expect(within(taskSelection).getByRole('button', { name: 'Training' })).toBeInTheDocument();
+    expect(within(taskSelection).getByRole('button', { name: 'Fees Collection Status' })).toBeInTheDocument();
     expect(screen.queryByLabelText('Sub Task')).toBeNull();
     expect(screen.queryByRole('textbox', { name: /task title/i })).toBeNull();
 
-    await userEvent.selectOptions(taskSelection, JSON.stringify(['HR Head', 'Training']));
+    await userEvent.click(within(taskSelection).getByRole('button', { name: 'Training' }));
     const assignDate = screen.getByLabelText('Assign Date');
     fireEvent.change(screen.getByLabelText('Due Date'), { target: { value: assignDate.value } });
     vi.mocked(taskService.createTask).mockResolvedValue(makeTask(99, {
@@ -112,6 +132,60 @@ describe('Assignment Queue', () => {
     const payload = vi.mocked(taskService.createTask).mock.calls[0][0];
     expect(payload).toMatchObject({ task_headline: 'HR Head', sub_task: 'Training' });
     expect(payload).not.toHaveProperty('title');
+  });
+
+  it('lets the Chairman add and save a subtask inside the dropdown', async () => {
+    store.dispatch(setCredentials({
+      user: { id: 1, name: 'Chairman', email: 'chairman@school.test', role: 'CHAIRMAN', department_id: null },
+      accessToken: 'test-token'
+    }));
+    vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    vi.mocked(userService.getAllUsers).mockResolvedValue([{
+      id: 2,
+      name: 'Anita',
+      email: 'anita@school.test',
+      role: 'HR',
+      is_active: true,
+      head_type: 'HR Head',
+      sort_order: 1,
+      department_id: null
+    }] as never);
+    vi.mocked(taskService.createTaskSubTask).mockResolvedValue({ id: 10, name: 'New HR Report' });
+    renderPage();
+
+    await userEvent.selectOptions(await screen.findByLabelText('Assign to'), '2');
+    await userEvent.click(screen.getByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Sub Task to HR Head' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New Sub Task for HR Head' }), 'New HR Report');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(taskService.createTaskSubTask).toHaveBeenCalledWith(1, 'New HR Report'));
+    expect(screen.getByRole('button', { name: /HR Head\s+\/\s+New HR Report/ })).toBeInTheDocument();
+  });
+
+  it('lets the Chairman add a headline and then add its first subtask', async () => {
+    store.dispatch(setCredentials({
+      user: { id: 1, name: 'Chairman', email: 'chairman@school.test', role: 'CHAIRMAN', department_id: null },
+      accessToken: 'test-token'
+    }));
+    const newHeadline = { id: 3, name: 'New Dynamic Headline', subtasks: [] };
+    vi.mocked(taskService.getAllTasks).mockResolvedValue([]);
+    vi.mocked(taskService.getTaskCatalog)
+      .mockResolvedValueOnce(initialCatalog)
+      .mockResolvedValue([...initialCatalog, newHeadline]);
+    vi.mocked(taskService.createTaskHeadline).mockResolvedValue(newHeadline);
+    renderPage();
+
+    await userEvent.click(await screen.findByRole('button', { name: /Select a Task Headline and Sub Task/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Task Headline and Sub Task options' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add Task Headline' }));
+    await userEvent.type(screen.getByRole('textbox', { name: 'New Task Headline' }), newHeadline.name);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(taskService.createTaskHeadline).toHaveBeenCalledWith(newHeadline.name));
+    expect(await within(dialog).findByText(newHeadline.name)).toBeInTheDocument();
+    expect(await within(dialog).findByRole('textbox', { name: 'New Sub Task for New Dynamic Headline' })).toBeInTheDocument();
   });
 
   it('shows per-status counts, an Escalated tab, and a tab-specific empty message', async () => {

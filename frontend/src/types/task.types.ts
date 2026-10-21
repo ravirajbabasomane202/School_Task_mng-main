@@ -16,6 +16,17 @@ export interface TaskDepartmentSummary {
   description?: string | null;
 }
 
+export interface TaskCatalogSubTask {
+  id: number;
+  name: string;
+}
+
+export interface TaskCatalogHeadline {
+  id: number;
+  name: string;
+  subtasks: TaskCatalogSubTask[];
+}
+
 export interface Task {
   id: number;
   title: string;

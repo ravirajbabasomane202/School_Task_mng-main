@@ -15,6 +15,9 @@ export const API_ENDPOINTS = {
   },
   tasks: {
     list: '/tasks',
+    catalog: '/tasks/catalog',
+    createHeadline: '/tasks/catalog/headlines',
+    createSubTask: (headlineId: number | string) => `/tasks/catalog/headlines/${headlineId}/subtasks`,
     myTasks: '/tasks/my-tasks',
     detail: (id: number | string) => `/tasks/${id}`,
     create: '/tasks',

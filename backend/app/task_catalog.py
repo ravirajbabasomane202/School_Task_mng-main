@@ -128,11 +128,3 @@ TASK_CATALOG = {
         'School Premises (Inside and Outside) Cleaning Report',
     ],
 }
-
-
-def is_valid_task_selection(task_headline, sub_task):
-    return (
-        isinstance(task_headline, str)
-        and isinstance(sub_task, str)
-        and sub_task in TASK_CATALOG.get(task_headline, ())
-    )

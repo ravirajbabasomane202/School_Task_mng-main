@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
+import { Check, ChevronDown, Plus } from 'lucide-react';
 import Button from '../../components/common/Button';
 import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
 import Input from '../../components/common/Input';
 import TaskTable from '../../components/tables/TaskTable';
 import { ROLES } from '../../constants/roles';
 import { useOrderedHeads } from '../../constants/headOrder';
-import { MODULE_TASK_GROUPS } from '../../constants/moduleTasks';
 import * as taskService from '../../services/taskService';
 import * as userService from '../../services/userService';
 import { setUsers } from '../../store/userSlice';
@@ -69,6 +69,12 @@ function TaskAssignment() {
   const [deleteTarget, setDeleteTarget] = useState<Task | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<number | null>(null);
+  const [taskDropdownOpen, setTaskDropdownOpen] = useState(false);
+  const [addingHeadline, setAddingHeadline] = useState(false);
+  const [addingSubtaskHeadlineId, setAddingSubtaskHeadlineId] = useState<number | null>(null);
+  const [catalogDraft, setCatalogDraft] = useState('');
+  const [catalogSaving, setCatalogSaving] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   const taskQuery = useQuery({
     queryKey: QUEUE_QUERY_KEY,
@@ -87,6 +93,11 @@ function TaskAssignment() {
     queryFn: () => userService.getAllUsers()
   });
 
+  const catalogQuery = useQuery({
+    queryKey: ['tasks', 'catalog'],
+    queryFn: taskService.getTaskCatalog
+  });
+
   useEffect(() => {
     if (taskQuery.data) {
       dispatch(setTasks(taskQuery.data));
@@ -99,116 +110,14 @@ function TaskAssignment() {
     }
   }, [dispatch, usersQuery.data]);
 
-  const normalizeRole = (role?: string | null) =>
-    String(role || '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .toUpperCase();
-
   const assignableUsers = orderedHeads.flatMap((head) => {
     const source = users.find((candidate) => candidate.id === head.id);
     return source ? [{ ...source, label: head.label }] : [];
   });
 
-  const HEADLINE_GROUP_FILTER: Record<string, string[]> = {
-    [ROLES.CHAIRMAN]: [
-      'School Director',
-      'Admin Head',
-      'Admin Assistance',
-      'Finance Head',
-      'Admission Head',
-      'HR Head',
-      'Purchase Head',
-      'Transport Head',
-      'IT Head',
-      'Front Desk',
-      'HouseKeeping'
-    ],
-    [ROLES.DIRECTOR]: ['School Director'],
-    [ROLES.PRINCIPAL]: ['School Director', 'Admin Head', 'Admin Assistance'],
-    [ROLES.ADMIN]: ['Admin Head', 'Admin Assistance'],
-    [ROLES.FINANCE]: ['Finance Head'],
-    [ROLES.ADMISSION]: ['Admission Head'],
-    [ROLES.HR]: ['HR Head'],
-    [ROLES.PURCHASE]: ['Purchase Head'],
-    [ROLES.IT]: ['IT Head'],
-    [ROLES.TRANSPORT]: ['Transport Head'],
-    [ROLES.HOUSEKEEPING]: ['HouseKeeping Head'],
-    [ROLES.FRONT_DESK]: ['Front Desk'],
-    [ROLES.PROPERTY]: []
-  };
-
-  const selectedAssignee = assignableUsers.find((assignee) => assignee.id === form.assigned_to);
-  const selectedAssigneeRole = normalizeRole(selectedAssignee?.role);
-  const selectedAssigneeName = selectedAssignee?.name?.toLowerCase() ?? '';
-  const selectedAssigneeEmail = selectedAssignee?.email?.toLowerCase() ?? '';
-  const selectedAssigneeDepartment = (
-    selectedAssignee?.departmentName ??
-    selectedAssignee?.department?.name ??
-    ''
-  ).toLowerCase();
-
-  const getAssigneeHeadlineKeywords = () => {
-    if (!selectedAssignee) {
-      return user?.role ? HEADLINE_GROUP_FILTER[user.role] : HEADLINE_GROUP_FILTER[ROLES.CHAIRMAN];
-    }
-
-    if (selectedAssigneeRole === ROLES.ADMIN) {
-      if (
-        selectedAssigneeName.includes('assistance') ||
-        selectedAssigneeName.includes('assistant') ||
-        selectedAssigneeEmail.includes('assistance')
-      ) {
-        return ['Admin Assistance'];
-      }
-      return ['Admin Head'];
-    }
-
-    if (
-      selectedAssigneeRole === ROLES.DIRECTOR ||
-      selectedAssigneeName.includes('director') ||
-      selectedAssigneeName.includes('school manager')
-    ) {
-      return ['School Director'];
-    }
-
-    if (
-      selectedAssigneeRole === ROLES.HOUSEKEEPING ||
-      selectedAssigneeDepartment.includes('housekeep')
-    ) {
-      return ['HouseKeeping Head'];
-    }
-
-    if (
-      selectedAssigneeRole === ROLES.FRONT_DESK ||
-      selectedAssigneeDepartment.includes('front desk') ||
-      selectedAssigneeName.includes('front desk') ||
-      selectedAssigneeName.includes('reception')
-    ) {
-      return ['Front Desk'];
-    }
-
-    return HEADLINE_GROUP_FILTER[selectedAssigneeRole] ?? [];
-  };
-
-  const roleHeadlineKeywords = getAssigneeHeadlineKeywords();
-  const headlineGroups = roleHeadlineKeywords
-    ? MODULE_TASK_GROUPS.filter((group) =>
-        roleHeadlineKeywords.some((keyword) => group.head.includes(keyword))
-      )
-    : MODULE_TASK_GROUPS;
-
-  const visibleTaskGroups = roleHeadlineKeywords ? headlineGroups : MODULE_TASK_GROUPS;
-  const taskOptions = visibleTaskGroups.flatMap((group) =>
-    group.tasks.map((subTask) => ({
-      taskHeadline: group.head,
-      subTask,
-      value: JSON.stringify([group.head, subTask])
-    }))
-  );
-  const selectedTaskOption = taskOptions.find(
-    (option) => option.taskHeadline === form.task_headline && option.subTask === form.sub_task
-  );
+  const taskCatalog = catalogQuery.data ?? [];
+  const visibleTaskGroups = taskCatalog;
+  const isChairman = user?.role === ROLES.CHAIRMAN;
 
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED');
   const filteredTasks =
@@ -249,7 +158,7 @@ function TaskAssignment() {
       return;
     }
 
-    if (!selectedTaskOption) {
+    if (!form.task_headline || !form.sub_task) {
       setError('Choose a Sub Task from a Task Headline.');
       return;
     }
@@ -307,6 +216,55 @@ function TaskAssignment() {
       department_id: task.department_id ?? null,
     });
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelCatalogEntry = () => {
+    setAddingHeadline(false);
+    setAddingSubtaskHeadlineId(null);
+    setCatalogDraft('');
+    setCatalogError(null);
+  };
+
+  const handleSaveHeadline = async () => {
+    setCatalogError(null);
+    setCatalogSaving(true);
+    try {
+      const headline = await taskService.createTaskHeadline(catalogDraft);
+      await queryClient.invalidateQueries({ queryKey: ['tasks', 'catalog'] });
+      setAddingHeadline(false);
+      setAddingSubtaskHeadlineId(headline.id);
+      setCatalogDraft('');
+    } catch (err) {
+      setCatalogError(getApiErrorMessage(err, 'Unable to save Task Headline.'));
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+
+  const handleSaveSubtask = async (headlineId: number) => {
+    const headline = taskCatalog.find((group) => group.id === headlineId);
+    if (!headline) {
+      setCatalogError('Task Headline not found. Refresh the list and try again.');
+      return;
+    }
+
+    setCatalogError(null);
+    setCatalogSaving(true);
+    try {
+      const subtask = await taskService.createTaskSubTask(headlineId, catalogDraft);
+      setForm((current) => ({
+        ...current,
+        task_headline: headline.name,
+        sub_task: subtask.name
+      }));
+      await queryClient.invalidateQueries({ queryKey: ['tasks', 'catalog'] });
+      setAddingSubtaskHeadlineId(null);
+      setCatalogDraft('');
+    } catch (err) {
+      setCatalogError(getApiErrorMessage(err, 'Unable to save Sub Task.'));
+    } finally {
+      setCatalogSaving(false);
+    }
   };
 
   const deleteMutation = useMutation({
@@ -407,38 +365,193 @@ function TaskAssignment() {
           </label>
 
           {/* ── 2. Hierarchical task selection ── */}
-          <label className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Task Headline / Sub Task</span>
-            <select
-              className="min-h-[38px] rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
-              value={selectedTaskOption?.value ?? ''}
-              onChange={(event) => {
-                const selectedOption = taskOptions.find((option) => option.value === event.target.value);
-                if (selectedOption) {
-                  setForm((current) => ({
-                    ...current,
-                    task_headline: selectedOption.taskHeadline,
-                    sub_task: selectedOption.subTask
-                  }));
-                }
-              }}
-              required
-            >
-              <option value="">— Select a Task Headline and Sub Task —</option>
-              {visibleTaskGroups.map((group) => (
-                <optgroup key={group.head} label={group.head}>
-                  {group.tasks.map((subTask) => (
-                    <option
-                      key={subTask}
-                      value={JSON.stringify([group.head, subTask])}
-                    >
-                      {subTask}
-                    </option>
+            <div className="relative">
+              <button
+                aria-expanded={taskDropdownOpen}
+                aria-haspopup="dialog"
+                className="flex min-h-[42px] w-full items-center justify-between rounded-[10px] border-[0.5px] border-[#DCE2EA] bg-[#F8F9FC] px-3 py-2 text-left text-sm text-[#1E293B] outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+                onClick={() => setTaskDropdownOpen((open) => !open)}
+                type="button"
+              >
+                <span className={form.sub_task ? '' : 'text-[#8A99B0]'}>
+                  {form.task_headline && form.sub_task
+                    ? `${form.task_headline}  /  ${form.sub_task}`
+                    : catalogQuery.isLoading
+                      ? 'Loading task headlines…'
+                      : 'Select a Task Headline and Sub Task'}
+                </span>
+                <ChevronDown aria-hidden="true" className="ml-2 h-4 w-4 shrink-0 text-[#5B6E8C]" />
+              </button>
+
+              {taskDropdownOpen && (
+                <div
+                  aria-label="Task Headline and Sub Task options"
+                  className="absolute z-20 mt-2 max-h-[420px] w-full overflow-y-auto rounded-[12px] border border-[#DCE2EA] bg-white p-2 shadow-xl"
+                  role="dialog"
+                >
+                  {catalogQuery.isError ? (
+                    <div className="p-3 text-sm text-[#C13F3A]" role="alert">
+                      <p>{getApiErrorMessage(catalogQuery.error, 'Unable to load task headlines.')}</p>
+                      <button
+                        className="mt-2 font-semibold text-[#185FA5]"
+                        onClick={() => void catalogQuery.refetch()}
+                        type="button"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : null}
+
+                  {visibleTaskGroups.map((headline) => (
+                    <div className="mb-1" key={headline.id}>
+                      <div className="rounded-[8px] bg-[#F3F6FA] px-3 py-2">
+                        <span className="text-xs font-bold text-[#36506C]">{headline.name}</span>
+                      </div>
+
+                      <div className="ml-3 border-l border-[#DCE2EA] pl-2">
+                        {headline.subtasks.map((subtask) => {
+                          const selected =
+                            form.task_headline === headline.name && form.sub_task === subtask.name;
+                          return (
+                            <button
+                              aria-pressed={selected}
+                              className={[
+                                'flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm hover:bg-[#F3F6FA]',
+                                selected ? 'bg-[#EAF3FC] font-semibold text-[#185FA5]' : 'text-[#1E293B]'
+                              ].join(' ')}
+                              key={subtask.id}
+                              onClick={() => {
+                                setForm((current) => ({
+                                  ...current,
+                                  task_headline: headline.name,
+                                  sub_task: subtask.name
+                                }));
+                                setTaskDropdownOpen(false);
+                                cancelCatalogEntry();
+                              }}
+                              type="button"
+                            >
+                              <span>{subtask.name}</span>
+                              {selected && <Check aria-hidden="true" className="h-4 w-4" />}
+                            </button>
+                          );
+                        })}
+
+                        {isChairman && addingSubtaskHeadlineId !== headline.id && (
+                          <button
+                            aria-label={`Add Sub Task to ${headline.name}`}
+                            className="inline-flex items-center gap-1 rounded-md px-3 py-2 text-xs font-semibold text-[#185FA5] hover:bg-[#F3F6FA]"
+                            onClick={() => {
+                              setCatalogError(null);
+                              setCatalogDraft('');
+                              setAddingHeadline(false);
+                              setAddingSubtaskHeadlineId(headline.id);
+                            }}
+                            type="button"
+                          >
+                            <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                            Add Sub Task
+                          </button>
+                        )}
+
+                        {addingSubtaskHeadlineId === headline.id && (
+                          <div className="space-y-2 p-2">
+                            <input
+                              aria-label={`New Sub Task for ${headline.name}`}
+                              autoFocus
+                              className="min-h-[36px] w-full rounded-[8px] border border-[#DCE2EA] bg-white px-3 text-sm outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+                              maxLength={255}
+                              onChange={(event) => setCatalogDraft(event.target.value)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter') event.preventDefault();
+                              }}
+                              placeholder="Enter Sub Task"
+                              value={catalogDraft}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                className="rounded-md bg-[#185FA5] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                                disabled={catalogSaving || !catalogDraft.trim()}
+                                onClick={() => void handleSaveSubtask(headline.id)}
+                                type="button"
+                              >
+                                {catalogSaving ? 'Saving…' : 'Save'}
+                              </button>
+                              <button
+                                className="rounded-md px-3 py-1.5 text-xs font-semibold text-[#5B6E8C] hover:bg-[#F3F6FA]"
+                                disabled={catalogSaving}
+                                onClick={cancelCatalogEntry}
+                                type="button"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                </optgroup>
-              ))}
-            </select>
-          </label>
+
+                  {isChairman && (
+                    <div className="border-t border-[#EFF2F6] pt-2">
+                      {addingHeadline ? (
+                        <div className="space-y-2 p-2">
+                          <input
+                            aria-label="New Task Headline"
+                            autoFocus
+                            className="min-h-[36px] w-full rounded-[8px] border border-[#DCE2EA] bg-white px-3 text-sm outline-none focus:border-[#185FA5] focus:ring-4 focus:ring-[#185FA5]/10"
+                            maxLength={255}
+                            onChange={(event) => setCatalogDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter') event.preventDefault();
+                            }}
+                            placeholder="Enter Task Headline"
+                            value={catalogDraft}
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              className="rounded-md bg-[#185FA5] px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
+                              disabled={catalogSaving || !catalogDraft.trim()}
+                              onClick={() => void handleSaveHeadline()}
+                              type="button"
+                            >
+                              {catalogSaving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button
+                              className="rounded-md px-3 py-1.5 text-xs font-semibold text-[#5B6E8C] hover:bg-[#F3F6FA]"
+                              disabled={catalogSaving}
+                              onClick={cancelCatalogEntry}
+                              type="button"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm font-semibold text-[#185FA5] hover:bg-[#F3F6FA]"
+                          onClick={() => {
+                            setCatalogError(null);
+                            setCatalogDraft('');
+                            setAddingSubtaskHeadlineId(null);
+                            setAddingHeadline(true);
+                          }}
+                          type="button"
+                        >
+                          <Plus aria-hidden="true" className="h-4 w-4" />
+                          Add Task Headline
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {catalogError && <p className="px-3 py-2 text-xs text-[#C13F3A]" role="alert">{catalogError}</p>}
+                </div>
+              )}
+            </div>
+          </div>
 
           <label className="flex flex-col gap-1.5">
             <span className="text-[12px] font-medium text-[#36506C]">Description</span>

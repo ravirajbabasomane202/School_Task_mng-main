@@ -32,8 +32,16 @@ def _fresh_session(app):
     session, so drop anything cached here before and after each test or a later
     test's login would be checked against a stale password hash."""
     from app.extensions import db
+    from app.models.task_catalog import TaskHeadline, TaskSubTask
+
     db.session.rollback()
     db.session.expire_all()
+    if TaskHeadline.query.count() == 0:
+        for headline_name, subtask_names in TASK_CATALOG.items():
+            headline = TaskHeadline(name=headline_name)
+            headline.subtasks.extend(TaskSubTask(name=name) for name in subtask_names)
+            db.session.add(headline)
+        db.session.commit()
     yield
     db.session.rollback()
     db.session.expire_all()
@@ -80,6 +88,46 @@ def _payload(ids, **overrides):
 
 def _create(client, headers, body):
     return client.post('/api/tasks', json=body, headers=headers)
+
+
+class TestTaskCatalog:
+    def test_chairman_can_add_and_assign_a_dynamic_headline_and_subtask(self, client, auth_headers, ids):
+        headline_response = client.post(
+            '/api/tasks/catalog/headlines',
+            json={'name': 'Custom Assignment Group'},
+            headers=auth_headers['chairman'],
+        )
+        assert headline_response.status_code == 201
+        headline = headline_response.get_json()['data']
+        assert headline['name'] == 'Custom Assignment Group'
+
+        subtask_response = client.post(
+            f"/api/tasks/catalog/headlines/{headline['id']}/subtasks",
+            json={'name': 'Custom Assignment Item'},
+            headers=auth_headers['chairman'],
+        )
+        assert subtask_response.status_code == 201
+        assert subtask_response.get_json()['data']['name'] == 'Custom Assignment Item'
+
+        catalog = client.get('/api/tasks/catalog', headers=auth_headers['chairman']).get_json()['data']
+        saved_headline = next(item for item in catalog if item['id'] == headline['id'])
+        assert [item['name'] for item in saved_headline['subtasks']] == ['Custom Assignment Item']
+
+        task_response = _create(
+            client,
+            auth_headers['chairman'],
+            _payload(ids, task_headline=headline['name'], sub_task='Custom Assignment Item'),
+        )
+        assert task_response.status_code == 201
+        assert task_response.get_json()['data']['task_headline'] == headline['name']
+        assert task_response.get_json()['data']['sub_task'] == 'Custom Assignment Item'
+
+    def test_only_chairman_can_modify_catalog(self, client, auth_headers):
+        assert client.post(
+            '/api/tasks/catalog/headlines',
+            json={'name': 'Forbidden Group'},
+            headers=auth_headers['hr'],
+        ).status_code == 403
 
 
 # ---------------------------------------------------------------------------

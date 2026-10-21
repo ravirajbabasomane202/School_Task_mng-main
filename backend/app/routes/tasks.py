@@ -2,12 +2,13 @@ from datetime import datetime, timezone
 from flask import Blueprint, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models.department import Department
 from app.models.notification import Notification
 from app.models.task import Task, TaskHistory
+from app.models.task_catalog import TaskHeadline, TaskSubTask
 from app.models.user import User
-from app.task_catalog import is_valid_task_selection
 from app.sockets.emitter import emit_notification, emit_task_updated
 from app.utils.file_utils import save_task_attachment
 from app.utils.response import error, success
@@ -75,6 +76,20 @@ def _find_duplicate(task_headline, sub_task, assigned_to, start_date, due_date, 
     if exclude_id is not None:
         query = query.filter(Task.id != exclude_id)
     return query.first()
+
+
+def _valid_task_selection(task_headline, sub_task):
+    return db.session.query(TaskSubTask.id).join(TaskHeadline).filter(
+        func.lower(TaskHeadline.name) == task_headline.lower(),
+        func.lower(TaskSubTask.name) == sub_task.lower(),
+    ).first() is not None
+
+
+def _catalog_name(value):
+    if not isinstance(value, str):
+        return None
+    name = value.strip()
+    return name if name and len(name) <= 255 else None
 
 
 def _validate_assignee(assigned_to):
@@ -248,6 +263,72 @@ def my_tasks():
     return success([t.to_dict() for t in tasks])
 
 
+@tasks_bp.route('/catalog', methods=['GET'])
+@jwt_required()
+def get_task_catalog():
+    headlines = TaskHeadline.query.order_by(TaskHeadline.id).all()
+    return success([headline.to_dict() for headline in headlines])
+
+
+@tasks_bp.route('/catalog/headlines', methods=['POST'])
+@jwt_required()
+def create_task_headline():
+    user = _current_user()
+    if not user:
+        return error('User not found', 401)
+    if user.role != 'CHAIRMAN':
+        return error('Only Chairman can add task headlines', 403)
+
+    data = request.get_json() or {}
+    name = _catalog_name(data.get('name'))
+    if not name:
+        return error('name is required and must be 255 characters or fewer', 400)
+    if TaskHeadline.query.filter(func.lower(TaskHeadline.name) == name.lower()).first():
+        return error('A Task Headline with that name already exists', 409)
+
+    headline = TaskHeadline(name=name)
+    db.session.add(headline)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return error('A Task Headline with that name already exists', 409)
+    return success(headline.to_dict(), 'Task Headline added', 201)
+
+
+@tasks_bp.route('/catalog/headlines/<int:headline_id>/subtasks', methods=['POST'])
+@jwt_required()
+def create_task_subtask(headline_id):
+    user = _current_user()
+    if not user:
+        return error('User not found', 401)
+    if user.role != 'CHAIRMAN':
+        return error('Only Chairman can add Sub Tasks', 403)
+
+    headline = db.session.get(TaskHeadline, headline_id)
+    if not headline:
+        return error('Task Headline not found', 404)
+
+    data = request.get_json() or {}
+    name = _catalog_name(data.get('name'))
+    if not name:
+        return error('name is required and must be 255 characters or fewer', 400)
+    if TaskSubTask.query.filter(
+        TaskSubTask.headline_id == headline.id,
+        func.lower(TaskSubTask.name) == name.lower(),
+    ).first():
+        return error('That Sub Task already exists under this Task Headline', 409)
+
+    subtask = TaskSubTask(headline_id=headline.id, name=name)
+    db.session.add(subtask)
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return error('That Sub Task already exists under this Task Headline', 409)
+    return success(subtask.to_dict(), 'Sub Task added', 201)
+
+
 @tasks_bp.route('/dept/<int:dept_id>', methods=['GET'])
 @jwt_required()
 def tasks_by_dept(dept_id):
@@ -383,7 +464,7 @@ def create_task():
 
     task_headline = str(data['task_headline']).strip()
     sub_task = str(data['sub_task']).strip()
-    if not is_valid_task_selection(task_headline, sub_task):
+    if not _valid_task_selection(task_headline, sub_task):
         return error('sub_task must belong to the selected task_headline', 400)
 
     assignee, problem = _validate_assignee(data['assigned_to'])
@@ -506,7 +587,7 @@ def update_task(task_id):
         sub_task = str(data.get('sub_task', task.title or '')).strip()
         if not task_headline or not sub_task:
             return error('task_headline and sub_task are both required when changing task selection', 400)
-        if not is_valid_task_selection(task_headline, sub_task):
+        if not _valid_task_selection(task_headline, sub_task):
             return error('sub_task must belong to the selected task_headline', 400)
     else:
         task_headline = task.task_headline
