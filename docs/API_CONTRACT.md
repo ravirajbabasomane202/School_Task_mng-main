@@ -105,6 +105,31 @@ The job **never changes task status** (`ESCALATED` is the assigner's decision). 
 | PUT | `/api/assets/:id` | Update asset |
 | DELETE | `/api/assets/:id` | Delete asset |
 
+### Important Documents
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/documents` | List documents (any authenticated active user) |
+| POST | `/api/documents` | Upload a document (Chairman/Principal; multipart fields `name`, `description`, `category`, `file`) |
+| GET | `/api/documents/:id` | Get document details (any authenticated active user) |
+| PUT | `/api/documents/:id` | Update `name`, `description`, and/or `category` (Chairman/Principal) |
+| GET | `/api/documents/:id/download` | Download the stored file (any authenticated active user) |
+| DELETE | `/api/documents/:id` | Delete document and file (Chairman/Principal) |
+
+Uploads accept PDF, DOC/DOCX, XLS/XLSX, PPT/PPTX, JPG/JPEG, and PNG files up to 10 MB. The backend validates the extension and file signature; files are stored under the configured upload folder and downloaded only through the authenticated document endpoint.
+
+### Academic Calendar
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/academic-events?start=YYYY-MM-DD&end=YYYY-MM-DD` | List events overlapping the date range, filtered by target audience |
+| GET | `/api/academic-events?upcoming=true` | List up to 10 upcoming/ongoing events visible to the authenticated user |
+| POST | `/api/academic-events` | Create event (Chairman/Principal; multipart event fields and optional `attachment`) |
+| GET | `/api/academic-events/:id` | Get event details (authenticated users in the event audience) |
+| PUT | `/api/academic-events/:id` | Update event details or replace its attachment (Chairman/Principal) |
+| DELETE | `/api/academic-events/:id` | Delete event and attachment (Chairman/Principal) |
+| GET | `/api/academic-events/:id/attachment` | Download an event attachment (authenticated users in the event audience) |
+
+Target audiences are `["ALL"]` or a non-empty list of role keys. Event dates use `YYYY-MM-DD`, times use `HH:MM`, and the end datetime must be after the start datetime. Attachments accept PDF, Office documents, JPG/JPEG, or PNG up to 10 MB.
+
 ### Purchase Orders
 | Method | Path | Description |
 |--------|------|-------------|

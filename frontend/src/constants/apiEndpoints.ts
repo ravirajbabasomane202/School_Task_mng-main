@@ -68,6 +68,21 @@ export const API_ENDPOINTS = {
     metrics: '/dashboard/metrics',
     performance: '/dashboard/performance',
     monthlyComparison: '/dashboard/monthly-comparison'
+  },
+  documents: {
+    list: '/documents',
+    detail: (id: number | string) => `/documents/${id}`,
+    upload: '/documents',
+    download: (id: number | string) => `/documents/${id}/download`,
+    delete: (id: number | string) => `/documents/${id}`
+  },
+  academicEvents: {
+    list: '/academic-events',
+    detail: (id: number | string) => `/academic-events/${id}`,
+    create: '/academic-events',
+    update: (id: number | string) => `/academic-events/${id}`,
+    delete: (id: number | string) => `/academic-events/${id}`,
+    attachment: (id: number | string) => `/academic-events/${id}/attachment`
   }
 } as const;
 

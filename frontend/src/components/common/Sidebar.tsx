@@ -30,6 +30,8 @@ const chairmanItems: NavItem[] = [
   { color: '#F97316', group: 'Admin', label: 'User Management', to: '/chairman/users' },
   { color: '#2563EB', group: 'Admin', label: 'Performance', to: '/chairman/performance' },
   { color: '#059669', group: 'Admin', label: 'Leave Management', to: '/chairman/leave' },
+  { color: '#6366F1', group: 'Modules', label: 'Important Documents', to: '/documents' },
+  { color: '#0891B2', group: 'Modules', label: 'Academic Calendar', to: '/academic-calendar' },
 ];
 
 /**
@@ -50,6 +52,8 @@ const baseDeptItems: NavItem[] = [
   { color: '#D89B17', group: 'Modules', label: 'Approvals', to: '/department/approvals' },
   { color: '#059669', group: 'Modules', label: 'Leave', to: '/department/leave' },
   { color: '#0EA5A4', group: 'Modules', label: 'Registers', to: '/department/registers' },
+  { color: '#6366F1', group: 'Modules', label: 'Important Documents', to: '/documents' },
+  { color: '#0891B2', group: 'Modules', label: 'Academic Calendar', to: '/academic-calendar' },
   { color: '#D64545', group: 'Modules', label: 'Notifications', to: '/department/notifications' },
   { color: '#0EA5A4', group: 'Admin',   label: 'Announcements', to: '/department/announcements' },
 ];
@@ -91,6 +95,8 @@ const directorItems: NavItem[] = [
   { color: '#D64545', group: 'Modules', label: 'Notifications',   to: '/director/notifications' },
   { color: '#0EA5A4', group: 'Admin',   label: 'Announcements',   to: '/director/announcements' },
   { color: '#059669', group: 'Admin',   label: 'Leave Management',to: '/director/leave' },
+  { color: '#6366F1', group: 'Modules', label: 'Important Documents', to: '/documents' },
+  { color: '#0891B2', group: 'Modules', label: 'Academic Calendar', to: '/academic-calendar' },
 ];
 
 const groups: Array<NavItem['group']> = ['Master', 'Modules', 'Admin'];

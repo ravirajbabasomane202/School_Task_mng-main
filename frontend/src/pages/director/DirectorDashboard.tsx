@@ -20,6 +20,7 @@ import type { Task } from '../../types/task.types';
 import type { RootState } from '../../store';
 
 import PageContainer from '../../components/common/PageContainer';
+import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DashboardData {
   totalTasks: number;
   completedTasks: number;
@@ -55,9 +56,12 @@ function DirectorOverview() {
 
   if (isLoading || !data) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-      </div>
+      <PageContainer className="space-y-6">
+        <UpcomingAcademicEvents />
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-blue-600" />
+        </div>
+      </PageContainer>
     );
   }
 
@@ -82,6 +86,8 @@ function DirectorOverview() {
           </div>
         ))}
       </div>
+
+      <UpcomingAcademicEvents />
 
       {/* Task Status Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

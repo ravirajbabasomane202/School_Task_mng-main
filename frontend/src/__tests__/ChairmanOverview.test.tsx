@@ -8,11 +8,13 @@ import ChairmanOverview from '../pages/chairman/ChairmanOverview';
 import * as dashboardService from '../services/dashboardService';
 import * as reportService from '../services/reportService';
 import api from '../services/api';
+import * as academicEventService from '../services/academicEventService';
 import { summarizeRegisterTotals, summarizeTaskTotals } from '../utils/performanceUtils';
 
 vi.mock('../services/dashboardService');
 vi.mock('../services/reportService');
 vi.mock('../services/api');
+vi.mock('../services/academicEventService');
 vi.mock('../components/charts/TaskStatusPieChart', () => ({ default: () => <div data-testid="pie" /> }));
 
 const base = {
@@ -48,6 +50,7 @@ function renderPage() {
 }
 
 beforeEach(() => {
+  vi.mocked(academicEventService.getAcademicEvents).mockResolvedValue([]);
   vi.mocked(api.get).mockResolvedValue({ data: { data: { alerts: [], recentTasks: [], pendingApprovalsList: [] } } });
   vi.mocked(dashboardService.getStaffPerformance).mockResolvedValue(rows as never);
   vi.mocked(reportService.getRegisterPerformance).mockResolvedValue(

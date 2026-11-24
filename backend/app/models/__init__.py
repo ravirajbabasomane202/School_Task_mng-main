@@ -16,6 +16,8 @@ from app.models.asset import Asset
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from app.models.login_attempt import LoginAttempt
 from app.models.register import Register, RegisterOccurrence
+from app.models.important_document import ImportantDocument
+from app.models.academic_event import AcademicEvent
 
 __all__ = [
     'Department', 'Role', 'User', 'Task', 'TaskHistory', 'TaskHeadline', 'TaskHeadlineRole', 'TaskSubTask',
@@ -25,5 +27,5 @@ __all__ = [
     'LeaveRequest', 'ResumptionRequest', 'SalaryIncrement',
     'Recruitment', 'RecruitmentApplication',
     'Asset', 'PurchaseOrder', 'PurchaseOrderItem',
-    'LoginAttempt', 'Register', 'RegisterOccurrence'
+    'LoginAttempt', 'Register', 'RegisterOccurrence', 'ImportantDocument', 'AcademicEvent'
 ]

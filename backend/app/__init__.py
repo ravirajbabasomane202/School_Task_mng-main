@@ -133,6 +133,8 @@ def create_app(config_name=None):
     os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'tasks'), exist_ok=True)
     os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'reports'), exist_ok=True)
     os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'resumes'), exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'documents'), exist_ok=True)
+    os.makedirs(os.path.join(app.config['UPLOAD_FOLDER'], 'academic_events'), exist_ok=True)
 
     # Init extensions
     db.init_app(app)
@@ -219,6 +221,8 @@ def create_app(config_name=None):
     from app.routes.purchase_orders import po_bp
     from app.routes.escalations import escalations_bp
     from app.routes.registers import registers_bp
+    from app.routes.important_documents import important_documents_bp
+    from app.routes.academic_events import academic_events_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -239,6 +243,8 @@ def create_app(config_name=None):
     app.register_blueprint(po_bp, url_prefix='/api/purchase-orders')
     app.register_blueprint(escalations_bp, url_prefix='/api/escalations')
     app.register_blueprint(registers_bp, url_prefix='/api/registers')
+    app.register_blueprint(important_documents_bp, url_prefix='/api/documents')
+    app.register_blueprint(academic_events_bp, url_prefix='/api/academic-events')
 
     # ── APScheduler: hourly overdue sweep (auto-DELAYED + assigner reminders) ──────────────────────────────
     # Guard against multiple gunicorn workers each starting their own scheduler.

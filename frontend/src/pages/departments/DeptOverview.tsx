@@ -12,6 +12,7 @@ import type { Task, TaskStatus } from '../../types/task.types';
 import type { RootState } from '../../store';
 
 import PageContainer from '../../components/common/PageContainer';
+import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DeptDashboardData {
   myTasks: {
     total: number;
@@ -177,7 +178,12 @@ const DeptOverview: React.FC = () => {
   };
 
   if (isLoading || !data) {
-    return <div>Loading...</div>;
+    return (
+      <PageContainer className="space-y-6">
+        <UpcomingAcademicEvents />
+        <div>{isLoading ? 'Loading...' : 'Dashboard data is not available.'}</div>
+      </PageContainer>
+    );
   }
 
   return (
@@ -188,6 +194,8 @@ const DeptOverview: React.FC = () => {
           Welcome, {user?.name} - {user?.departmentName}
         </p>
       </div>
+
+      <UpcomingAcademicEvents />
 
       <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-5">
         <div className="rounded-lg bg-gray-50 p-4">

@@ -22,6 +22,7 @@ import type { StaffPerformance } from '../../services/dashboardService';
 import type { Task, TaskStatus } from '../../types/task.types';
 
 import PageContainer from '../../components/common/PageContainer';
+import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DashboardAlert {
   id: number;
   title: string;
@@ -199,7 +200,12 @@ function ChairmanOverview() {
   );
 
   if (dashboardQuery.isLoading || !dashboardData) {
-    return <div className="p-6">Loading...</div>;
+    return (
+      <PageContainer className="space-y-6">
+        <UpcomingAcademicEvents />
+        <div>Loading...</div>
+      </PageContainer>
+    );
   }
 
   // Same labels, same order and same numbers as the Performance screen.
@@ -269,6 +275,8 @@ function ChairmanOverview() {
         {renderCardGroup('Tasks', taskCards)}
         {renderCardGroup('Registers', registerCards)}
       </div>
+
+      <UpcomingAcademicEvents />
 
       {/* Top Performers (Tasks) -> Pie Charts (Tasks + Registers) -> Top Performers (Registers) */}
       <div className="space-y-6">
