@@ -1,13 +1,14 @@
 import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { DEPARTMENT_HEAD_ROLES, ROLES } from '../constants/roles';
+import { DEPARTMENT_HEAD_ROLES, ROLES, isChairmanLevel } from '../constants/roles';
 import * as authService from '../services/authService';
 import { manualLogout, setCredentials } from '../store/authSlice';
 import { useAppDispatch, useAppSelector } from '../store/hooks';
 import type { ChangePasswordPayload, LoginPayload } from '../types/user.types';
 
 const getDashboardPath = (role: string) => {
-  if (role === ROLES.CHAIRMAN) {
+  // Chairman and Principal share the Chairman dashboard.
+  if (isChairmanLevel(role)) {
     return '/chairman';
   }
 

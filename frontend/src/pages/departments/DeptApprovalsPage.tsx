@@ -1,3 +1,4 @@
+import { isElevatedRole } from '../../constants/roles';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
@@ -40,7 +41,7 @@ const DeptApprovalsPage: React.FC = () => {
 
   // Non-privileged users only see their own requests
   const approvals =
-    user?.role === 'CHAIRMAN' || user?.role === 'DIRECTOR'
+    isElevatedRole(user?.role)
       ? allApprovals
       : allApprovals.filter((a) => a.requestedBy?.id === user?.id);
 

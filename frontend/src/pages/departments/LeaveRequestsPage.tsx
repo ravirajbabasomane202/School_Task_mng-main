@@ -1,3 +1,4 @@
+import { isElevatedRole } from '../../constants/roles';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
@@ -34,7 +35,7 @@ function StatusBadge({ status }: { status: LeaveStatus }) {
 const LeaveRequestsPage: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const qc = useQueryClient();
-  const isReviewer = user?.role === 'HR' || user?.role === 'CHAIRMAN' || user?.role === 'DIRECTOR';
+  const isReviewer = user?.role === 'HR' || isElevatedRole(user?.role);
 
   const [tab, setTab] = useState<'leave' | 'resumption'>('leave');
   const [showLeaveModal, setShowLeaveModal] = useState(false);

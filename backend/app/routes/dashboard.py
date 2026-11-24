@@ -18,6 +18,7 @@ from app.utils.completion import (
     task_completion_category
 )
 from app.utils.response import success, error
+from app.utils.permissions import ELEVATED_ROLES
 
 # Weighting used to combine Task Performance and Register Performance into a
 # single "Overall Performance" score. If a staff member has no registers
@@ -77,7 +78,7 @@ def _task_stats(tasks):
 def chairman_dashboard():
     Task.mark_overdue_delayed()
     user = db.session.get(User, int(get_jwt_identity()))
-    if not user or user.role not in ('CHAIRMAN', 'DIRECTOR'):
+    if not user or user.role not in ELEVATED_ROLES:
         return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
 
     from sqlalchemy.orm import joinedload
@@ -188,7 +189,7 @@ def dept_dashboard(dept_id):
 
     # Same cross-department guard as GET /tasks/dept/<dept_id>: non-elevated
     # users may only view their own department's dashboard.
-    if user.role not in ('CHAIRMAN', 'DIRECTOR') and user.department_id != dept_id:
+    if user.role not in ELEVATED_ROLES and user.department_id != dept_id:
         return error('Forbidden', 403)
 
     # ROOT CAUSE (Dashboard "2 tasks" vs My Tasks "1 task"): this endpoint used
@@ -501,7 +502,7 @@ def metrics():
     if not user:
         return error('User not found', 401)
 
-    if user.role in ('CHAIRMAN', 'DIRECTOR'):
+    if user.role in ELEVATED_ROLES:
         tasks = Task.query.all()
         scope = 'SCHOOL_WIDE'
     else:
@@ -540,7 +541,7 @@ def role_analytics(role):
         return jsonify({'success': False, 'message': 'Unauthorized', 'data': None}), 401
 
     # Allow chairman/director to query any role; others only their own
-    if user.role not in ('CHAIRMAN', 'DIRECTOR') and user.role != role.upper():
+    if user.role not in ELEVATED_ROLES and user.role != role.upper():
         return jsonify({'success': False, 'message': 'Forbidden', 'data': None}), 403
 
     dept_id = request.args.get('department_id') or (user.department_id if user else None)
@@ -548,7 +549,7 @@ def role_analytics(role):
     # Non-elevated users may only ever query their own department's
     # analytics — reject explicitly rather than silently overriding, so a
     # caller passing the wrong department_id gets a clear signal.
-    if dept_id and user.role not in ('CHAIRMAN', 'DIRECTOR'):
+    if dept_id and user.role not in ELEVATED_ROLES:
         try:
             resolved_dept_id = int(dept_id)
         except (TypeError, ValueError):
@@ -566,7 +567,7 @@ def role_analytics(role):
     # (`assigned_to == current user`), whatever department_id was sent (it is
     # still validated above). CHAIRMAN/DIRECTOR keep the school-wide view, and
     # may narrow it with department_id.
-    if user.role in ('CHAIRMAN', 'DIRECTOR'):
+    if user.role in ELEVATED_ROLES:
         if dept_id:
             tasks = Task.query.filter_by(department_id=dept_id).all()
         else:

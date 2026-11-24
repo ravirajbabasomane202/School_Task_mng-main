@@ -3,6 +3,8 @@ import {
   ROLE_LABELS,
   DEPARTMENT_HEAD_ROLES,
   TASK_ASSIGNABLE_ROLES,
+  isChairmanLevel,
+  isElevatedRole,
   type Role
 } from '../constants/roles';
 
@@ -28,6 +30,13 @@ export function isChairman(role: Role | string): boolean {
 }
 
 /**
+ * Check if a role carries full Chairman authority (Chairman or Principal).
+ */
+export function isChairmanLevelRole(role: Role | string): boolean {
+  return isChairmanLevel(role);
+}
+
+/**
  * Check if a user is the Director / Manager.
  */
 export function isDirector(role: Role | string): boolean {
@@ -35,10 +44,10 @@ export function isDirector(role: Role | string): boolean {
 }
 
 /**
- * Return true if the role has elevated access (chairman or director).
+ * Return true if the role has elevated access (chairman, principal or director).
  */
 export function hasElevatedAccess(role: Role | string): boolean {
-  return role === ROLES.CHAIRMAN || role === ROLES.DIRECTOR;
+  return isElevatedRole(role);
 }
 
 /**

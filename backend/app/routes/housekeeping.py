@@ -5,10 +5,11 @@ from app.extensions import db
 from app.models.housekeeping import HousekeepingTask
 from app.models.user import User
 from app.utils.response import error, success
+from app.utils.permissions import ELEVATED_ROLES as _ORG_ELEVATED_ROLES
 
 housekeeping_bp = Blueprint('housekeeping', __name__)
 
-ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR', 'PROPERTY'}
+ELEVATED_ROLES = {*_ORG_ELEVATED_ROLES, 'PROPERTY'}
 
 
 def _current_user():

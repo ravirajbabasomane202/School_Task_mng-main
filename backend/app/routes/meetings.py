@@ -9,8 +9,8 @@ from app.sockets.emitter import emit_notification
 from app.utils.response import error, success
 
 meetings_bp = Blueprint('meetings', __name__)
+from app.utils.permissions import ELEVATED_ROLES
 
-ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR'}
 
 
 def _current_user():
@@ -76,7 +76,7 @@ def create_meeting():
     if not user:
         return error('User not found', 401)
     if user.role not in ELEVATED_ROLES:
-        return error('Only Chairman or Director can schedule meetings', 403)
+        return error('Only Chairman, Principal or Director can schedule meetings', 403)
 
     data = request.get_json() or {}
     required = ['title', 'meeting_date']

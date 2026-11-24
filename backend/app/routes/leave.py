@@ -5,8 +5,12 @@ from app.extensions import db
 from app.models.leave_request import LeaveRequest, ResumptionRequest
 from app.models.user import User
 from app.utils.response import success, error
+from app.utils.permissions import ELEVATED_ROLES
 
 leave_bp = Blueprint('leave', __name__)
+
+# Roles that can review every leave request (elevated roles + HR).
+LEAVE_REVIEWER_ROLES = (*ELEVATED_ROLES, 'HR')
 
 ALLOWED_LEAVE_TYPES = ('SICK', 'CASUAL', 'ANNUAL', 'OTHER')
 
@@ -30,7 +34,7 @@ def list_leave():
     if not user:
         return error('Not found', 404)
 
-    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR'):
+    if user.role in LEAVE_REVIEWER_ROLES:
         query = LeaveRequest.query
     else:
         query = LeaveRequest.query.filter_by(user_id=user_id)
@@ -93,7 +97,7 @@ def create_leave():
 def process_leave(leave_id):
     user_id = get_jwt_identity()
     user = db.session.get(User, user_id)
-    if not user or user.role not in ('CHAIRMAN', 'DIRECTOR', 'HR'):
+    if not user or user.role not in LEAVE_REVIEWER_ROLES:
         return error('Forbidden', 403)
 
     lr = LeaveRequest.query.get_or_404(leave_id)
@@ -122,7 +126,7 @@ def list_resumption():
     if not user:
         return error('Not found', 404)
 
-    if user.role in ('CHAIRMAN', 'DIRECTOR', 'HR'):
+    if user.role in LEAVE_REVIEWER_ROLES:
         records = ResumptionRequest.query.order_by(ResumptionRequest.created_at.desc()).all()
     else:
         records = ResumptionRequest.query.filter_by(user_id=user_id).order_by(ResumptionRequest.created_at.desc()).all()
@@ -159,7 +163,7 @@ def create_resumption():
 def process_resumption(req_id):
     user_id = get_jwt_identity()
     user = db.session.get(User, user_id)
-    if not user or user.role not in ('CHAIRMAN', 'DIRECTOR', 'HR'):
+    if not user or user.role not in LEAVE_REVIEWER_ROLES:
         return error('Forbidden', 403)
 
     rr = ResumptionRequest.query.get_or_404(req_id)

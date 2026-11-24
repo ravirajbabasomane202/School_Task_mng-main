@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import AppShell from '../components/common/AppShell';
-import { DEPARTMENT_HEAD_ROLES, ROLES } from '../constants/roles';
+import { CHAIRMAN_LEVEL_ROLES, DEPARTMENT_HEAD_ROLES, ROLES } from '../constants/roles';
 import { useSocket } from '../hooks/useSocket';
 import ChangePassword from '../pages/auth/ChangePassword';
 import LandingPage from '../pages/LandingPage';
@@ -63,7 +63,7 @@ export default function AppRouter() {
           <Route path="/task/:id" element={<TaskDetail />} />
         </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={[ROLES.CHAIRMAN]} />}>
+        <Route element={<ProtectedRoute allowedRoles={CHAIRMAN_LEVEL_ROLES} />}>
           <Route path="/chairman/*" element={<ChairmanDashboard />} />
         </Route>
 

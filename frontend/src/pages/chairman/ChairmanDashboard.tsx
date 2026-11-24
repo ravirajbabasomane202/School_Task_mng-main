@@ -13,6 +13,7 @@ import ScheduleMeeting from './ScheduleMeeting';
 import LeaveRequestsPage from '../departments/LeaveRequestsPage';
 import AddRegister from './AddRegister';
 import RegisterMonitoring from './RegisterMonitoring';
+import AssignedTasks from '../departments/AssignedTasks';
 
 function ChairmanDashboard() {
   useSocket();
@@ -67,6 +68,11 @@ function ChairmanDashboard() {
           <Route
             element={<RegisterMonitoring />}
             path="register-monitoring"
+          />
+          {/* Tasks assigned directly to the Principal (the Chairman never receives tasks). */}
+          <Route
+            element={<AssignedTasks />}
+            path="my-tasks"
           />
         </Routes>
     </AppShell>

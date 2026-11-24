@@ -5,6 +5,7 @@ from app.models.notification import Announcement, Notification
 from app.models.user import User
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import ELEVATED_ROLES
 from app.sockets.emitter import emit_announcement, emit_notification
 
 announcements_bp = Blueprint('announcements', __name__)
@@ -42,7 +43,7 @@ def get_announcement(ann_id):
     # Same ALL-vs-department visibility rule as list_announcements: a
     # DEPARTMENT-targeted announcement is only visible to users in that
     # department, unless they're CHAIRMAN/DIRECTOR (who see everything).
-    if ann.target != 'ALL' and user.role not in ('CHAIRMAN', 'DIRECTOR'):
+    if ann.target != 'ALL' and user.role not in ELEVATED_ROLES:
         if not user.department_id or ann.department_id != user.department_id:
             return error('Forbidden: announcement belongs to another department', 403)
 
@@ -50,7 +51,7 @@ def get_announcement(ann_id):
 
 
 @announcements_bp.route('', methods=['POST'])
-@roles_required('CHAIRMAN', 'DIRECTOR')
+@roles_required(*ELEVATED_ROLES)
 def create_announcement():
     user_id = get_jwt_identity()
     data = request.get_json()
@@ -102,11 +103,11 @@ def create_announcement():
 
 
 @announcements_bp.route('/<int:ann_id>', methods=['DELETE'])
-@roles_required('CHAIRMAN', 'DIRECTOR')
+@roles_required(*ELEVATED_ROLES)
 def delete_announcement(ann_id):
     """Delete one announcement.
 
-    Only CHAIRMAN / DIRECTOR (the roles that can broadcast) may delete. The
+    Only the elevated roles (CHAIRMAN / PRINCIPAL / DIRECTOR, the roles that can broadcast) may delete. The
     per-recipient ``ANNOUNCEMENT`` notifications that were generated when it was
     broadcast are independent rows (no foreign key to the announcement), so they
     are intentionally left alone: each recipient manages their own inbox.

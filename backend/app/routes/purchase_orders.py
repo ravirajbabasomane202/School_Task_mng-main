@@ -6,6 +6,7 @@ from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from app.models.user import User
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 
 po_bp = Blueprint('purchase_orders', __name__)
 
@@ -14,7 +15,7 @@ po_bp = Blueprint('purchase_orders', __name__)
 # also needs cross-department visibility. Everyone else (including PURCHASE,
 # which only creates/submits/marks-ordered POs) is scoped to their own
 # department, regardless of any department_id they pass in.
-PO_ELEVATED_ROLES = ('CHAIRMAN', 'DIRECTOR', 'FINANCE')
+PO_ELEVATED_ROLES = (*ELEVATED_ROLES, 'FINANCE')
 
 
 @po_bp.route('', methods=['GET'])
@@ -102,7 +103,7 @@ def po_stats():
 
 
 @po_bp.route('', methods=['POST'])
-@roles_required('PURCHASE', 'CHAIRMAN')
+@roles_required('PURCHASE', *CHAIRMAN_LEVEL_ROLES)
 def create_purchase_order():
     user_id = get_jwt_identity()
     data = request.get_json() or {}
@@ -160,7 +161,7 @@ def create_purchase_order():
 
 
 @po_bp.route('/<int:po_id>/submit', methods=['PUT'])
-@roles_required('PURCHASE', 'CHAIRMAN')
+@roles_required('PURCHASE', *CHAIRMAN_LEVEL_ROLES)
 def submit_purchase_order(po_id: int):
     po = PurchaseOrder.query.get_or_404(po_id)
     if po.status != 'DRAFT':
@@ -172,7 +173,7 @@ def submit_purchase_order(po_id: int):
 
 
 @po_bp.route('/<int:po_id>/finance-process', methods=['PUT'])
-@roles_required('FINANCE', 'CHAIRMAN')
+@roles_required('FINANCE', *CHAIRMAN_LEVEL_ROLES)
 def finance_process(po_id: int):
     po = PurchaseOrder.query.get_or_404(po_id)
     data = request.get_json() or {}
@@ -191,7 +192,7 @@ def finance_process(po_id: int):
 
 
 @po_bp.route('/<int:po_id>/mark-ordered', methods=['PUT'])
-@roles_required('PURCHASE', 'CHAIRMAN')
+@roles_required('PURCHASE', *CHAIRMAN_LEVEL_ROLES)
 def mark_ordered(po_id: int):
     po = PurchaseOrder.query.get_or_404(po_id)
     if po.status != 'APPROVED':

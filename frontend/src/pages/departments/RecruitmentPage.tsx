@@ -1,3 +1,4 @@
+import { isChairmanLevel } from '../../constants/roles';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
@@ -13,7 +14,7 @@ import PageContainer from '../../components/common/PageContainer';
 const RecruitmentPage: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const qc = useQueryClient();
-  const isHR = user?.role === 'HR' || user?.role === 'CHAIRMAN';
+  const isHR = user?.role === 'HR' || isChairmanLevel(user?.role);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingRecruitment, setEditingRecruitment] = useState<Recruitment | null>(null);

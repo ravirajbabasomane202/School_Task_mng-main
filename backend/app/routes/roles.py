@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models.role import Role, sync_roles
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES
 
 roles_bp = Blueprint('roles', __name__)
 
@@ -20,7 +21,7 @@ def list_roles():
 
 
 @roles_bp.route('', methods=['POST'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def create_role():
     data = request.get_json()
     name = (data or {}).get('name', '')
@@ -45,7 +46,7 @@ def create_role():
 
 
 @roles_bp.route('/<int:role_id>', methods=['PUT'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def rename_role(role_id):
     """Rename a role's display label. The key (identity) never changes, so
     users, filters, tables and charts keep working and show the new name."""

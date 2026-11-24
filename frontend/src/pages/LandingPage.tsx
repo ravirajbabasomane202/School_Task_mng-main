@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../store/hooks';
-import { ROLES } from '../constants/roles';
+import { ROLES, isChairmanLevel } from '../constants/roles';
 import { SCHOOL_INFO } from '../constants/schoolInfo';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
@@ -113,7 +113,7 @@ function LandingPage() {
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    if (user?.role === ROLES.CHAIRMAN) navigate('/chairman', { replace: true });
+    if (isChairmanLevel(user?.role)) navigate('/chairman', { replace: true });
     else if (user?.role === ROLES.DIRECTOR) navigate('/director', { replace: true });
     else navigate('/department', { replace: true });
   }, [isAuthenticated, user, navigate]);

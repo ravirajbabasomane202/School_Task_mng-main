@@ -4,11 +4,12 @@ from app.extensions import db
 from app.models.asset import Asset
 from app.models.user import User
 from app.utils.response import success, error
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 from app.utils.decorators import roles_required
 
 assets_bp = Blueprint('assets', __name__)
 
-IT_ROLES = ('IT', 'CHAIRMAN', 'DIRECTOR')
+IT_ROLES = ('IT', *ELEVATED_ROLES)
 
 
 @assets_bp.route('', methods=['GET'])
@@ -72,7 +73,7 @@ def asset_stats():
 
 
 @assets_bp.route('', methods=['POST'])
-@roles_required('IT', 'CHAIRMAN')
+@roles_required('IT', *CHAIRMAN_LEVEL_ROLES)
 def create_asset():
     data = request.get_json() or {}
     required = ['name', 'category']
@@ -97,7 +98,7 @@ def create_asset():
 
 
 @assets_bp.route('/<int:asset_id>', methods=['PUT'])
-@roles_required('IT', 'CHAIRMAN')
+@roles_required('IT', *CHAIRMAN_LEVEL_ROLES)
 def update_asset(asset_id: int):
     asset = Asset.query.get_or_404(asset_id)
     data = request.get_json() or {}
@@ -126,7 +127,7 @@ def update_asset(asset_id: int):
 
 
 @assets_bp.route('/<int:asset_id>', methods=['DELETE'])
-@roles_required('IT', 'CHAIRMAN')
+@roles_required('IT', *CHAIRMAN_LEVEL_ROLES)
 def delete_asset(asset_id: int):
     asset = Asset.query.get_or_404(asset_id)
     db.session.delete(asset)

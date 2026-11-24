@@ -16,6 +16,10 @@ Supported auth_headers keys:
     it         – JWT with IT role
     purchase   – JWT with PURCHASE role
     regular    – JWT with a generic department-head role
+
+Separate fixture (kept out of ``auth_headers`` so existing tests are unaffected):
+
+    principal_headers – JWT with PRINCIPAL role (Chairman-level administrator)
 """
 
 import uuid
@@ -114,6 +118,12 @@ def auth_headers(app, client):
         key: _seed_user_and_token(app, client, role, email)
         for key, role, email in ROLES
     }
+
+
+@pytest.fixture
+def principal_headers(app, client):
+    """Bearer header for a PRINCIPAL user (Chairman-level administrator)."""
+    return _seed_user_and_token(app, client, 'PRINCIPAL', 'principal-test@school.test')
 
 
 # ---------------------------------------------------------------------------

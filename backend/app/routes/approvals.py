@@ -5,8 +5,21 @@ from app.extensions import db
 from app.models.approval import Approval
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 
 approvals_bp = Blueprint('approvals', __name__)
+
+def _is_own_request_without_final_say(approval):
+    """A Principal may process approvals but never their own request (no
+    self-approval). The Chairman is the top authority and is not restricted."""
+    from app.models.user import User
+    actor = db.session.get(User, int(get_jwt_identity()))
+    return bool(
+        actor and actor.role != 'CHAIRMAN'
+        and approval.requested_by is not None
+        and int(approval.requested_by) == actor.id
+    )
+
 
 ALLOWED_TYPES = ('BUDGET', 'PURCHASE', 'POLICY', 'EVENT', 'SALARY', 'LEAVE', 'PROPERTY', 'IT', 'TRANSPORT')
 
@@ -22,7 +35,7 @@ def list_approvals():
     if status:
         query = query.filter_by(status=status)
     # Non-elevated users can only see their own approval requests
-    if not user or user.role not in ('CHAIRMAN', 'DIRECTOR'):
+    if not user or user.role not in ELEVATED_ROLES:
         query = query.filter_by(requested_by=user_id)
     approvals = query.order_by(Approval.created_at.desc()).all()
     return success([a.to_dict() for a in approvals])
@@ -36,7 +49,7 @@ def get_approval(approval_id):
     user = db.session.get(User, user_id)
     approval = Approval.query.get_or_404(approval_id)
     # Non-elevated users can only view their own approval requests
-    if not user or user.role not in ('CHAIRMAN', 'DIRECTOR'):
+    if not user or user.role not in ELEVATED_ROLES:
         if approval.requested_by != user_id:
             return error('Forbidden', 403)
     return success(approval.to_dict())
@@ -68,9 +81,11 @@ def create_approval():
 
 
 @approvals_bp.route('/<int:approval_id>/process', methods=['PUT'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def process_approval(approval_id):
     approval = Approval.query.get_or_404(approval_id)
+    if _is_own_request_without_final_say(approval):
+        return error('You cannot process your own approval request', 403)
     data = request.get_json()
     if not data or not data.get('status'):
         return error('Status is required', 400)
@@ -88,9 +103,11 @@ def process_approval(approval_id):
 
 
 @approvals_bp.route('/<int:approval_id>/approve', methods=['PUT'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def approve(approval_id):
     approval = Approval.query.get_or_404(approval_id)
+    if _is_own_request_without_final_say(approval):
+        return error('You cannot process your own approval request', 403)
     if approval.status != 'PENDING':
         return error('Already processed', 400)
     user_id = get_jwt_identity()
@@ -102,9 +119,11 @@ def approve(approval_id):
 
 
 @approvals_bp.route('/<int:approval_id>/reject', methods=['PUT'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def reject(approval_id):
     approval = Approval.query.get_or_404(approval_id)
+    if _is_own_request_without_final_say(approval):
+        return error('You cannot process your own approval request', 403)
     if approval.status != 'PENDING':
         return error('Already processed', 400)
     user_id = get_jwt_identity()
@@ -116,9 +135,9 @@ def reject(approval_id):
 
 
 @approvals_bp.route('/<int:approval_id>', methods=['DELETE'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def delete_approval(approval_id):
-    """Delete an approval request (CHAIRMAN only, same role that processes them).
+    """Delete an approval request (Chairman-level roles only, same roles that process them).
 
     Nothing else in the schema holds a foreign key to ``approvals`` (the
     requester/approver columns point *from* the approval *to* users), so

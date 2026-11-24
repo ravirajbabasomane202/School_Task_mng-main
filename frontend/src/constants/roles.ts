@@ -46,4 +46,25 @@ export const DEPARTMENT_HEAD_ROLES: Role[] = [
   ROLES.FRONT_DESK
 ];
 
+/**
+ * Roles with full Chairman authority (mirrors backend utils/permissions.py).
+ * Use these instead of comparing against ROLES.CHAIRMAN.
+ */
+export const CHAIRMAN_LEVEL_ROLES: Role[] = [ROLES.CHAIRMAN, ROLES.PRINCIPAL];
+
+/** Chairman-level roles plus the Director: roles with school-wide visibility. */
+export const ELEVATED_ROLES: Role[] = [...CHAIRMAN_LEVEL_ROLES, ROLES.DIRECTOR];
+
+/**
+ * Chairman-level roles that are also task assignees. On a task assigned to them
+ * they only act as the assignee. The Chairman is never restricted.
+ */
+export const ASSIGNEE_ONLY_ROLES: Role[] = CHAIRMAN_LEVEL_ROLES.filter((role) => role !== ROLES.CHAIRMAN);
+
+export const isChairmanLevel = (role?: string | null): boolean =>
+  !!role && (CHAIRMAN_LEVEL_ROLES as string[]).includes(role);
+
+export const isElevatedRole = (role?: string | null): boolean =>
+  !!role && (ELEVATED_ROLES as string[]).includes(role);
+
 export const TASK_ASSIGNABLE_ROLES: Role[] = [ROLES.DIRECTOR, ...DEPARTMENT_HEAD_ROLES];

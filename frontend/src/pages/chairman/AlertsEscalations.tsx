@@ -230,7 +230,7 @@ function AlertsEscalations() {
                   <Badge variant={alert.severity === 'Critical' ? 'red' : 'amber'}>
                     {alert.severity}
                   </Badge>
-                  {getAllowedStatuses(alert.task, currentUser?.id).includes(alert.nextStatus) && (
+                  {getAllowedStatuses(alert.task, currentUser?.id, currentUser?.role).includes(alert.nextStatus) && (
                   <Button
                     loading={actionMutation.isPending}
                     onClick={() =>

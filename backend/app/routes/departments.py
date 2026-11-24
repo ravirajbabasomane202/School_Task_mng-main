@@ -4,6 +4,7 @@ from app.extensions import db
 from app.models.department import Department
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES
 
 departments_bp = Blueprint('departments', __name__)
 
@@ -20,7 +21,7 @@ def list_departments():
 
 
 @departments_bp.route('', methods=['POST'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def create_department():
     data = request.get_json()
     name = (data or {}).get('name', '')

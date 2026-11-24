@@ -8,6 +8,7 @@ from flask import Blueprint, Response, current_app, request, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from app.extensions import db
+from app.utils.permissions import ELEVATED_ROLES
 from app.models.department import Department
 from app.models.register import Register, RegisterOccurrence, fetch_current_cycle_occurrences, fetch_occurrence_maps
 from app.models.report import ReportHistory
@@ -30,7 +31,6 @@ from app.utils.completion import (
 
 reports_bp = Blueprint('reports', __name__)
 ALLOWED_REPORT_TYPES = {'DAILY', 'WEEKLY', 'MONTHLY', 'CUSTOM', 'HOUSEKEEPING'}
-ELEVATED_ROLES = ('CHAIRMAN', 'DIRECTOR')
 
 
 def _parse_date(value):

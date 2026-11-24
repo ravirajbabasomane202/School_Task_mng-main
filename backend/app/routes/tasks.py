@@ -11,11 +11,11 @@ from app.models.task_catalog import TaskHeadline, TaskSubTask
 from app.models.user import TASK_ASSIGNABLE_ROLES, User
 from app.sockets.emitter import emit_notification, emit_task_updated
 from app.utils.file_utils import save_task_attachment
+from app.utils.permissions import ASSIGNEE_ONLY_ROLES, CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 from app.utils.response import error, success
 
 tasks_bp = Blueprint('tasks', __name__)
 
-ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR'}
 VALID_STATUSES = {'PENDING', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'ESCALATED'}
 # The assignee may only move a task to these statuses. PENDING and DELAYED are
 # system-managed; ESCALATED is the assigner's decision.
@@ -218,8 +218,34 @@ def _can_view_task(user, task):
     return bool(user.department_id and task.department_id == user.department_id)
 
 
+def _is_chairman_level(user):
+    return bool(user and user.role in CHAIRMAN_LEVEL_ROLES)
+
+
+def _is_restricted_assignee(user, task):
+    """True for a Chairman-level user (the Principal) looking at a task that was
+    assigned TO them. Such a task is theirs to work on, not to administer."""
+    return bool(
+        user and user.role in ASSIGNEE_ONLY_ROLES and task.assigned_to == user.id
+    )
+
+
 def _is_assigner(user, task):
-    return bool(user and task.assigned_by == user.id)
+    """Who holds assigner powers (edit, reassign, set any status, escalate).
+
+    * The task's own assigner.
+    * Any Chairman-level user, for tasks that a Chairman-level user assigned, so
+      the Principal administers the Chairman's tasks (and vice versa). Tasks
+      assigned by anyone else (e.g. a Director) stay with their assigner, exactly
+      as they did for the Chairman before.
+    * Never a Principal for a task assigned to themselves - there they are only
+      the assignee, even if the legacy data also lists them as the assigner.
+    """
+    if not user or _is_restricted_assignee(user, task):
+        return False
+    if task.assigned_by == user.id:
+        return True
+    return _is_chairman_level(user) and _is_chairman_level(task.assigner)
 
 
 def _is_assignee(user, task):
@@ -229,6 +255,42 @@ def _is_assignee(user, task):
 def _can_edit_task(user, task):
     """Only the task's assigner or assignee may modify it (never decided by role alone)."""
     return _is_assigner(user, task) or _is_assignee(user, task)
+
+
+RESTRICTED_ASSIGNEE_MESSAGE = (
+    'This task was assigned to you, so you can update its status, add comments and '
+    'upload proof, but you cannot change its details ({fields}), reassign it or delete it.'
+)
+
+
+def _changed_protected_fields(task, data):
+    """Names of the assignment-defining fields ``data`` would actually change.
+
+    Re-sending a field with its current value (a full-form save) is not a change.
+    """
+    changed = []
+    if 'assigned_to' in data and _to_int(data['assigned_to']) != task.assigned_to:
+        changed.append('assignee')
+    if 'priority' in data and str(data['priority']).upper() != (task.priority or ''):
+        changed.append('priority')
+    if 'cadence' in data:
+        new_cadence = str(data['cadence']).upper() if data['cadence'] else None
+        if new_cadence != task.cadence:
+            changed.append('cadence')
+    if 'task_headline' in data and str(data['task_headline']).strip() != (task.task_headline or ''):
+        changed.append('title')
+    if 'sub_task' in data and str(data['sub_task']).strip() != (task.title or ''):
+        changed.append('title')
+    if 'description' in data and (data['description'] or '') != (task.description or ''):
+        changed.append('description')
+    if 'department_id' in data and (_to_int(data['department_id']) or None) != task.department_id:
+        changed.append('department')
+    for key, current in (('start_date', task.start_date), ('due_date', task.due_date)):
+        if data.get(key):
+            parsed = _parse_date(data[key])
+            if parsed is None or _aware(parsed) != _aware(current):
+                changed.append('deadline' if key == 'due_date' else 'start date')
+    return list(dict.fromkeys(changed))
 
 
 def _validate_status_change(user, task, new_status, has_proof=False):
@@ -304,8 +366,8 @@ def create_task_headline():
     user = _current_user()
     if not user:
         return error('User not found', 401)
-    if user.role != 'CHAIRMAN':
-        return error('Only Chairman can add task headlines', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can add task headlines', 403)
 
     data = request.get_json() or {}
     name = _catalog_name(data.get('name'))
@@ -336,8 +398,8 @@ def update_task_headline_roles(headline_id):
     user = _current_user()
     if not user:
         return error('User not found', 401)
-    if user.role != 'CHAIRMAN':
-        return error('Only Chairman can change task headline visibility', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can change task headline visibility', 403)
 
     headline = db.session.get(TaskHeadline, headline_id)
     if not headline:
@@ -358,8 +420,8 @@ def create_task_subtask(headline_id):
     user = _current_user()
     if not user:
         return error('User not found', 401)
-    if user.role != 'CHAIRMAN':
-        return error('Only Chairman can add Sub Tasks', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can add Sub Tasks', 403)
 
     headline = db.session.get(TaskHeadline, headline_id)
     if not headline:
@@ -391,8 +453,8 @@ def delete_task_headline(headline_id):
     user = _current_user()
     if not user:
         return error('User not found', 401)
-    if user.role != 'CHAIRMAN':
-        return error('Only Chairman can delete task headlines', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can delete task headlines', 403)
 
     headline = db.session.get(TaskHeadline, headline_id)
     if not headline:
@@ -412,8 +474,8 @@ def delete_task_subtask(headline_id, subtask_id):
     user = _current_user()
     if not user:
         return error('User not found', 401)
-    if user.role != 'CHAIRMAN':
-        return error('Only Chairman can delete Sub Tasks', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can delete Sub Tasks', 403)
 
     subtask = TaskSubTask.query.filter_by(id=subtask_id, headline_id=headline_id).first()
     if not subtask:
@@ -541,8 +603,8 @@ def get_task_history(task_id):
 def create_task():
     user_id = int(get_jwt_identity())
     user = db.session.get(User, user_id)
-    if not user or user.role != 'CHAIRMAN':
-        return error('Only Chairman can create tasks', 403)
+    if not _is_chairman_level(user):
+        return error('Only Chairman or Principal can create tasks', 403)
 
     if request.content_type and 'multipart' in request.content_type:
         data = request.form.to_dict()
@@ -565,6 +627,9 @@ def create_task():
     assignee, problem = _validate_assignee(data['assigned_to'])
     if problem:
         return error(problem[0], problem[1])
+
+    if assignee.id == user.id and user.role in ASSIGNEE_ONLY_ROLES:
+        return error('You cannot assign a task to yourself', 403)
 
     if not _headline_allowed_for(task_headline, assignee.role):
         return error('task_headline is not available for the selected assignee', 400)
@@ -653,6 +718,12 @@ def update_task(task_id):
     if 'title' in data:
         return error('Use task_headline and sub_task instead of title', 400)
 
+    restricted = _is_restricted_assignee(user, task)
+    if restricted:
+        changed = _changed_protected_fields(task, data)
+        if changed:
+            return error(RESTRICTED_ASSIGNEE_MESSAGE.format(fields=', '.join(changed)), 403)
+
     old_status = task.status
     is_assigner = _is_assigner(user, task)
 
@@ -671,6 +742,8 @@ def update_task(task_id):
         new_assignee, problem = _validate_assignee(data['assigned_to'])
         if problem:
             return error(problem[0], problem[1])
+        if new_assignee.id == user.id and user.role in ASSIGNEE_ONLY_ROLES:
+            return error('You cannot assign a task to yourself', 403)
 
     if 'priority' in data and is_assigner:
         if str(data['priority']).upper() not in VALID_PRIORITIES:
@@ -742,7 +815,7 @@ def update_task(task_id):
     if is_assigner and ('task_headline' in data or 'sub_task' in data):
         task.task_headline = task_headline
         task.title = sub_task
-    if 'description' in data:
+    if 'description' in data and not restricted:
         task.description = data['description']
     previous_assignee = task.assignee
     if new_assignee is not None:
@@ -810,7 +883,7 @@ def update_task(task_id):
 
     if file:
         # If the task is being marked complete, save as proof; otherwise replace the brief attachment
-        if data.get('status') == 'COMPLETED' or task.status == 'COMPLETED':
+        if restricted or data.get('status') == 'COMPLETED' or task.status == 'COMPLETED':
             task.proof_path = save_task_attachment(file, task.id)
         else:
             task.attachment_path = save_task_attachment(file, task.id)
@@ -878,7 +951,9 @@ def delete_task(task_id):
 
     task = Task.query.get_or_404(task_id)
     if not _is_elevated(user):
-        return error('Only Chairman or Director can delete tasks', 403)
+        return error('Only Chairman, Principal or Director can delete tasks', 403)
+    if _is_restricted_assignee(user, task):
+        return error('You cannot delete a task that was assigned to you', 403)
 
     # Keep each person's notification history but detach it from the deleted task
     # (task_id is nullable), so the delete can't trip the foreign key. Task history
@@ -904,8 +979,10 @@ def upload_attachment(task_id):
     if not file:
         return error('No file provided', 400)
 
-    # Save as proof if the task is already completed, otherwise as the brief attachment
-    if task.status == 'COMPLETED':
+    # Save as proof if the task is already completed (or the uploader is only the
+    # assignee Principal, who must never overwrite the original brief), otherwise
+    # as the brief attachment
+    if task.status == 'COMPLETED' or _is_restricted_assignee(user, task):
         task.proof_path = save_task_attachment(file, task.id)
         db.session.commit()
         return success({'proof_path': task.proof_path}, 'Proof uploaded')

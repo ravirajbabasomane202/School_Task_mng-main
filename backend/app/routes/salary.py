@@ -11,11 +11,12 @@ from app.models.notification import Notification
 from app.models.user import User
 from app.sockets.emitter import emit_notification
 from app.utils.response import success, error
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 from app.utils.decorators import roles_required
 
 salary_bp = Blueprint('salary', __name__)
 
-REVIEWER_ROLES = ('HR', 'FINANCE', 'CHAIRMAN', 'DIRECTOR')
+REVIEWER_ROLES = ('HR', 'FINANCE', *ELEVATED_ROLES)
 
 
 def _notify_salary_change(row: SalaryIncrement, message: str):
@@ -87,7 +88,7 @@ def get_salary_increment(salary_id: int):
 # ── Create ────────────────────────────────────────────────────────────────────
 
 @salary_bp.route('', methods=['POST'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def create_salary_increment():
     user_id = get_jwt_identity()
     data = request.get_json() or {}
@@ -132,7 +133,7 @@ def create_salary_increment():
 # ── HR Approve ────────────────────────────────────────────────────────────────
 
 @salary_bp.route('/<int:salary_id>/hr-approve', methods=['PUT'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def hr_approve_salary_increment(salary_id: int):
     user_id = get_jwt_identity()
     row = SalaryIncrement.query.get_or_404(salary_id)
@@ -158,7 +159,7 @@ def hr_approve_salary_increment(salary_id: int):
 # ── Finance Process ───────────────────────────────────────────────────────────
 
 @salary_bp.route('/<int:salary_id>/finance-process', methods=['PUT'])
-@roles_required('FINANCE', 'CHAIRMAN')
+@roles_required('FINANCE', *CHAIRMAN_LEVEL_ROLES)
 def finance_process_salary_increment(salary_id: int):
     user_id = get_jwt_identity()
     row = SalaryIncrement.query.get_or_404(salary_id)

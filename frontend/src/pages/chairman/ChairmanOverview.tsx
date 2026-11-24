@@ -366,6 +366,7 @@ function ChairmanOverview() {
             emptyMessage="Newly assigned tasks will appear here."
             onRowClick={(task) => navigate(`/task/${task.id}`)}
             currentUserId={currentUser?.id}
+            currentUserRole={currentUser?.role}
             onStatusChange={handleStatusChange}
             showActions={false}
             tasks={dashboardData.recentTasks.slice(0, 5)}

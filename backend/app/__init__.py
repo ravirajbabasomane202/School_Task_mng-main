@@ -5,11 +5,12 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_
 from config import config
 from app.extensions import db, migrate, jwt, socketio, bcrypt, scheduler
+from app.utils.permissions import ELEVATED_ROLES
 
 # Roles that can view any task's files regardless of assignment/department.
-UPLOAD_TASK_ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR'}
+UPLOAD_TASK_ELEVATED_ROLES = set(ELEVATED_ROLES)
 # Roles that can view any recruitment application's resume regardless of department.
-UPLOAD_RECRUITMENT_ELEVATED_ROLES = {'CHAIRMAN', 'DIRECTOR', 'HR'}
+UPLOAD_RECRUITMENT_ELEVATED_ROLES = {*ELEVATED_ROLES, 'HR'}
 
 
 def _resolve_upload_owner(normalized_filename):

@@ -7,20 +7,21 @@ from app.models.recruitment import Recruitment, RecruitmentApplication
 from app.models.user import User
 from app.models.department import Department
 from app.utils.response import success, error
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES, ELEVATED_ROLES
 from app.utils.decorators import roles_required
 import os
 import uuid
 
 recruitment_bp = Blueprint('recruitment', __name__)
 
-HR_ROLES = ('HR', 'CHAIRMAN')
+HR_ROLES = ('HR', *CHAIRMAN_LEVEL_ROLES)
 
 # CHAIRMAN/DIRECTOR are the org-wide elevated roles; HR is the designated
 # recruitment-management role (creates/updates postings and applications for
 # every department's vacancies, same as FINANCE for purchase orders) and so
 # also needs cross-department visibility. Everyone else is scoped to their
 # own department, regardless of any department_id they pass in.
-RECRUITMENT_ELEVATED_ROLES = ('CHAIRMAN', 'DIRECTOR', 'HR')
+RECRUITMENT_ELEVATED_ROLES = (*ELEVATED_ROLES, 'HR')
 
 ALLOWED_EXTENSIONS = {'.pdf', '.doc', '.docx', '.png', '.jpg', '.jpeg'}
 MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
@@ -82,7 +83,7 @@ def get_recruitment(recruitment_id: int):
 
 
 @recruitment_bp.route('', methods=['POST'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def create_recruitment():
     data = request.get_json() or {}
     required = ['position_title']
@@ -104,7 +105,7 @@ def create_recruitment():
 
 
 @recruitment_bp.route('/<int:recruitment_id>', methods=['PUT'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def update_recruitment(recruitment_id: int):
     recruitment = Recruitment.query.get_or_404(recruitment_id)
     data = request.get_json() or {}
@@ -146,7 +147,7 @@ def list_applications(recruitment_id: int):
 
 
 @recruitment_bp.route('/<int:recruitment_id>/applications', methods=['POST'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def create_application(recruitment_id: int):
     recruitment = Recruitment.query.get_or_404(recruitment_id)
     
@@ -191,7 +192,7 @@ def create_application(recruitment_id: int):
 
 
 @recruitment_bp.route('/applications/<int:application_id>', methods=['PUT'])
-@roles_required('HR', 'CHAIRMAN')
+@roles_required('HR', *CHAIRMAN_LEVEL_ROLES)
 def update_application(application_id: int):
     application = RecruitmentApplication.query.get_or_404(application_id)
     data = request.get_json() or {}

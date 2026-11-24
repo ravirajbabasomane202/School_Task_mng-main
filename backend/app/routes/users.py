@@ -5,6 +5,7 @@ from app.models.user import User, ROLES
 from app.models.role import Role, sync_roles
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES
 
 users_bp = Blueprint('users', __name__)
 
@@ -33,8 +34,21 @@ def is_valid_role(name):
     return resolve_role_key(name) is not None
 
 
+def _chairman_account_protected(target_role):
+    """True when the caller may NOT act on an account holding ``target_role``.
+
+    PRINCIPAL has Chairman-level user management, but the Chairman's own account
+    (email, password, role, active flag) is off limits to every other role -
+    otherwise a Principal could reset the Chairman's password and take over.
+    """
+    if target_role != 'CHAIRMAN':
+        return False
+    actor = db.session.get(User, int(get_jwt_identity()))
+    return not actor or actor.role != 'CHAIRMAN'
+
+
 @users_bp.route('', methods=['GET'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def list_users():
     query = User.query
     dept_id = request.args.get('department_id')
@@ -54,14 +68,14 @@ def list_users():
 
 
 @users_bp.route('/<int:user_id>', methods=['GET'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def get_user(user_id):
     user = User.query.get_or_404(user_id)
     return success(user.to_dict())
 
 
 @users_bp.route('', methods=['POST'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def create_user():
     data = request.get_json()
     if not data:
@@ -74,6 +88,9 @@ def create_user():
 
     if not is_valid_role(data['role']):
         return error('Invalid role', 400)
+
+    if _chairman_account_protected(resolve_role_key(data['role'])):
+        return error('Only the Chairman can create a Chairman account', 403)
 
     if User.query.filter_by(email=data['email'].lower().strip()).first():
         return error('Email already registered', 409)
@@ -99,9 +116,11 @@ def create_user():
 
 
 @users_bp.route('/<int:user_id>', methods=['PUT'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
+    if _chairman_account_protected(user.role):
+        return error('Only the Chairman can modify the Chairman account', 403)
     data = request.get_json()
     if not data:
         return error('Request body required', 400)
@@ -136,12 +155,15 @@ def update_user(user_id):
 
 
 @users_bp.route('/<int:user_id>', methods=['DELETE'])
-@roles_required('CHAIRMAN')
+@roles_required(*CHAIRMAN_LEVEL_ROLES)
 def deactivate_user(user_id):
-    current_user_id = get_jwt_identity()
+    # The JWT identity is a string; compare as ints or this guard never fires.
+    current_user_id = int(get_jwt_identity())
     if user_id == current_user_id:
         return error('Cannot deactivate your own account', 400)
     user = User.query.get_or_404(user_id)
+    if _chairman_account_protected(user.role):
+        return error('Only the Chairman can deactivate the Chairman account', 403)
     user.is_active = False
     db.session.commit()
     return success(None, 'User deactivated')

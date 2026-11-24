@@ -317,6 +317,7 @@ function TaskMonitoring() {
         showActions
         tasks={filteredTasks}
         currentUserId={user?.id}
+        currentUserRole={user?.role}
       />
     </PageContainer>
   );

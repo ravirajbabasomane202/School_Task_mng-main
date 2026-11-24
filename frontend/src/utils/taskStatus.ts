@@ -1,3 +1,4 @@
+import { ASSIGNEE_ONLY_ROLES, isChairmanLevel } from '../constants/roles';
 import type { Task, TaskStatus } from '../types/task.types';
 
 export const ALL_TASK_STATUSES: TaskStatus[] = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'DELAYED', 'ESCALATED'];
@@ -7,18 +8,43 @@ export const ASSIGNEE_TASK_STATUSES: TaskStatus[] = ['IN_PROGRESS', 'COMPLETED']
 export const ASSIGNEE_STATUS_HINT =
   'Pending and Delayed are set automatically. Escalated is set by the assigner.';
 
-type TaskRelation = Pick<Task, 'assigned_by' | 'assigned_to'> & Partial<Pick<Task, 'status'>>;
+type TaskRelation = Pick<Task, 'assigned_by' | 'assigned_to'> &
+  Partial<Pick<Task, 'status'>> & { assignedBy?: { role?: string | null } | null };
 
 const sameId = (a: unknown, b: unknown) =>
   a !== null && a !== undefined && b !== null && b !== undefined && Number(a) === Number(b);
 
-/** The assigner is whoever is in task.assigned_by - never decided by role. */
-export function isTaskAssigner(task: TaskRelation, currentUserId?: number | string | null): boolean {
-  return sameId(task.assigned_by, currentUserId);
+/**
+ * A Chairman-level user (the Principal) looking at a task assigned TO them is only
+ * the assignee: they work on it but never administer it. Mirrors the backend.
+ */
+export function isRestrictedAssignee(task: TaskRelation, userId?: number | string | null, role?: string | null): boolean {
+  return !!role && (ASSIGNEE_ONLY_ROLES as string[]).includes(role) && sameId(task.assigned_to, userId);
 }
 
-export function isTaskAssignee(task: TaskRelation, currentUserId?: number | string | null): boolean {
-  return !isTaskAssigner(task, currentUserId) && sameId(task.assigned_to, currentUserId);
+/**
+ * Who holds assigner powers (mirrors the backend ``_is_assigner``):
+ *  - whoever is in task.assigned_by
+ *  - a Chairman-level user, for tasks that a Chairman-level user assigned
+ *  - never a Principal for a task assigned to themselves
+ * ``currentUserRole`` is optional; without it only the assigned_by identity counts.
+ */
+export function isTaskAssigner(
+  task: TaskRelation,
+  currentUserId?: number | string | null,
+  currentUserRole?: string | null
+): boolean {
+  if (isRestrictedAssignee(task, currentUserId, currentUserRole)) return false;
+  if (sameId(task.assigned_by, currentUserId)) return true;
+  return isChairmanLevel(currentUserRole) && isChairmanLevel(task.assignedBy?.role);
+}
+
+export function isTaskAssignee(
+  task: TaskRelation,
+  currentUserId?: number | string | null,
+  currentUserRole?: string | null
+): boolean {
+  return !isTaskAssigner(task, currentUserId, currentUserRole) && sameId(task.assigned_to, currentUserId);
 }
 
 /**
@@ -29,10 +55,11 @@ export function isTaskAssignee(task: TaskRelation, currentUserId?: number | stri
  */
 export function getAllowedStatuses(
   task: TaskRelation,
-  currentUserId?: number | string | null
+  currentUserId?: number | string | null,
+  currentUserRole?: string | null
 ): TaskStatus[] {
-  if (isTaskAssigner(task, currentUserId)) return [...ALL_TASK_STATUSES];
-  if (isTaskAssignee(task, currentUserId)) {
+  if (isTaskAssigner(task, currentUserId, currentUserRole)) return [...ALL_TASK_STATUSES];
+  if (isTaskAssignee(task, currentUserId, currentUserRole)) {
     if (task.status === 'COMPLETED' || task.status === 'ESCALATED') return [];
     return [...ASSIGNEE_TASK_STATUSES];
   }

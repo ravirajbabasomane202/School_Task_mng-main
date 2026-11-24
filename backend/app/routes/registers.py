@@ -28,6 +28,7 @@ from app.utils.timezone import school_today
 from app.models.user import User
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
+from app.utils.permissions import CHAIRMAN_LEVEL_ROLES
 
 registers_bp = Blueprint('registers', __name__)
 
@@ -44,7 +45,7 @@ def _now():
     return datetime.now(timezone.utc)
 
 
-REGISTER_MANAGER_ROLES = ('CHAIRMAN',)
+REGISTER_MANAGER_ROLES = CHAIRMAN_LEVEL_ROLES
 # Roles that can VIEW every register (school-wide), even though they cannot
 # create/edit/delete one. The Director's dashboard/sidebar exposes a
 # "Registers" page (`/director/registers`) that is meant to be school-wide,

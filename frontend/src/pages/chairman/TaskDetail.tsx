@@ -11,7 +11,7 @@ import { useSocket } from '../../hooks/useSocket';
 import * as taskService from '../../services/taskService';
 import { useAppSelector } from '../../store/hooks';
 import type { Task, TaskHistory, TaskStatus } from '../../types/task.types';
-import { ROLES } from '../../constants/roles';
+import { isChairmanLevel } from '../../constants/roles';
 import { downloadAuthenticatedUpload } from '../../utils/fileDownload';
 import PageContainer from '../../components/common/PageContainer';
 import {
@@ -320,7 +320,7 @@ function TaskDetailContent() {
   };
 
   const fallbackPath =
-    user?.role === ROLES.CHAIRMAN
+    isChairmanLevel(user?.role)
       ? '/chairman/task-monitor'
       : user?.role === 'DIRECTOR'
         ? '/director'
@@ -343,8 +343,8 @@ function TaskDetailContent() {
   }
 
   const alreadyEscalated = task.status === 'ESCALATED';
-  const allowedStatuses = getAllowedStatuses(task, user?.id);
-  const canEscalate = isTaskAssigner(task, user?.id);
+  const allowedStatuses = getAllowedStatuses(task, user?.id, user?.role);
+  const canEscalate = isTaskAssigner(task, user?.id, user?.role);
 
   return (
     <PageContainer className="space-y-5">
@@ -494,7 +494,7 @@ function TaskDetailContent() {
           onClose={() => setShowStatusModal(false)}
           onConfirm={handleStatusChange}
           availableStatuses={allowedStatuses}
-          showAssigneeHint={isTaskAssignee(task, user?.id)}
+          showAssigneeHint={isTaskAssignee(task, user?.id, user?.role)}
           task={task}
         />
       )}

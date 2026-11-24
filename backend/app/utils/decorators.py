@@ -3,6 +3,7 @@ from flask import jsonify
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
 from app.extensions import db
 from app.models.user import User
+from app.utils.permissions import ELEVATED_ROLES
 
 
 def get_current_user_id():
@@ -28,5 +29,5 @@ def roles_required(*roles):
 
 
 def elevated_only(fn):
-    """Allow CHAIRMAN and DIRECTOR."""
-    return roles_required('CHAIRMAN', 'DIRECTOR')(fn)
+    """Allow the school-wide elevated roles (CHAIRMAN, PRINCIPAL, DIRECTOR)."""
+    return roles_required(*ELEVATED_ROLES)(fn)

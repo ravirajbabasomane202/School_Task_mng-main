@@ -23,6 +23,8 @@ interface TaskTableProps {
   onStatusChange?: (taskId: number, newStatus: TaskStatus, proofFile?: File) => Promise<void>;
   /** Id of the logged-in user - status options depend on their relationship to each task */
   currentUserId?: number | null;
+  /** Needed so a Principal gets Chairman-level status rights (and assignee-only on their own tasks). */
+  currentUserRole?: string | null;
 }
 
 const priorityStripe: Record<TaskPriority, string> = {
@@ -170,7 +172,8 @@ function TaskTable({
   onEdit,
   onDelete,
   onStatusChange,
-  currentUserId
+  currentUserId,
+  currentUserRole
 }: TaskTableProps) {
   const [statusModalTask, setStatusModalTask] = useState<Task | null>(null);
   const isMobile = useIsMobile();
@@ -208,7 +211,7 @@ function TaskTable({
       : 'rounded-[8px] border bg-white px-2.5 py-1.5 text-[11px] font-semibold transition';
     return (
       <div className={compact ? 'flex flex-wrap items-center gap-2' : 'flex items-center gap-1.5'}>
-        {onStatusChange && getAllowedStatuses(task, currentUserId).length > 0 && (
+        {onStatusChange && getAllowedStatuses(task, currentUserId, currentUserRole).length > 0 && (
           <button
             title="Change status"
             onClick={() => setStatusModalTask(task)}
@@ -258,8 +261,8 @@ function TaskTable({
       {statusModalTask && onStatusChange && (
         <StatusChangeModal
           task={statusModalTask}
-          availableStatuses={getAllowedStatuses(statusModalTask, currentUserId)}
-          showAssigneeHint={isTaskAssignee(statusModalTask, currentUserId)}
+          availableStatuses={getAllowedStatuses(statusModalTask, currentUserId, currentUserRole)}
+          showAssigneeHint={isTaskAssignee(statusModalTask, currentUserId, currentUserRole)}
           onClose={() => setStatusModalTask(null)}
           onConfirm={async (newStatus, proof) => {
             await onStatusChange(statusModalTask.id, newStatus, proof);

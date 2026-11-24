@@ -2,12 +2,13 @@ from flask import Blueprint, request
 from app.tasks.escalation import run_escalation_job
 from app.utils.response import success
 from app.utils.decorators import roles_required
+from app.utils.permissions import ELEVATED_ROLES
 
 escalations_bp = Blueprint('escalations', __name__)
 
 
 @escalations_bp.route('/run', methods=['POST'])
-@roles_required('CHAIRMAN', 'DIRECTOR')
+@roles_required(*ELEVATED_ROLES)
 def run_escalation():
     """Send "overdue, consider escalating" reminders to assigners.
 

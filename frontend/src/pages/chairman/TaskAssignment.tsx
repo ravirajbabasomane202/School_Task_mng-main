@@ -7,7 +7,8 @@ import Button from '../../components/common/Button';
 import ConfirmDeleteDialog from '../../components/common/ConfirmDeleteDialog';
 import Input from '../../components/common/Input';
 import TaskTable from '../../components/tables/TaskTable';
-import { ROLES, ROLE_LABELS } from '../../constants/roles';
+import { ASSIGNEE_ONLY_ROLES, ROLES, ROLE_LABELS, isChairmanLevel } from '../../constants/roles';
+import { isRestrictedAssignee } from '../../utils/taskStatus';
 import type { Role } from '../../constants/roles';
 import { useOrderedHeads } from '../../constants/headOrder';
 import * as taskService from '../../services/taskService';
@@ -171,6 +172,8 @@ function TaskAssignment() {
   }, [dispatch, usersQuery.data]);
 
   const assignableUsers = orderedHeads.flatMap((head) => {
+    // A Principal can assign work to anyone except themselves (the backend enforces this too).
+    if ((ASSIGNEE_ONLY_ROLES as string[]).includes(user?.role ?? '') && head.id === user?.id) return [];
     const source = users.find((candidate) => candidate.id === head.id);
     return source ? [{ ...source, label: head.label }] : [];
   });
@@ -200,7 +203,8 @@ function TaskAssignment() {
       { ...current, subtasks: current.subtasks.filter((subtask) => subtask.name === form.sub_task) }
     ];
   }, [taskCatalog, selectedRole, editingTask, form.task_headline, form.sub_task]);
-  const isChairman = user?.role === ROLES.CHAIRMAN;
+  // Chairman and Principal both manage the task catalog.
+  const isChairman = isChairmanLevel(user?.role);
 
   const openTasks = tasks.filter((task) => task.status !== 'COMPLETED');
   const filteredTasks =
@@ -1023,7 +1027,8 @@ function TaskAssignment() {
               tasks={pagedTasks}
               onEdit={handleEdit}
               onDelete={handleDelete}
-              showActions
+              // A Principal cannot edit, reassign or delete a task assigned to them.
+              showActions={(task) => !isRestrictedAssignee(task, user?.id, user?.role)}
             />
             {filteredTasks.length > PAGE_SIZE ? (
               <div className="flex flex-col gap-2 text-xs text-[#5B6E8C] sm:flex-row sm:items-center sm:justify-between sm:gap-3">

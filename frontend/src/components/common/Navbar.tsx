@@ -23,6 +23,7 @@ const pageTitles: Record<string, string> = {
   '/chairman/announcements': 'Announcements',
   '/chairman/approvals': 'Approvals',
   '/chairman/leave': 'Leave Management',
+  '/chairman/my-tasks': 'My Tasks',
   '/chairman/meetings': 'Schedule Meeting',
   '/chairman/performance': 'Performance',
   '/chairman/register-monitoring': 'Register Monitoring',

@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useAppSelector } from '../../store/hooks';
-import { ROLE_LABELS } from '../../constants/roles';
+import { ROLE_LABELS, isChairmanLevel } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 
 export default function UnauthorizedPage() {
@@ -8,7 +8,7 @@ export default function UnauthorizedPage() {
   const { user } = useAppSelector((state) => state.auth);
 
   const home =
-    user?.role === 'CHAIRMAN'
+    isChairmanLevel(user?.role)
       ? '/chairman'
       : user?.role === 'DIRECTOR'
       ? '/director'

@@ -1,3 +1,4 @@
+import { isChairmanLevel } from '../../constants/roles';
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
@@ -26,7 +27,7 @@ const STATUS_COLOR: Record<AssetStatus, string> = {
 const AssetManagementPage: React.FC = () => {
   const user = useSelector((state: RootState) => state.auth.user);
   const qc = useQueryClient();
-  const isIT = user?.role === 'IT' || user?.role === 'CHAIRMAN';
+  const isIT = user?.role === 'IT' || isChairmanLevel(user?.role);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAsset, setEditingAsset] = useState<Asset | null>(null);

@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { useIsDesktop } from '../../hooks/useMediaQuery';
-import { DEPARTMENT_HEAD_ROLES, ROLES } from '../../constants/roles';
+import { DEPARTMENT_HEAD_ROLES, ROLES, isChairmanLevel } from '../../constants/roles';
 import { getRoleLabel } from '../../utils/roleUtils';
 import { getAllApprovals } from '../../services/approvalService';
 import { useAppSelector } from '../../store/hooks';
@@ -30,6 +30,16 @@ const chairmanItems: NavItem[] = [
   { color: '#F97316', group: 'Admin', label: 'User Management', to: '/chairman/users' },
   { color: '#2563EB', group: 'Admin', label: 'Performance', to: '/chairman/performance' },
   { color: '#059669', group: 'Admin', label: 'Leave Management', to: '/chairman/leave' },
+];
+
+/**
+ * Principal has Chairman-level access, so it gets the Chairman menu plus
+ * "My Tasks" for the tasks the Chairman assigns directly to the Principal.
+ */
+const principalItems: NavItem[] = [
+  chairmanItems[0],
+  { color: '#2C7BE5', group: 'Modules', label: 'My Tasks', to: '/chairman/my-tasks' },
+  ...chairmanItems.slice(1),
 ];
 
 /** Base items every department head sees */
@@ -118,6 +128,8 @@ function Sidebar({ isOpen = false, onClose }: SidebarProps) {
 
   if (user?.role === ROLES.DIRECTOR) {
     items = directorItems;
+  } else if (user?.role === ROLES.PRINCIPAL) {
+    items = principalItems;
   } else if (isDepartmentHead) {
     items = [...baseDeptItems, ...getDeptExtraItems(user!.role)];
   } else {
