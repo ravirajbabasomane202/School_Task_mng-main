@@ -83,6 +83,17 @@ export const API_ENDPOINTS = {
     update: (id: number | string) => `/academic-events/${id}`,
     delete: (id: number | string) => `/academic-events/${id}`,
     attachment: (id: number | string) => `/academic-events/${id}/attachment`
+  },
+  impNotifications: {
+    list: '/imp-notifications',
+    options: '/imp-notifications/options',
+    detail: (id: number | string) => `/imp-notifications/${id}`,
+    create: '/imp-notifications',
+    update: (id: number | string) => `/imp-notifications/${id}`,
+    status: (id: number | string) => `/imp-notifications/${id}/status`,
+    active: (id: number | string) => `/imp-notifications/${id}/active`,
+    delete: (id: number | string) => `/imp-notifications/${id}`,
+    runReminders: '/imp-notifications/run-reminders'
   }
 } as const;
 

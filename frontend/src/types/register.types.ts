@@ -91,6 +91,11 @@ export interface Register {
   can_check: boolean;
   /** Why `can_check` is false (already checked / not started yet). */
   check_block_reason: string | null;
+  /**
+   * True when the viewer is the Principal and this register's Head is the
+   * Principal: Edit / Check Register / Delete are locked (the API refuses too).
+   */
+  own_principal_locked?: boolean;
   last_completed_date?: string | null;
   created_by?: number | null;
   created_by_name?: string | null;

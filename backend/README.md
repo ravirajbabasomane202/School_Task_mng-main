@@ -87,3 +87,17 @@ WebSocket URL: `http://localhost:5000` (Socket.IO)
 - **Dashboard endpoints** return raw JSON (no wrapper) — consumed by raw axios calls in the frontend
 - **Socket.IO** uses WebSocket-only transport; auth token sent via `auth: { token }` in client handshake
 - **Attachments** stored as relative paths (`uploads/tasks/<id>/filename`) and served statically
+
+## Imp Notification (recurring important notifications)
+
+* API: `/api/imp-notifications` (list, create, get + cycle history, update, delete,
+  `PATCH /<id>/status`, `PATCH /<id>/active`, `GET /options`, `POST /run-reminders`).
+  Create / edit / assign / delete / activate are Chairman-level (Chairman, Principal);
+  an assigned user can view, mark In Progress and mark Done.
+* Data: one `imp_notifications` row per activity, one `imp_notification_cycles` row per
+  recurrence cycle (history), one `imp_notification_reminders` row per (cycle, day) with a
+  UNIQUE constraint so a cycle is reminded at most once a day.
+* Reminders are sent by the in-process APScheduler job `imp_notification_reminders`
+  (hourly, idempotent, catches up after downtime). If you run with `ENABLE_SCHEDULER=false`,
+  schedule `flask run-imp-reminders` from cron instead.
+* Migration: `flask db upgrade` (revision `v6w7x8y9z0a1`, additive only).

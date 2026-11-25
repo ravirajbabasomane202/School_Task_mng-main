@@ -231,6 +231,13 @@ def _task_cadence(title):
 
 
 def register_commands(app: Flask):
+    @app.cli.command('run-imp-reminders')
+    def run_imp_reminders_command():
+        """Send today's Imp Notification reminders (safe to run repeatedly;
+        usable from system cron if the in-process scheduler is disabled)."""
+        from app.services.imp_notifications import run_imp_reminders
+        click.echo(f'{run_imp_reminders()} reminder(s) sent.')
+
     @app.cli.command('seed')
     def seed():
         """Seed departments and default leadership users."""

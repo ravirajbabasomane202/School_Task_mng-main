@@ -9,6 +9,8 @@ interface Notification {
   message: string;
   is_read: boolean;
   created_at: string;
+  /** Set on Imp Notification reminders so they open the notification directly. */
+  imp_notification_id?: number | null;
 }
 
 interface NotificationBellProps {
@@ -96,7 +98,15 @@ const NotificationBell: React.FC<NotificationBellProps> = ({ notificationsPath =
                 {preview.map((n) => (
                   <li
                     key={n.id}
-                    className={`px-4 py-3 text-sm ${n.is_read ? "bg-white" : "bg-blue-50"}`}
+                    className={`px-4 py-3 text-sm ${n.is_read ? "bg-white" : "bg-blue-50"} ${n.imp_notification_id ? "cursor-pointer hover:bg-blue-100" : ""}`}
+                    onClick={
+                      n.imp_notification_id
+                        ? () => {
+                            setOpen(false);
+                            navigate(`/imp-notifications?open=${n.imp_notification_id}`);
+                          }
+                        : undefined
+                    }
                   >
                     {n.title && <p className="font-medium text-gray-800 line-clamp-1">{n.title}</p>}
                     <p className="text-gray-500 text-xs line-clamp-2 mt-0.5">{n.message}</p>

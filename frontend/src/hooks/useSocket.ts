@@ -28,6 +28,7 @@ const NOTIFICATION_QUERY_MAP: Partial<Record<Notification['type'], string[][]>> 
   TASK_DELAYED:          [['tasks']],
   TASK_ESCALATED:        [['tasks']],
   TASK_OVERDUE:          [['tasks']],
+  IMP_REMINDER:          [['imp-notifications']],
 };
 
 export const useSocket = () => {

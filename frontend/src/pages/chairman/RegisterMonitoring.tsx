@@ -10,7 +10,12 @@ import RegisterCalendarPopup from '../../components/registers/RegisterCalendarPo
 import RegisterDetailsModal from '../../components/registers/RegisterDetailsModal';
 import { formatDate, todayISO } from '../../utils/dateUtils';
 import { downloadCsv } from '../../utils/fileDownload';
-import { currentCycleOccurrenceDate, formatPeriod, isRegisterUpdatable } from '../../utils/registerUtils';
+import {
+  PRINCIPAL_OWN_REGISTER_REASON,
+  currentCycleOccurrenceDate,
+  formatPeriod,
+  isRegisterUpdatable,
+} from '../../utils/registerUtils';
 import {
   deleteRegister,
   getRegisters,
@@ -433,7 +438,17 @@ function RegisterMonitoring() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-2">
-                        <button onClick={() => openEdit(r)} className="text-xs text-blue-600 hover:underline" type="button">
+                        <button
+                          onClick={() => openEdit(r)}
+                          disabled={!!r.own_principal_locked}
+                          className={
+                            r.own_principal_locked
+                              ? 'text-xs text-[#B7C0CD] cursor-not-allowed'
+                              : 'text-xs text-blue-600 hover:underline'
+                          }
+                          title={r.own_principal_locked ? PRINCIPAL_OWN_REGISTER_REASON : undefined}
+                          type="button"
+                        >
                           Edit
                         </button>
                         {(() => {
@@ -469,7 +484,13 @@ function RegisterMonitoring() {
                         </button>
                         <button
                           onClick={() => setDeleteTarget(r)}
-                          className="text-xs text-red-600 hover:underline"
+                          disabled={!!r.own_principal_locked}
+                          className={
+                            r.own_principal_locked
+                              ? 'text-xs text-[#B7C0CD] cursor-not-allowed'
+                              : 'text-xs text-red-600 hover:underline'
+                          }
+                          title={r.own_principal_locked ? PRINCIPAL_OWN_REGISTER_REASON : undefined}
                           type="button"
                         >
                           Delete

@@ -152,7 +152,7 @@ function ImportantDocumentsPage() {
     <PageContainer className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-[#1E293B]">Important Documents</h1>
+          <h1 className="text-xl font-semibold text-[#1E293B]">Imp Documents</h1>
           <p className="mt-1 text-sm text-[#5B6E8C]">School documents shared with authenticated users</p>
         </div>
         {canManage && (

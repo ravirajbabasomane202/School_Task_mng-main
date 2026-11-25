@@ -1,5 +1,6 @@
 import os
 import re
+from datetime import datetime, timezone
 from flask import Flask, request, send_from_directory, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from sqlalchemy import or_
@@ -223,6 +224,7 @@ def create_app(config_name=None):
     from app.routes.registers import registers_bp
     from app.routes.important_documents import important_documents_bp
     from app.routes.academic_events import academic_events_bp
+    from app.routes.imp_notifications import imp_notifications_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -245,6 +247,7 @@ def create_app(config_name=None):
     app.register_blueprint(registers_bp, url_prefix='/api/registers')
     app.register_blueprint(important_documents_bp, url_prefix='/api/documents')
     app.register_blueprint(academic_events_bp, url_prefix='/api/academic-events')
+    app.register_blueprint(imp_notifications_bp, url_prefix='/api/imp-notifications')
 
     # ── APScheduler: hourly overdue sweep (auto-DELAYED + assigner reminders) ──────────────────────────────
     # Guard against multiple gunicorn workers each starting their own scheduler.
@@ -281,6 +284,24 @@ def create_app(config_name=None):
             hours=1,
             id='auto_escalation',
             replace_existing=True,
+        )
+        def _scheduled_imp_reminders():
+            with app.app_context():
+                from app.services.imp_notifications import run_imp_reminders
+                count = run_imp_reminders()
+                if count:
+                    app.logger.info(f'[Scheduler] Sent {count} Imp Notification reminder(s).')
+
+        # Hourly + idempotent: the per-(cycle, day) unique log means each cycle
+        # is reminded once a day, and a missed run (downtime) is caught up on
+        # the next tick - no dependence on anyone having the app open.
+        scheduler.add_job(
+            _scheduled_imp_reminders,
+            trigger='interval',
+            hours=1,
+            id='imp_notification_reminders',
+            replace_existing=True,
+            next_run_time=datetime.now(timezone.utc),
         )
         scheduler.start()
         app.logger.info('[Scheduler] APScheduler started – overdue sweep runs every hour.')

@@ -68,6 +68,47 @@ def _scope_to_user(query, user):
         return query
     return query.filter(Register.head_id == user.id)
 
+PRINCIPAL_OWN_REGISTER_MESSAGE = (
+    'Forbidden: the Principal cannot edit, check or delete their own register'
+)
+
+
+def is_principal_own_register(user, register):
+    """True when `user` is the Principal AND `register`'s Head is the Principal.
+
+    This is the ONLY case where register edit / check / delete is refused for a
+    Chairman-level role. It never applies to other roles (the Chairman keeps
+    full control of the Principal's registers) and never to registers headed by
+    anyone else. The Head is the Principal when the linked head user holds the
+    PRINCIPAL role, or - for legacy registers that only have free-text
+    `head_name` - when that text is "Principal".
+    """
+    if user is None or register is None or user.role != 'PRINCIPAL':
+        return False
+    if register.head_id is not None:
+        if register.head_id == user.id:
+            return True
+        head_user = db.session.get(User, register.head_id)
+        return bool(head_user and head_user.role == 'PRINCIPAL')
+    return (register.head_name or '').strip().lower() == 'principal'
+
+
+def _forbid_if_principal_own_register(register):
+    """Return a 403 response tuple when the caller is the Principal acting on
+    their own register, else None. Call after the register has been loaded."""
+    user = db.session.get(User, int(get_jwt_identity()))
+    if is_principal_own_register(user, register):
+        return error(PRINCIPAL_OWN_REGISTER_MESSAGE, 403)
+    return None
+
+
+def _register_payload(register, user, **kwargs):
+    """register.to_dict() plus the per-viewer `own_principal_locked` flag the
+    UI uses to disable Edit / Check Register / Delete."""
+    data = register.to_dict(**kwargs)
+    data['own_principal_locked'] = is_principal_own_register(user, register)
+    return data
+
 # `head_name` is accepted as a legacy fallback, but `head_id` is the preferred field
 # going forward — the register stores the selected user's ID, not free text.
 REQUIRED_FIELDS = ['name', 'register_no', 'cycle', 'priority', 'start_date']
@@ -192,7 +233,10 @@ def list_registers():
             if r.effective_today_status(today, current_occurrences.get(r.id))[0] == status
         ]
 
-    return success([r.to_dict(today=today, occurrence=current_occurrences.get(r.id)) for r in registers])
+    return success([
+        _register_payload(r, user, today=today, occurrence=current_occurrences.get(r.id))
+        for r in registers
+    ])
 
 
 @registers_bp.route('/calendar', methods=['GET'])
@@ -243,7 +287,7 @@ def calendar_events():
 
     events = []
     for r in registers:
-        register_dict = r.to_dict(today=today, occurrence=current_occurrences.get(r.id))
+        register_dict = _register_payload(r, user, today=today, occurrence=current_occurrences.get(r.id))
         for occ in r.generate_occurrences(start, end, today, occurrence_map=occurrence_maps[r.id]):
             occ_date = occ['date']
             computed_status = occ['status']
@@ -298,7 +342,7 @@ def get_register(register_id: int):
         return error('You do not have access to this register', 403)
 
     today = _today()
-    return success(register.to_dict(today=today))
+    return success(_register_payload(register, user, today=today))
 
 
 @registers_bp.route('', methods=['POST'])
@@ -349,6 +393,9 @@ def update_register(register_id: int):
     register = db.session.get(Register, register_id)
     if not register:
         return error('Register not found', 404)
+    forbidden = _forbid_if_principal_own_register(register)
+    if forbidden:
+        return forbidden
 
     data = request.get_json() or {}
     if 'checking_cycle' in data and 'cycle' not in data:
@@ -404,6 +451,9 @@ def delete_register(register_id: int):
     register = db.session.get(Register, register_id)
     if not register:
         return error('Register not found', 404)
+    forbidden = _forbid_if_principal_own_register(register)
+    if forbidden:
+        return forbidden
 
     db.session.delete(register)
     db.session.commit()
@@ -503,6 +553,9 @@ def update_status(register_id: int):
     register = db.session.get(Register, register_id, with_for_update=True)
     if not register:
         return error('Register not found', 404)
+    forbidden = _forbid_if_principal_own_register(register)
+    if forbidden:
+        return forbidden
 
     data = request.get_json() or {}
     new_status = (data.get('status') or '').upper()
@@ -540,6 +593,9 @@ def update_occurrence_status(register_id: int, occurrence_date: str):
     register = db.session.get(Register, register_id, with_for_update=True)
     if not register:
         return error('Register not found', 404)
+    forbidden = _forbid_if_principal_own_register(register)
+    if forbidden:
+        return forbidden
 
     parsed_date = _parse_date(occurrence_date)
     if not parsed_date:

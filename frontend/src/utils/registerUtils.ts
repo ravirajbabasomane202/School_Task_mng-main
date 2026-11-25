@@ -20,7 +20,14 @@ export interface RegisterUpdatability {
  * this is only a mirror of it for the UI; it deliberately does no date
  * arithmetic of its own, which keeps it identical for every cycle.
  */
+export const PRINCIPAL_OWN_REGISTER_REASON =
+  'The Principal cannot edit, check or delete their own register.';
+
 export function isRegisterUpdatable(register: Register): RegisterUpdatability {
+  if (register.own_principal_locked) {
+    return { updatable: false, reason: PRINCIPAL_OWN_REGISTER_REASON };
+  }
+
   if (register.can_check) {
     return { updatable: true };
   }

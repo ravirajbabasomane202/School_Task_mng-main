@@ -10,6 +10,9 @@ class Notification(db.Model):
     type = db.Column(db.String(30), nullable=False)  # TASK_ASSIGNED/TASK_UPDATED/TASK_DELAYED/TASK_ESCALATED/ANNOUNCEMENT
     message = db.Column(db.Text, nullable=False)
     task_id = db.Column(db.Integer, db.ForeignKey('tasks.id'), nullable=True)
+    imp_notification_id = db.Column(
+        db.Integer, db.ForeignKey('imp_notifications.id', ondelete='CASCADE'), nullable=True, index=True
+    )
     is_read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
@@ -23,6 +26,7 @@ class Notification(db.Model):
             'type': self.type,
             'message': self.message,
             'task_id': self.task_id,
+            'imp_notification_id': self.imp_notification_id,
             'is_read': self.is_read,
             'created_at': self.created_at.isoformat() if self.created_at else None,
         }

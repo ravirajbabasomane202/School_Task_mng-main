@@ -23,6 +23,7 @@ import PurchaseOrdersPage from '../pages/departments/PurchaseOrdersPage';
 import RegistersPage from '../pages/departments/RegistersPage';
 import ImportantDocumentsPage from '../pages/ImportantDocumentsPage';
 import AcademicCalendarPage from '../pages/AcademicCalendarPage';
+import ImpNotificationsPage from '../pages/ImpNotificationsPage';
 import ProtectedRoute from './ProtectedRoute';
 import AnalyticsRouter from '../pages/departments/analytics/AnalyticsRouter';
 import AnimatedLogo from '../components/brand/AnimatedLogo';
@@ -61,6 +62,7 @@ export default function AppRouter() {
             <Route path="/notifications"   element={<NotificationsPage />} />
             <Route path="/documents"       element={<ImportantDocumentsPage />} />
             <Route path="/academic-calendar" element={<AcademicCalendarPage />} />
+            <Route path="/imp-notifications" element={<ImpNotificationsPage />} />
             <Route path="/reports/daily"   element={<Suspense fallback={<PageSpinner />}><DailyReport /></Suspense>} />
             <Route path="/reports/weekly"  element={<Suspense fallback={<PageSpinner />}><WeeklyReport /></Suspense>} />
           </Route>

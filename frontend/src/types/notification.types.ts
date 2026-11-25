@@ -12,7 +12,8 @@ export type NotificationType =
   | 'RESUMPTION_PROCESSED'
   | 'SALARY_UPDATE'
   | 'SALARY_SUBMITTED'
-  | 'SALARY_PROCESSED';
+  | 'SALARY_PROCESSED'
+  | 'IMP_REMINDER';
 
 export interface Notification {
   id: number;
@@ -20,6 +21,8 @@ export interface Notification {
   type: NotificationType;
   message: string;
   task_id: number | null;
+  /** Set on IMP_REMINDER notifications: the Imp Notification to open. */
+  imp_notification_id?: number | null;
   is_read: boolean;
   created_at: string;
 }

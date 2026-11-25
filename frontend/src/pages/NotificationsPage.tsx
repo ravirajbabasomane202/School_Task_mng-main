@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import Button from '../components/common/Button';
 import ConfirmDeleteDialog from '../components/common/ConfirmDeleteDialog';
@@ -25,6 +26,7 @@ function formatTimestamp(value: string) {
 }
 
 function NotificationsPage() {
+  const navigate = useNavigate();
   const { notifications, unreadCount, markAllAsRead, markAsRead, deleteNotification } = useNotifications();
   const [deleteTarget, setDeleteTarget] = useState<Notification | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -84,7 +86,13 @@ function NotificationsPage() {
               >
                 <button
                   className="flex min-w-0 flex-1 flex-col items-start gap-2 text-left sm:flex-row sm:justify-between sm:gap-4"
-                  onClick={() => void markAsRead(notification.id)}
+                  onClick={() => {
+                    void markAsRead(notification.id);
+                    // Imp Notification reminders open their notification directly.
+                    if (notification.imp_notification_id) {
+                      navigate(`/imp-notifications?open=${notification.imp_notification_id}`);
+                    }
+                  }}
                   type="button"
                 >
                   <div className="min-w-0 break-words">
@@ -96,7 +104,9 @@ function NotificationsPage() {
                   <div className="sm:shrink-0 sm:text-right">
                     <p className="text-xs text-[#8A99B0]">{formatTimestamp(notification.created_at)}</p>
                     <p className="mt-2 text-xs font-semibold text-[#185FA5]">
-                      {notification.is_read ? 'Read' : 'Mark As Read'}
+                      {notification.imp_notification_id
+                        ? 'Open'
+                        : notification.is_read ? 'Read' : 'Mark As Read'}
                     </p>
                   </div>
                 </button>
