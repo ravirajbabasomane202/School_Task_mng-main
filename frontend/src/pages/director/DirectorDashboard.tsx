@@ -20,6 +20,7 @@ import type { Task } from '../../types/task.types';
 import type { RootState } from '../../store';
 
 import PageContainer from '../../components/common/PageContainer';
+import MyKeyResponsibilities from '../../components/keyResponsibilities/MyKeyResponsibilities';
 import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DashboardData {
   totalTasks: number;
@@ -70,6 +71,7 @@ function DirectorOverview() {
       <div>
         <h1 className="text-xl font-semibold text-[#1E293B]">School Manager Dashboard</h1>
         <p className="text-sm text-[#5B6E8C] mt-1">Welcome back, {user?.name}</p>
+        <MyKeyResponsibilities />
       </div>
 
       {/* Stats */}

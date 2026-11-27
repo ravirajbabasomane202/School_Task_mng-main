@@ -12,6 +12,7 @@ import type { Task, TaskStatus } from '../../types/task.types';
 import type { RootState } from '../../store';
 
 import PageContainer from '../../components/common/PageContainer';
+import MyKeyResponsibilities from '../../components/keyResponsibilities/MyKeyResponsibilities';
 import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DeptDashboardData {
   myTasks: {
@@ -193,6 +194,7 @@ const DeptOverview: React.FC = () => {
         <p className="text-gray-600">
           Welcome, {user?.name} - {user?.departmentName}
         </p>
+        <MyKeyResponsibilities />
       </div>
 
       <UpcomingAcademicEvents />

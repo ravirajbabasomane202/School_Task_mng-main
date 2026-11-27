@@ -22,6 +22,9 @@ import type { StaffPerformance } from '../../services/dashboardService';
 import type { Task, TaskStatus } from '../../types/task.types';
 
 import PageContainer from '../../components/common/PageContainer';
+import MyKeyResponsibilities from '../../components/keyResponsibilities/MyKeyResponsibilities';
+import { useSelector } from 'react-redux';
+import type { RootState } from '../../store';
 import UpcomingAcademicEvents from '../../components/academicCalendar/UpcomingAcademicEvents';
 interface DashboardAlert {
   id: number;
@@ -77,6 +80,7 @@ const severityVariantMap = {
 function ChairmanOverview() {
   const { data: orderedHeads = [] } = useOrderedHeads();
   const navigate = useNavigate();
+  const authUser = useSelector((state: RootState) => state.auth.user);
   const queryClient = useQueryClient();
   const currentUser = useAppSelector((state) => state.auth.user);
 
@@ -253,6 +257,8 @@ function ChairmanOverview() {
             <h1 className="mt-2 text-xl font-semibold text-[#1E293B] sm:text-2xl">
               School Status And Leadership Control
             </h1>
+            {authUser?.name ? <p className="mt-1 text-sm text-[#5B6E8C]">Welcome, {authUser.name}</p> : null}
+            <MyKeyResponsibilities />
             <p className="mt-3 max-w-3xl text-sm leading-6 text-[#5B6E8C]">
               Review task health, staff productivity, approvals, and
               active alerts from one chairman dashboard.

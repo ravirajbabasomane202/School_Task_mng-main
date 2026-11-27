@@ -1,6 +1,7 @@
 from app.models.department import Department
 from app.models.role import Role
 from app.models.user import User
+from app.models.key_responsibility import UserKeyResponsibility
 from app.models.task import Task, TaskHistory
 from app.models.task_catalog import TaskHeadline, TaskHeadlineRole, TaskSubTask
 from app.models.notification import Notification, Announcement
@@ -16,18 +17,18 @@ from app.models.asset import Asset
 from app.models.purchase_order import PurchaseOrder, PurchaseOrderItem
 from app.models.login_attempt import LoginAttempt
 from app.models.register import Register, RegisterOccurrence
-from app.models.important_document import ImportantDocument
-from app.models.academic_event import AcademicEvent
+from app.models.important_document import ImportantDocument, DocumentFolder, DocumentAudience
+from app.models.academic_event import AcademicEvent, AcademicEventHistory
 from app.models.imp_notification import ImpNotification, ImpNotificationCycle, ImpNotificationReminder
 
 __all__ = [
-    'Department', 'Role', 'User', 'Task', 'TaskHistory', 'TaskHeadline', 'TaskHeadlineRole', 'TaskSubTask',
+    'Department', 'Role', 'User', 'UserKeyResponsibility', 'Task', 'TaskHistory', 'TaskHeadline', 'TaskHeadlineRole', 'TaskSubTask',
     'Notification', 'Announcement', 'Approval',
     'ReportHistory', 'RefreshToken',
     'Meeting', 'MeetingAttendee', 'HousekeepingTask',
     'LeaveRequest', 'ResumptionRequest', 'SalaryIncrement',
     'Recruitment', 'RecruitmentApplication',
     'Asset', 'PurchaseOrder', 'PurchaseOrderItem',
-    'LoginAttempt', 'Register', 'RegisterOccurrence', 'ImportantDocument', 'AcademicEvent',
+    'LoginAttempt', 'Register', 'RegisterOccurrence', 'ImportantDocument', 'DocumentFolder', 'DocumentAudience', 'AcademicEvent', 'AcademicEventHistory',
     'ImpNotification', 'ImpNotificationCycle', 'ImpNotificationReminder'
 ]

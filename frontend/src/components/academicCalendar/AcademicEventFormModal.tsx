@@ -1,7 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ROLES, ROLE_LABELS } from '../../constants/roles';
 import type { AcademicEvent, AcademicEventForm } from '../../types/academicEvent.types';
 import { ACADEMIC_EVENT_CATEGORIES } from '../../types/academicEvent.types';
+import { getAllUsers } from '../../services/userService';
 import Button from '../common/Button';
 import Modal from '../common/Modal';
 
@@ -31,7 +33,8 @@ function initialForm(event: AcademicEvent | null): AcademicEventForm {
     start_time: event?.start_time ?? '09:00',
     end_time: event?.end_time ?? '10:00',
     location: event?.location ?? '',
-    target_audience: event?.target_audience ?? ['ALL']
+    target_audience: event?.target_audience ?? ['ALL'],
+    responsible_user_id: event?.responsible_user_id ? String(event.responsible_user_id) : ''
   };
 }
 
@@ -47,10 +50,28 @@ function AcademicEventFormModal({
 }: AcademicEventFormModalProps) {
   const [form, setForm] = useState<AcademicEventForm>(() => initialForm(event));
   const [attachmentError, setAttachmentError] = useState('');
+  const [formError, setFormError] = useState('');
+  const usersQuery = useQuery({ queryKey: ['users', 'for-event-form'], queryFn: () => getAllUsers(), enabled: isOpen });
+  const responsibleOptions = useMemo(() => {
+    const active = (usersQuery.data ?? []).filter((candidate) => candidate.is_active);
+    // keep a since-deactivated assignee visible when editing an existing event
+    const current = event?.responsible_user_id;
+    const extra = current && !active.some((candidate) => candidate.id === current)
+      ? [{ id: current, label: `${event?.responsible_name ?? 'Unknown'} (inactive)` }]
+      : [];
+    return [
+      ...active.map((candidate) => ({
+        id: candidate.id,
+        label: candidate.head_type?.trim() ? `${candidate.name} — ${candidate.head_type.trim()}` : candidate.name
+      })),
+      ...extra
+    ];
+  }, [usersQuery.data, event]);
 
   useEffect(() => {
     setForm(initialForm(event));
     setAttachmentError('');
+    setFormError('');
   }, [event, isOpen]);
 
   const updateForm = <K extends keyof AcademicEventForm>(key: K, value: AcademicEventForm[K]) => {
@@ -93,6 +114,11 @@ function AcademicEventFormModal({
       setAttachmentError('Select at least one target audience.');
       return;
     }
+    if (!event && !form.responsible_user_id) {
+      setFormError('Select the person responsible for this event.');
+      return;
+    }
+    setFormError('');
     onSubmit(form);
   };
 
@@ -165,6 +191,27 @@ function AcademicEventFormModal({
         <div>
           <label className="mb-1 block text-xs font-medium text-[#5B6E8C]" htmlFor="event-location">Event Location</label>
           <input className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm focus:border-[#185FA5] focus:outline-none" id="event-location" maxLength={255} onChange={(e) => updateForm('location', e.target.value)} value={form.location} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium text-[#5B6E8C]" htmlFor="event-responsible">
+            Responsible Person{event ? '' : ' *'}
+          </label>
+          <select
+            className="w-full rounded-lg border border-[#E4EAF2] px-3 py-2 text-sm"
+            id="event-responsible"
+            onChange={(e) => updateForm('responsible_user_id', e.target.value)}
+            value={form.responsible_user_id}
+          >
+            <option value="">{usersQuery.isLoading ? 'Loading users…' : 'Select responsible person'}</option>
+            {responsibleOptions.map((option) => (
+              <option key={option.id} value={option.id}>{option.label}</option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-[#8A99B0]">
+            This person is accountable for reporting the reason if the event is not completed on time, and for its completion update.
+          </p>
+          {usersQuery.isError && <p className="mt-1 text-xs text-red-600" role="alert">Unable to load users.</p>}
+          {formError && <p className="mt-1 text-xs text-red-600" role="alert">{formError}</p>}
         </div>
         <fieldset>
           <legend className="mb-2 text-xs font-medium text-[#5B6E8C]">Target Audience *</legend>

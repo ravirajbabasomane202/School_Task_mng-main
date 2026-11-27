@@ -1,6 +1,12 @@
 import api from './api';
 import { API_ENDPOINTS } from '../constants/apiEndpoints';
-import type { AcademicEvent, AcademicEventFilters } from '../types/academicEvent.types';
+import type {
+  AcademicEvent,
+  AcademicEventFilters,
+  AcademicEventHistoryEntry,
+  ApprovalStatus,
+  CompleteEventPayload
+} from '../types/academicEvent.types';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -50,4 +56,36 @@ export async function downloadAcademicEventAttachment(id: number, filename: stri
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
+}
+
+export async function getPendingEventUpdates(): Promise<AcademicEvent[]> {
+  const response = await api.get<ApiResponse<AcademicEvent[]>>(API_ENDPOINTS.academicEvents.pendingUpdates);
+  return response.data.data;
+}
+
+export async function submitEventReason(id: number, reason: string): Promise<AcademicEvent> {
+  const response = await api.post<ApiResponse<AcademicEvent>>(API_ENDPOINTS.academicEvents.reason(id), { reason });
+  return response.data.data;
+}
+
+export async function completeAcademicEvent(id: number, payload: CompleteEventPayload): Promise<AcademicEvent> {
+  const response = await api.post<ApiResponse<AcademicEvent>>(API_ENDPOINTS.academicEvents.complete(id), payload);
+  return response.data.data;
+}
+
+export async function updateEventApproval(
+  id: number,
+  approval_status: ApprovalStatus,
+  remarks?: string
+): Promise<AcademicEvent> {
+  const response = await api.post<ApiResponse<AcademicEvent>>(API_ENDPOINTS.academicEvents.approval(id), {
+    approval_status,
+    remarks
+  });
+  return response.data.data;
+}
+
+export async function getAcademicEventHistory(id: number): Promise<AcademicEventHistoryEntry[]> {
+  const response = await api.get<ApiResponse<AcademicEventHistoryEntry[]>>(API_ENDPOINTS.academicEvents.history(id));
+  return response.data.data;
 }

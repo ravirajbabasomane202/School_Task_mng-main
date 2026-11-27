@@ -1,5 +1,11 @@
 import type { Role } from '../constants/roles';
 
+export interface KeyResponsibility {
+  id: number;
+  description: string;
+  sort_order: number;
+}
+
 export interface User {
   id: number;
   name: string;
@@ -16,6 +22,8 @@ export interface User {
   } | null;
   is_active: boolean;
   last_login: string | null;
+  responsibility_summary?: string | null;
+  key_responsibilities?: KeyResponsibility[];
 }
 
 export interface AuthUser {

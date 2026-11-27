@@ -238,6 +238,32 @@ def register_commands(app: Flask):
         from app.services.imp_notifications import run_imp_reminders
         click.echo(f'{run_imp_reminders()} reminder(s) sent.')
 
+    @app.cli.command('seed-key-responsibilities')
+    @click.option('--overwrite', is_flag=True, help='Replace responsibilities users already have.')
+    def seed_key_responsibilities(overwrite):
+        """Fill each user's Key Responsibilities from the KRA/JD document templates.
+
+        Matched by role (Director, Principal, Admin, Finance, Admission, HR).
+        By default users who already have responsibilities are left untouched,
+        so it is safe to run repeatedly.
+        """
+        from app.key_responsibility_templates import KEY_RESPONSIBILITY_TEMPLATES, apply_template
+        from app.models.user import User
+
+        applied = skipped = 0
+        for user in User.query.filter(User.role.in_(list(KEY_RESPONSIBILITY_TEMPLATES))).all():
+            if overwrite:
+                user.key_responsibilities.clear()
+                user.responsibility_summary = None
+                db.session.flush()
+            if apply_template(user):
+                applied += 1
+                click.echo(f'  + {user.name} ({user.role})')
+            else:
+                skipped += 1
+        db.session.commit()
+        click.echo(f'{applied} user(s) updated, {skipped} left unchanged.')
+
     @app.cli.command('seed')
     def seed():
         """Seed departments and default leadership users."""

@@ -13,6 +13,10 @@ export const API_ENDPOINTS = {
     update: (id: number | string) => `/users/${id}`,
     deactivate: (id: number | string) => `/users/${id}/deactivate`
   },
+  keyResponsibilities: {
+    mine: '/key-responsibilities/me',
+    templates: '/key-responsibilities/templates'
+  },
   tasks: {
     list: '/tasks',
     catalog: '/tasks/catalog',
@@ -74,7 +78,9 @@ export const API_ENDPOINTS = {
     detail: (id: number | string) => `/documents/${id}`,
     upload: '/documents',
     download: (id: number | string) => `/documents/${id}/download`,
-    delete: (id: number | string) => `/documents/${id}`
+    delete: (id: number | string) => `/documents/${id}`,
+    folders: '/documents/folders',
+    folder: (id: number | string) => `/documents/folders/${id}`
   },
   academicEvents: {
     list: '/academic-events',
@@ -82,7 +88,12 @@ export const API_ENDPOINTS = {
     create: '/academic-events',
     update: (id: number | string) => `/academic-events/${id}`,
     delete: (id: number | string) => `/academic-events/${id}`,
-    attachment: (id: number | string) => `/academic-events/${id}/attachment`
+    attachment: (id: number | string) => `/academic-events/${id}/attachment`,
+    pendingUpdates: '/academic-events/pending-updates',
+    reason: (id: number | string) => `/academic-events/${id}/reason`,
+    complete: (id: number | string) => `/academic-events/${id}/complete`,
+    approval: (id: number | string) => `/academic-events/${id}/approval`,
+    history: (id: number | string) => `/academic-events/${id}/history`
   },
   impNotifications: {
     list: '/imp-notifications',

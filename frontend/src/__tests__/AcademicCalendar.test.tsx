@@ -15,6 +15,11 @@ vi.mock('../services/academicEventService', () => ({
   deleteAcademicEvent: vi.fn(),
   downloadAcademicEventAttachment: vi.fn(),
   getAcademicEvents: vi.fn(),
+  getPendingEventUpdates: vi.fn(),
+  getAcademicEventHistory: vi.fn(),
+  submitEventReason: vi.fn(),
+  completeAcademicEvent: vi.fn(),
+  updateEventApproval: vi.fn(),
   updateAcademicEvent: vi.fn()
 }));
 
@@ -36,7 +41,27 @@ const sampleEvent: AcademicEvent = {
   created_by: 1,
   created_by_name: 'Chairman',
   created_at: null,
-  updated_at: null
+  updated_at: null,
+  responsible_user_id: null,
+  responsible_name: null,
+  responsible_head_type: null,
+  completion_status: 'PENDING',
+  workflow_status: 'PLANNED',
+  workflow_label: 'Planned',
+  is_overdue: false,
+  non_completion_reason: null,
+  reason_submitted_by_name: null,
+  reason_submitted_at: null,
+  completed_by: null,
+  completed_by_name: null,
+  actual_completion_date: null,
+  completion_remarks: null,
+  approval_status: 'PENDING',
+  approval_remarks: null,
+  approval_updated_by_name: null,
+  approval_updated_at: null,
+  original_start_date: dateKey,
+  original_start_time: '09:00'
 };
 
 function renderWithProviders(child: ReactNode, role = 'HR') {
@@ -56,6 +81,7 @@ function renderWithProviders(child: ReactNode, role = 'HR') {
 describe('Academic calendar and dashboard events', () => {
   beforeEach(() => {
     vi.mocked(academicEventService.getAcademicEvents).mockResolvedValue([sampleEvent]);
+    vi.mocked(academicEventService.getPendingEventUpdates).mockResolvedValue([]);
   });
 
   it('renders events in the calendar and opens read-only details for other users', async () => {

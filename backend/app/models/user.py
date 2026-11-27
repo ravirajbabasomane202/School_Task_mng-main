@@ -30,12 +30,20 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True, nullable=False)
     last_login = db.Column(db.DateTime, nullable=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    # One-line "Responsibility" statement that heads the user's key responsibilities.
+    responsibility_summary = db.Column(db.Text, nullable=True)
 
     department = db.relationship('Department', back_populates='users')
     tasks_assigned_to = db.relationship('Task', foreign_keys='Task.assigned_to', back_populates='assignee', lazy='dynamic')
     tasks_assigned_by = db.relationship('Task', foreign_keys='Task.assigned_by', back_populates='assigner', lazy='dynamic')
     notifications = db.relationship('Notification', back_populates='user', lazy='dynamic')
     refresh_tokens = db.relationship('RefreshToken', back_populates='user', lazy='dynamic')
+    key_responsibilities = db.relationship(
+        'UserKeyResponsibility',
+        order_by='(UserKeyResponsibility.sort_order, UserKeyResponsibility.id)',
+        cascade='all, delete-orphan',
+        lazy='selectin',
+    )
 
     def set_password(self, password):
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
@@ -43,7 +51,7 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
-    def to_dict(self, include_department=True):
+    def to_dict(self, include_department=True, include_responsibilities=False):
         data = {
             'id': self.id,
             'name': self.name,
@@ -58,6 +66,9 @@ class User(db.Model):
         }
         if include_department:
             data['department'] = self.department.to_dict() if self.department else None
+        if include_responsibilities:
+            data['responsibility_summary'] = self.responsibility_summary
+            data['key_responsibilities'] = [item.to_dict() for item in self.key_responsibilities]
         return data
 
     def to_summary(self):

@@ -225,6 +225,7 @@ def create_app(config_name=None):
     from app.routes.important_documents import important_documents_bp
     from app.routes.academic_events import academic_events_bp
     from app.routes.imp_notifications import imp_notifications_bp
+    from app.routes.key_responsibilities import key_responsibilities_bp
 
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(users_bp, url_prefix='/api/users')
@@ -248,6 +249,7 @@ def create_app(config_name=None):
     app.register_blueprint(important_documents_bp, url_prefix='/api/documents')
     app.register_blueprint(academic_events_bp, url_prefix='/api/academic-events')
     app.register_blueprint(imp_notifications_bp, url_prefix='/api/imp-notifications')
+    app.register_blueprint(key_responsibilities_bp, url_prefix='/api/key-responsibilities')
 
     # ── APScheduler: hourly overdue sweep (auto-DELAYED + assigner reminders) ──────────────────────────────
     # Guard against multiple gunicorn workers each starting their own scheduler.

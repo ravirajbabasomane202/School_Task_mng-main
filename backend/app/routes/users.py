@@ -6,6 +6,7 @@ from app.models.role import Role, sync_roles
 from app.utils.response import success, error
 from app.utils.decorators import roles_required
 from app.utils.permissions import CHAIRMAN_LEVEL_ROLES
+from app.routes.key_responsibilities import parse_responsibilities, parse_summary, replace_responsibilities
 
 users_bp = Blueprint('users', __name__)
 
@@ -64,14 +65,14 @@ def list_users():
     # that page's queryFn does `return response.data as User[]` — this will be the wrapper
     # object, not the array. That is a frontend read bug; the correct pattern is .data.data.
     # We serve wrapped here to satisfy the majority pattern (userService / api.ts callers).
-    return success([u.to_dict(include_department=True) for u in users])
+    return success([u.to_dict(include_department=True, include_responsibilities=True) for u in users])
 
 
 @users_bp.route('/<int:user_id>', methods=['GET'])
 @roles_required(*CHAIRMAN_LEVEL_ROLES)
 def get_user(user_id):
     user = User.query.get_or_404(user_id)
-    return success(user.to_dict())
+    return success(user.to_dict(include_responsibilities=True))
 
 
 @users_bp.route('', methods=['POST'])
@@ -98,6 +99,13 @@ def create_user():
     if len(data['password']) < 8:
         return error('Password must be at least 8 characters', 400)
 
+    responsibilities, responsibilities_error = parse_responsibilities(data.get('key_responsibilities'))
+    if responsibilities_error:
+        return error(responsibilities_error, 400)
+    summary, summary_error = parse_summary(data.get('responsibility_summary'))
+    if summary_error:
+        return error(summary_error, 400)
+
     user = User(
         name=data['name'].strip(),
         email=data['email'].lower().strip(),
@@ -106,13 +114,16 @@ def create_user():
         sort_order=data.get('sort_order')
     )
     user.set_password(data['password'])
+    user.responsibility_summary = summary
     db.session.add(user)
+    db.session.flush()
+    replace_responsibilities(user, responsibilities)
     db.session.commit()
 
     # FIX (Issues 1 & 6): UserManagement.addUserMutation uses raw axios.post('/api/users')
     # and does `return response.data` expecting a User object directly — not a wrapped envelope.
     # Return the raw user dict so response.data IS the User.
-    return jsonify(user.to_dict()), 201
+    return jsonify(user.to_dict(include_responsibilities=True)), 201
 
 
 @users_bp.route('/<int:user_id>', methods=['PUT'])
@@ -145,13 +156,25 @@ def update_user(user_id):
         user.sort_order = data['sort_order']
     if 'password' in data and data['password']:
         user.set_password(data['password'])
+    if 'key_responsibilities' in data:
+        responsibilities, responsibilities_error = parse_responsibilities(data['key_responsibilities'])
+        if responsibilities_error:
+            db.session.rollback()
+            return error(responsibilities_error, 400)
+        replace_responsibilities(user, responsibilities)
+    if 'responsibility_summary' in data:
+        summary, summary_error = parse_summary(data['responsibility_summary'])
+        if summary_error:
+            db.session.rollback()
+            return error(summary_error, 400)
+        user.responsibility_summary = summary
 
     db.session.commit()
 
     # FIX (Issue 6): UserManagement.editUserMutation uses raw axios.put('/api/users/:id')
     # and does `return response.data` expecting a User object directly — not a wrapped envelope.
     # Return the raw user dict so response.data IS the User.
-    return jsonify(user.to_dict()), 200
+    return jsonify(user.to_dict(include_responsibilities=True)), 200
 
 
 @users_bp.route('/<int:user_id>', methods=['DELETE'])

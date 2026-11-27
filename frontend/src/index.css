@@ -121,3 +121,47 @@ canvas {
     animation: none !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Academic Calendar printing (A4). The print document is a portal child of
+   <body>; everything else in the app is hidden while printing.
+   ------------------------------------------------------------------------- */
+.calendar-print-root { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 10mm; }
+
+  body > *:not(.calendar-print-root) { display: none !important; }
+  html, body { background: #fff !important; }
+
+  .calendar-print-root {
+    display: block;
+    color: #111;
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 9.5pt;
+    line-height: 1.3;
+  }
+  .calendar-print-root .print-header { text-align: center; margin-bottom: 8px; border-bottom: 2px solid #185FA5; padding-bottom: 6px; }
+  .calendar-print-root .print-header h1 { font-size: 16pt; margin: 0; color: #0C447C; }
+  .calendar-print-root .print-header h2 { font-size: 13pt; margin: 2px 0; }
+  .calendar-print-root .print-header p { margin: 0; font-size: 9pt; color: #444; }
+  .calendar-print-root h3 { font-size: 11pt; margin: 10px 0 4px; }
+
+  .calendar-print-root table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .calendar-print-root th,
+  .calendar-print-root td { border: 1px solid #888; padding: 3px 4px; vertical-align: top; word-wrap: break-word; overflow-wrap: anywhere; }
+  .calendar-print-root thead { display: table-header-group; }          /* header repeats on every page */
+  .calendar-print-root tr { break-inside: avoid; page-break-inside: avoid; }
+  .calendar-print-root th { background: #E6F1FB; font-size: 9pt; text-align: left; }
+
+  .calendar-print-root .print-grid th { text-align: center; }
+  .calendar-print-root .print-grid td { height: 22mm; width: 14.28%; font-size: 8pt; }
+  .calendar-print-root .print-outside { background: #f2f2f2; color: #999; }
+  .calendar-print-root .print-daynum { font-weight: bold; font-size: 10pt; margin-bottom: 2px; }
+  .calendar-print-root .print-chip { border-left: 3px solid #185FA5; background: #F4F8FC; margin-bottom: 2px; padding: 1px 3px; }
+  .calendar-print-root .print-chip-meta { color: #444; font-size: 7pt; }
+  .calendar-print-root .print-small { color: #444; font-size: 8pt; margin-top: 2px; }
+  .calendar-print-root .print-break { break-before: page; page-break-before: always; }
+  .calendar-print-root .print-empty { font-style: italic; }
+  .calendar-print-root .print-footer { margin-top: 10px; font-size: 8pt; color: #555; text-align: right; }
+}

@@ -11,12 +11,17 @@ import api from '../../services/api';
 import type { User } from '../../types/user.types';
 
 import PageContainer from '../../components/common/PageContainer';
+import KeyResponsibilitiesEditor from '../../components/keyResponsibilities/KeyResponsibilitiesEditor';
+import KeyResponsibilitiesModal from '../../components/keyResponsibilities/KeyResponsibilitiesModal';
+
 interface AddUserForm {
   name: string;
   email: string;
   role: string;
   password: string;
   head_type?: string;
+  responsibility_summary: string;
+  key_responsibilities: string[];
 }
 
 interface EditUserForm {
@@ -25,7 +30,19 @@ interface EditUserForm {
   role: string;
   password?: string;
   head_type?: string;
+  responsibility_summary: string;
+  key_responsibilities: string[];
 }
+
+const EMPTY_ADD_FORM: AddUserForm = {
+  name: '',
+  email: '',
+  role: '',
+  password: '',
+  head_type: '',
+  responsibility_summary: '',
+  key_responsibilities: []
+};
 
 interface ApiResponse<T> {
   data: T;
@@ -39,17 +56,15 @@ const UserManagement: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeactivateModalOpen, setIsDeactivateModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [addForm, setAddForm] = useState<AddUserForm>({
-    name: '',
-    email: '',
-    role: '',
-    password: ''
-  });
+  const [viewResponsibilitiesUser, setViewResponsibilitiesUser] = useState<User | null>(null);
+  const [addForm, setAddForm] = useState<AddUserForm>(EMPTY_ADD_FORM);
   const [editForm, setEditForm] = useState<EditUserForm>({
     name: '',
     email: '',
     role: '',
-    head_type: ''
+    head_type: '',
+    responsibility_summary: '',
+    key_responsibilities: []
   });
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
   const [editErrors, setEditErrors] = useState<Record<string, string>>({});
@@ -93,8 +108,9 @@ const UserManagement: React.FC = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
       void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-key-responsibilities'] });
       setIsAddModalOpen(false);
-      setAddForm({ name: '', email: '', role: '', password: '' });
+      setAddForm(EMPTY_ADD_FORM);
       setAddErrors({});
       toast.success('User added successfully');
     },
@@ -102,7 +118,7 @@ const UserManagement: React.FC = () => {
       if (error.response?.data?.errors) {
         setAddErrors(error.response.data.errors);
       } else {
-        toast.error('Failed to add user');
+        toast.error(error.response?.data?.message ?? error.response?.data?.error ?? 'Failed to add user');
       }
     }
   });
@@ -115,6 +131,7 @@ const UserManagement: React.FC = () => {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['users'] });
       void queryClient.invalidateQueries({ queryKey: ['tasks'] });
+      void queryClient.invalidateQueries({ queryKey: ['my-key-responsibilities'] });
       setIsEditModalOpen(false);
       setSelectedUser(null);
       setEditErrors({});
@@ -124,7 +141,7 @@ const UserManagement: React.FC = () => {
       if (error.response?.data?.errors) {
         setEditErrors(error.response.data.errors);
       } else {
-        toast.error('Failed to update user');
+        toast.error(error.response?.data?.message ?? error.response?.data?.error ?? 'Failed to update user');
       }
     }
   });
@@ -167,7 +184,9 @@ const UserManagement: React.FC = () => {
       name: user.name,
       email: user.email,
       role: user.role,
-      head_type: user.head_type ?? ''
+      head_type: user.head_type ?? '',
+      responsibility_summary: user.responsibility_summary ?? '',
+      key_responsibilities: (user.key_responsibilities ?? []).map((item) => item.description)
     });
     setIsEditModalOpen(true);
   };
@@ -192,7 +211,10 @@ const UserManagement: React.FC = () => {
         users={orderedUsers}
         onEdit={openEditModal}
         onDeactivate={openDeactivateModal}
+        onViewResponsibilities={setViewResponsibilitiesUser}
       />
+
+      <KeyResponsibilitiesModal onClose={() => setViewResponsibilitiesUser(null)} user={viewResponsibilitiesUser} />
 
       <Modal
         isOpen={isAddModalOpen}
@@ -244,6 +266,19 @@ const UserManagement: React.FC = () => {
               value={addForm.role}
             />
           </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Head Type</label>
+            <input type="text" value={addForm.head_type ?? ''} onChange={(event) => setAddForm({ ...addForm, head_type: event.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
+          </div>
+          <KeyResponsibilitiesEditor
+            error={addErrors.key_responsibilities}
+            items={addForm.key_responsibilities}
+            onChange={({ summary, items }) =>
+              setAddForm({ ...addForm, responsibility_summary: summary, key_responsibilities: items })
+            }
+            role={addForm.role}
+            summary={addForm.responsibility_summary}
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700">Temporary Password</label>
             <input
@@ -313,6 +348,15 @@ const UserManagement: React.FC = () => {
             <label className="block text-sm font-medium text-gray-700">Head Type</label>
             <input type="text" value={editForm.head_type ?? ''} onChange={(event) => setEditForm({ ...editForm, head_type: event.target.value })} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500" />
           </div>
+          <KeyResponsibilitiesEditor
+            error={editErrors.key_responsibilities}
+            items={editForm.key_responsibilities}
+            onChange={({ summary, items }) =>
+              setEditForm({ ...editForm, responsibility_summary: summary, key_responsibilities: items })
+            }
+            role={editForm.role}
+            summary={editForm.responsibility_summary}
+          />
           <div>
             <label className="block text-sm font-medium text-gray-700">
               New Password (optional)

@@ -102,6 +102,10 @@ def _seed_user_and_token(app, client, role: str, email: str) -> dict:
             existing.is_active = True  # earlier tests may deactivate seeded users
             db.session.commit()
 
+    # The test client reuses the session-wide app context, so its SQLAlchemy
+    # session can still hold this user from an earlier request with the OLD
+    # password hash. Drop that cached state so the login below sees the new one.
+    db.session.expire_all()
     result = _login(client, email, plain)
     token = result['data']['accessToken']
     return {'Authorization': f'Bearer {token}'}
@@ -141,3 +145,36 @@ def department(app_context):
         db.session.add(dept)
         db.session.commit()
     return dept
+
+
+@pytest.fixture
+def cleanup_feature_data(app):
+    """Remove rows the feature tests create (events, documents, folders and the
+    throw-away users) so older tests that assume an empty table keep passing on
+    the shared in-memory database."""
+    yield
+    from app.extensions import db
+    from app.models.academic_event import AcademicEvent, AcademicEventHistory
+    from app.models.important_document import DocumentAudience, DocumentFolder, ImportantDocument
+    from app.models.key_responsibility import UserKeyResponsibility
+    from app.models.notification import Notification
+    from app.models.refresh_token import RefreshToken
+    from app.models.user import User
+
+    with app.app_context():
+        db.session.rollback()
+        for model in (AcademicEventHistory, AcademicEvent, DocumentAudience, ImportantDocument):
+            model.query.delete()
+        DocumentFolder.query.update({'parent_id': None})
+        DocumentFolder.query.delete()
+        temp_ids = [
+            u.id for u in User.query.all()
+            if u.email.startswith(('kr-', 'ev-', 'doc-')) or u.email.endswith('@school.test') and u.name in ('Test Person',)
+        ]
+        if temp_ids:
+            UserKeyResponsibility.query.filter(UserKeyResponsibility.user_id.in_(temp_ids)).delete(synchronize_session=False)
+            Notification.query.filter(Notification.user_id.in_(temp_ids)).delete(synchronize_session=False)
+            RefreshToken.query.filter(RefreshToken.user_id.in_(temp_ids)).delete(synchronize_session=False)
+            User.query.filter(User.id.in_(temp_ids)).delete(synchronize_session=False)
+        Notification.query.filter(Notification.type.like('EVENT_%')).delete(synchronize_session=False)
+        db.session.commit()
